@@ -325,6 +325,23 @@ class Store:
                         )
                     )
 
+    def purge_provenance(self, user_id, provenance):
+        """Remove every measurement of one provenance for one user, plus the
+        documents derived from history (same reasoning as purge()'s
+        retention sweep: derived data carries the same taint as its source).
+        Used once, to convert the demo account from synthetic to real
+        Garmin data without leaving old synthetic frames mixed into its
+        history or stale baselines computed from them.
+        """
+        with self.engine.begin() as c:
+            c.execute(
+                delete(frames).where(frames.c.user_id == user_id, frames.c.provenance == provenance)
+            )
+            for kind in ["baseline", "readiness", "prediction", "prediction_score", "plan"]:
+                c.execute(
+                    delete(documents).where(documents.c.user_id == user_id, documents.c.kind == kind)
+                )
+
     def delete_user(self, user_id):
         with self.engine.begin() as c:
             ids = {user_id}

@@ -111,32 +111,48 @@ class Runtime:
                         "naps_enabled": True,
                     },
                 )
-            if not self.store.history("demo", limit=1):
-                generated = []
-                async for f in self.synthetic.backfill("demo", utcnow() - timedelta(days=7)):
-                    generated.append(f)
-                for f in sorted(generated, key=lambda x: x.event_time):
-                    # Prequential demo: issue predictions using only earlier sessions, then ingest later observations.
-                    stamp = f.event_time
-                    f = f.model_copy(update={"ingest_time": stamp + timedelta(milliseconds=50)})
-                    committed = self.store.append(normalize(f))
-                    self.history_cache.setdefault("demo", []).append(committed)
-                    if f.activity_level == 0.03 and f.heart_rate_bpm and 131 < f.heart_rate_bpm < 140:
-                        state = self.compute("demo", now=stamp, refit=True)
-                        prediction = issue_prediction(stamp, state.latest, state.baseline_summary)
-                        if prediction:
-                            self.store.put(
-                                "demo",
-                                "prediction",
-                                prediction.model_dump(mode="json"),
-                                prediction.id,
-                                immutable=True,
-                            )
-                    if f.sleep:
-                        self.compute("demo", now=stamp, refit=True)
+            if self.config.demo_uses_real_data:
+                # Opt-in (see config.py) -- the unauthenticated/no-session
+                # fallback account (api.py's `user()` helper) IS "demo",
+                # there's no separate "owner" slot. One-time purge of any
+                # synthetic frames + the documents derived from them (stale
+                # baselines/readiness/predictions computed while synthetic
+                # data was mixed in) -- idempotent, matches zero rows once
+                # already clean -- then "demo" becomes a normal live
+                # Garmin-InfluxDB sync target like any other account, just
+                # auto-started instead of waiting for a Connect click.
+                self.store.purge_provenance("demo", Provenance.SYNTHETIC.value)
+                self.history_cache.pop("demo", None)
                 self.states.pop("demo", None)
-            self.compute("demo", refit=True)
-            self.tasks.append(asyncio.create_task(self.demo_loop()))
+                await self.start_influx_live_sync("demo")
+            else:
+                # Project default: an explicitly synthetic demo workspace.
+                if not self.store.history("demo", limit=1):
+                    generated = []
+                    async for f in self.synthetic.backfill("demo", utcnow() - timedelta(days=7)):
+                        generated.append(f)
+                    for f in sorted(generated, key=lambda x: x.event_time):
+                        # Prequential demo: issue predictions using only earlier sessions, then ingest later observations.
+                        stamp = f.event_time
+                        f = f.model_copy(update={"ingest_time": stamp + timedelta(milliseconds=50)})
+                        committed = self.store.append(normalize(f))
+                        self.history_cache.setdefault("demo", []).append(committed)
+                        if f.activity_level == 0.03 and f.heart_rate_bpm and 131 < f.heart_rate_bpm < 140:
+                            state = self.compute("demo", now=stamp, refit=True)
+                            prediction = issue_prediction(stamp, state.latest, state.baseline_summary)
+                            if prediction:
+                                self.store.put(
+                                    "demo",
+                                    "prediction",
+                                    prediction.model_dump(mode="json"),
+                                    prediction.id,
+                                    immutable=True,
+                                )
+                        if f.sleep:
+                            self.compute("demo", now=stamp, refit=True)
+                    self.states.pop("demo", None)
+                self.compute("demo", refit=True)
+                self.tasks.append(asyncio.create_task(self.demo_loop()))
         self.tasks.extend([asyncio.create_task(self.worker()), asyncio.create_task(self.maintenance())])
 
     async def close(self):
@@ -395,20 +411,29 @@ class Runtime:
             return {"status": "already_running"}
 
         async def run():
-            try:
-                await self.sync(uid, "garmin_influx")
-                self.influx_sync_status[uid] = {"status": "live"}
-                async for frame in self.adapters["garmin_influx"].stream(uid):
-                    await self.ingest(frame)
-                    self.influx_sync_status[uid] = {
-                        "status": "live",
-                        "last_frame_at": utcnow().isoformat(),
-                    }
-            except asyncio.CancelledError:
-                self.influx_sync_status[uid] = {"status": "stopped"}
-                raise
-            except Exception as exc:
-                self.influx_sync_status[uid] = {"status": "error", "detail": str(exc)}
+            # Retries the whole cycle (initial backfill + stream loop) on
+            # any failure, not just within the stream -- this can now be
+            # the app's always-on default data path (see Runtime.start()),
+            # so a transient failure (e.g. InfluxDB/Docker not up yet when
+            # this server starts) must recover on its own, the same way
+            # the BLE bridge already retries its connection.
+            while True:
+                try:
+                    await self.sync(uid, "garmin_influx")
+                    self.influx_sync_status[uid] = {"status": "live"}
+                    async for frame in self.adapters["garmin_influx"].stream(uid):
+                        await self.ingest(frame)
+                        self.influx_sync_status[uid] = {
+                            "status": "live",
+                            "last_frame_at": utcnow().isoformat(),
+                        }
+                except asyncio.CancelledError:
+                    self.influx_sync_status[uid] = {"status": "stopped"}
+                    raise
+                except Exception as exc:
+                    self.influx_sync_status[uid] = {"status": "retrying", "detail": str(exc)}
+                    log.warning('{"event":"garmin_influx_live_retry","reason":"%s"}', exc)
+                    await asyncio.sleep(10)
 
         task = asyncio.create_task(run())
         self.influx_sync_tasks[uid] = task
