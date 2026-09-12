@@ -3,6 +3,7 @@ export type VoiceEvents = {
   speaking: (active: boolean) => void;
   status: (message: string) => void;
   error: (message: string) => void;
+  blocked?: () => void;
 };
 function event(
   target: EventTarget,
@@ -77,13 +78,12 @@ export class TwinVoice {
       await this.player.play();
     } catch (error) {
       if ((error as Error).name === "NotAllowedError") {
-        this.events?.status(
-          "Audio is ready. Tap Listen with ElevenLabs to allow playback.",
-        );
+        this.events?.status("Tap to hear your twin’s answer.");
+        this.events?.blocked?.();
       } else if ((error as Error).name !== "AbortError") {
         this.events?.speaking(false);
         this.events?.error(
-          "Speech could not play. Your text answer is saved; try Listen again.",
+          "Speech could not play. Your text answer is saved below.",
         );
       }
     }
@@ -110,7 +110,7 @@ export class TwinVoice {
         if (!this.cached) this.conversationId = undefined;
         events.speaking(false);
         events.error(
-          "Speech was interrupted. Your text answer is saved; try Listen again.",
+          "Speech was interrupted. Your text answer is saved below.",
         );
       }
     };
