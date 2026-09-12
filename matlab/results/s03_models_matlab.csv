@@ -1,24 +1,37 @@
-horizon,model,split,mae,rmse,r2,source
-1h,bagged trees,validation,,,,pending-30m-and-1h-rows-cut-off-in-capture
-1h,baseline: time_of_day,validation,8.91,11.56,0.769,matlab
-1h,baseline: trend_plus_clock,validation,4.32,5.52,0.947,matlab
-1h,boosted trees,validation,1.92,2.44,0.990,matlab
-1h,gaussian process,validation,7.01,10.87,0.796,matlab
-1h,ridge: controls + 4 physiology,validation,1.99,2.56,0.989,matlab
-1h,ridge: controls only,validation,2.14,2.65,0.988,matlab
-3h,bagged trees,validation,4.84,6.57,0.924,matlab
-3h,baseline: extrapolation,validation,7.80,11.13,0.783,matlab
-3h,baseline: time_of_day,validation,8.58,10.78,0.796,matlab
-3h,baseline: trend_plus_clock,validation,5.20,6.40,0.928,matlab
-3h,boosted trees,validation,5.35,7.78,0.894,matlab
-3h,gaussian process,validation,9.20,12.01,0.747,matlab
-3h,ridge: controls + 4 physiology,validation,6.32,8.37,0.877,matlab
-3h,ridge: controls only,validation,6.28,7.90,0.890,matlab
-6h,bagged trees,validation,8.47,11.41,0.732,matlab
-6h,baseline: extrapolation,validation,17.34,26.09,-0.402,matlab
-6h,baseline: time_of_day,validation,7.37,9.09,0.830,matlab
-6h,baseline: trend_plus_clock,validation,8.34,12.75,0.665,matlab
-6h,boosted trees,validation,8.91,12.05,0.701,matlab
-6h,gaussian process,validation,11.16,14.46,0.570,matlab
-6h,ridge: controls + 1 physiology,validation,9.21,12.11,0.698,matlab
-6h,ridge: controls only,validation,8.47,11.09,0.747,matlab
+horizon,model,split,n,mae,rmse,r2
+30m,bagged trees,validation,812,1.52241541851802,2.10519993772173,0.992336429551809
+30m,baseline: extrapolation,validation,812,1.20566502463054,1.60836023952923,0.995526874184933
+30m,baseline: time_of_day,validation,812,8.87752629978373,11.5295516650559,0.770136880326727
+30m,baseline: trend_plus_clock,validation,812,4.37527677444925,5.63329188012832,0.945125703534952
+30m,boosted trees,validation,812,0.891360468591486,1.15360570905074,0.997698774115629
+30m,gaussian process,validation,812,0.844148317463037,1.10005274880636,0.997907471035152
+30m,ridge: controls + 4 physiology,validation,812,1.0024747112825,1.27819313672504,0.997174876617834
+30m,ridge: controls only,validation,812,1.13430778646359,1.43818857670873,0.996423352607677
+30m,paired: physiology vs baseline: extrapolation,validation,5,0.115130924754783,0.129405190235979,4
+1h,bagged trees,validation,791,2.64448175925805,3.45139746723475,0.979392205331223
+1h,baseline: extrapolation,validation,791,2.34639696586599,3.08906967449034,0.983491904434102
+1h,baseline: time_of_day,validation,791,8.9123889499495,11.5565890638838,0.768952694730756
+1h,baseline: trend_plus_clock,validation,791,4.32373281559491,5.52338562812914,0.947222076717579
+1h,boosted trees,validation,791,1.9234626704043,2.43935626369617,0.989705813499096
+1h,gaussian process,validation,791,7.01095814795894,10.8658950749945,0.795745054616998
+1h,ridge: controls + 4 physiology,validation,791,1.98739209391064,2.5559039563265,0.98869864214913
+1h,ridge: controls only,validation,791,2.13586620866279,2.64730880911324,0.98787586465261
+1h,paired: physiology vs baseline: extrapolation,validation,5,-0.0751419477140539,0.599322682695025,3
+3h,bagged trees,validation,716,4.83814594411483,6.57429029753907,0.924211250668773
+3h,baseline: extrapolation,validation,716,7.79748603351955,11.1342117094593,0.782616820813673
+3h,baseline: time_of_day,validation,716,8.5796616852587,10.7807121009858,0.796201077784724
+3h,baseline: trend_plus_clock,validation,716,5.20477630927402,6.39949546069213,0.928187762768937
+3h,boosted trees,validation,716,5.34627230485377,7.78062245921115,0.893846169234871
+3h,gaussian process,validation,716,9.20492343872168,12.0106141077891,0.747048410095427
+3h,ridge: controls + 4 physiology,validation,716,6.3152755820337,8.36591764821865,0.877274684686187
+3h,ridge: controls only,validation,716,6.27840735431285,7.903412076239,0.890469205311957
+3h,paired: physiology vs baseline: trend_plus_clock,validation,5,-2.24317238494681,1.93431100318694,1
+6h,bagged trees,validation,601,8.47238463001956,11.4122367233909,0.731831825144707
+6h,baseline: extrapolation,validation,601,17.3394342762063,26.0934899219356,-0.401941945896606
+6h,baseline: time_of_day,validation,601,7.36823722202712,9.0947283335276,0.829688036952165
+6h,baseline: trend_plus_clock,validation,601,8.34130641200123,12.7547250194334,0.665028472986264
+6h,boosted trees,validation,601,8.90527810426587,12.0508887687455,0.700977513359815
+6h,gaussian process,validation,601,11.1629184923737,14.4586258612186,0.56955295311965
+6h,ridge: controls + 1 physiology,validation,601,9.21049423172586,12.1126559993956,0.697904358338543
+6h,ridge: controls only,validation,601,8.46676455413755,11.0889702236332,0.74680907958141
+6h,paired: physiology vs baseline: time_of_day,validation,5,-2.51161225648,1.2457031739924,1
