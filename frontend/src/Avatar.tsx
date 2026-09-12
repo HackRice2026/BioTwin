@@ -11,7 +11,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { RotateCcw, Move, Volume2 } from "lucide-react";
+import { RotateCcw, Move, Volume2, Mic, LoaderCircle } from "lucide-react";
 import type { TwinState, SimulationOverlay } from "./contracts";
 import { AvatarFSM } from "./fsm";
 import { humanize } from "./api";
@@ -193,6 +193,8 @@ export default function Avatar({
   state,
   reduced,
   speaking = false,
+  listening = false,
+  thinking = false,
   compact = false,
 }: {
   live: RefObject<TwinState | null>;
@@ -200,6 +202,8 @@ export default function Avatar({
   state: TwinState;
   reduced: boolean;
   speaking?: boolean;
+  listening?: boolean;
+  thinking?: boolean;
   compact?: boolean;
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
@@ -207,6 +211,13 @@ export default function Avatar({
   const [dpr, setDpr] = useState(1.5);
   const [p95, setP95] = useState<number | null>(null);
   const [motion, setMotion] = useState("IDLE");
+  const phase = speaking
+    ? "speaking"
+    : listening
+      ? "listening"
+      : thinking
+        ? "thinking"
+        : "idle";
   useEffect(() => {
     setDpr(quality === "Low" ? 1 : quality === "High" ? 2 : 1.5);
   }, [quality]);
@@ -215,7 +226,9 @@ export default function Avatar({
     if (quality === "Auto" && n > 25) setDpr(1);
   };
   return (
-    <div className={`avatar-card${compact ? " compact" : ""}`}>
+    <div
+      className={`avatar-card${compact ? " compact" : ""} avatar-phase-${phase}`}
+    >
       <div className="avatar-top">
         <span className="eyebrow">YOUR DIGITAL TWIN</span>
         <span className="avatar-state">
@@ -294,11 +307,6 @@ export default function Avatar({
       <div className="avatar-caption">
         <Move size={13} />
         <span>Drag to explore your twin</span>
-        {speaking && (
-          <span className="speaking">
-            <Volume2 size={12} /> Speaking
-          </span>
-        )}
       </div>
       <div className="avatar-bottom">
         <span>
@@ -327,6 +335,25 @@ export default function Avatar({
             <RotateCcw size={14} />
           </button>
         </div>
+      </div>
+      <div className="avatar-voice-status" aria-live="polite">
+        <span className="avatar-voice-pulse" aria-hidden="true" />
+        {phase === "speaking" && (
+          <>
+            <Volume2 size={12} /> Speaking
+          </>
+        )}
+        {phase === "listening" && (
+          <>
+            <Mic size={12} /> Listening
+          </>
+        )}
+        {phase === "thinking" && (
+          <>
+            <LoaderCircle size={12} className="spin" /> Thinking
+          </>
+        )}
+        {phase === "idle" && "Idle"}
       </div>
     </div>
   );

@@ -46,6 +46,7 @@ export function useTwinConversation({
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [voiceNotice, setVoiceNotice] = useState("");
   const [voiceError, setVoiceError] = useState(false);
+  const [needsTap, setNeedsTap] = useState(false);
   const voice = useRef<TwinVoice | null>(null);
   const epoch = useRef(0);
   const busy = useRef(false);
@@ -61,6 +62,11 @@ export function useTwinConversation({
     voice.current?.stop();
     setSpeaking(false);
     setVoiceNotice("");
+    setNeedsTap(false);
+  }
+  function resumeSpeech() {
+    setNeedsTap(false);
+    void voice.current?.resume();
   }
   function reset() {
     epoch.current++;
@@ -180,12 +186,16 @@ export function useTwinConversation({
         return;
       if (!voice.current) voice.current = new TwinVoice();
       await voice.current.play(reply.id, `/api/voice/${ticket.reply_id}`, {
-        speaking: setSpeaking,
+        speaking: (active) => {
+          setSpeaking(active);
+          if (active) setNeedsTap(false);
+        },
         status: setVoiceNotice,
         error: (message) => {
           setVoiceError(true);
           setVoiceNotice(message);
         },
+        blocked: () => setNeedsTap(true),
       });
     } catch (error) {
       if (request !== speechRequest.current || currentEpoch !== epoch.current)
@@ -399,10 +409,12 @@ export function useTwinConversation({
     nextBefore,
     voiceNotice,
     voiceError,
+    needsTap,
     ask,
     speak,
     microphone,
     stopSpeaking,
+    resumeSpeech,
     reset,
     loadHistory,
   };
