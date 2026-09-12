@@ -42,6 +42,9 @@ class SleepSummary(Contract):
     deep_minutes: int | None = Field(default=None, ge=0)
     rem_minutes: int | None = Field(default=None, ge=0)
     efficiency_pct: float | None = Field(default=None, ge=0, le=100)
+    # Vendor-computed sleep score. Displayed as the vendor's own summary, never
+    # treated as a measurement or blended into BioTwin's readiness.
+    score: int | None = Field(default=None, ge=0, le=100)
 
     @model_validator(mode="after")
     def interval(self):
@@ -69,6 +72,17 @@ class TwinFrame(Contract):
     activity_level: float | None = Field(default=None, ge=0, le=1)
     sleep: SleepSummary | None = None
     steps: int | None = Field(default=None, ge=0, le=200000)
+    # Vendor daily summaries. These are proprietary composites, not sensor
+    # measurements: they are shown with their provenance and deliberately kept out
+    # of the readiness score, whose weights are a documented engineering spec.
+    body_battery_charged: int | None = Field(default=None, ge=0, le=100)
+    body_battery_drained: int | None = Field(default=None, ge=0, le=100)
+    stress_avg: int | None = Field(default=None, ge=0, le=100)
+    stress_max: int | None = Field(default=None, ge=0, le=100)
+    active_calories: int | None = Field(default=None, ge=0, le=20000)
+    active_seconds: int | None = Field(default=None, ge=0, le=86400)
+    highly_active_seconds: int | None = Field(default=None, ge=0, le=86400)
+    floors_climbed: float | None = Field(default=None, ge=0, le=1000)
     confidence: float = Field(default=1, ge=0, le=1)
 
 

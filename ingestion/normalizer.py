@@ -12,6 +12,16 @@ METRICS = (
     "activity_level",
     "sleep",
     "steps",
+    # Vendor daily composites. Carried so they can be displayed with provenance;
+    # they are not sensor measurements and do not feed readiness.
+    "body_battery_charged",
+    "body_battery_drained",
+    "stress_avg",
+    "stress_max",
+    "active_calories",
+    "active_seconds",
+    "highly_active_seconds",
+    "floors_climbed",
 )
 
 

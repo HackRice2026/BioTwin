@@ -5,6 +5,29 @@ import fitdecode
 from shared.schemas import TwinFrame, SleepSummary, Provenance, utcnow
 
 
+def activity_level(values):
+    """Derive a 0-1 movement level from the motion channels a FIT record carries.
+
+    This is a DERIVED PROXY, not a measured quantity: FIT activity files hold no
+    accelerometer, so speed and cadence stand in for movement. Recovery
+    segmentation uses it only to corroborate a heart-rate decline, and the
+    normalizer lowers confidence on heart rates recorded while moving. Records with
+    neither channel -- strength training, for instance -- return None, and a missing
+    level stays missing rather than being reported as stillness.
+    """
+    speed = values.get("enhanced_speed")
+    if speed is None:
+        speed = values.get("speed")
+    if isinstance(speed, (int, float)) and speed >= 0:
+        # ~4 m/s is a brisk run; above that the level is already saturated.
+        return round(min(1.0, float(speed) / 4.0), 3)
+    cadence = values.get("cadence")
+    if isinstance(cadence, (int, float)) and cadence > 0:
+        # Running cadence is reported per leg, so double it for steps per minute.
+        return round(min(1.0, float(cadence) * 2 / 180.0), 3)
+    return None
+
+
 def parse_fit(data, user_id):
     frames = []
     with fitdecode.FitReader(io.BytesIO(data), check_crc=fitdecode.CrcCheck.RAISE) as reader:
@@ -25,6 +48,7 @@ def parse_fit(data, user_id):
                     event_time=stamp,
                     provenance=Provenance.GARMIN_FIT_REPLAY,
                     heart_rate_bpm=hr,
+                    activity_level=activity_level(values),
                 )
             )
     if not frames:
