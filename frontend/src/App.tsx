@@ -766,6 +766,8 @@ export default function App() {
                   state={state}
                   reduced={reduced}
                   speaking={speaking}
+                  listening={listening}
+                  thinking={asking}
                 />
                 <div className="hero-panels">
                   <ReadinessPanel
