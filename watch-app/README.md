@@ -145,4 +145,6 @@ constants pattern, with URL validation and restrictive file permissions.
 > Then configure the user's intended BioTwin account and build a private Venu 2
 > PRG for physical sideload. Verify actual hardware deliveries and measure latency
 > before reporting success. Preserve unrelated MATLAB work and personal data;
-> resolve the current mathworks-versus-dev branch instruction before publishing.
+> the user explicitly selected the existing mathworks branch for this work.
+> Garmin's agreement has been accepted with permission; SDK Manager is waiting
+> for Garmin account sign-in before device-profile installation.
