@@ -32,6 +32,7 @@ FIELDS = {
     "respiration": "respiration_brpm",
 }
 STATES = list(EnergyState)
+LABELS = {"sleep": "Sleep", "hrv": "Heart-rate variability", "resting_hr": "Resting heart rate"}
 
 
 def weighted_quantile(values, weights, p):
@@ -180,6 +181,7 @@ def readiness(
         {"sleep": 0.35, "hrv": 0.30, "resting_hr": 0.20, "sleep_debt": 0.15},
     )
     reasons = []
+    unreported = set()
 
     def z(x, stat):
         return max(-5, min(5, 0.6745 * (x - stat.median) / max(stat.mad, 0.5)))
@@ -194,6 +196,11 @@ def readiness(
             val = getattr(latest, field)
             contributions[key] = round(sign * z(val.total_minutes if field == "sleep" else val, stat), 3)
             available[key] = q.confidence * (0.6 if q.contested else 1)
+        elif stat.n_days == 0:
+            # Never observed from any connected source: the sensor does not report
+            # it, which is a different statement from a reading being late.
+            unreported.add(key)
+            reasons.append(f"{LABELS[key]} is not reported by this device")
         else:
             reasons.append(f"No recent {key.replace('_', ' ')}")
     sleeps = {}
@@ -234,8 +241,17 @@ def readiness(
             or (new < old and score > cuts[max(0, old - 1)] - 3)
         ):
             state = previous.state
+    # Confidence is measured against what the connected sources can actually
+    # report, not against the full weight set. A device that never reports RMSSD
+    # otherwise caps confidence at 60% however complete its own measurements are,
+    # which reads as missing data rather than an absent sensor. A signal that is
+    # merely late or contested still counts against confidence in full.
+    achievable = sum(w for k, w in weights.items() if k not in unreported) or 1
     confidence = round(
-        sum(weights[k] * available[k] for k in available) * (0.4 + 0.6 * base.shrinkage_weight), 2
+        sum(weights[k] * available[k] for k in available)
+        / achievable
+        * (0.4 + 0.6 * base.shrinkage_weight),
+        2,
     )
     return Readiness(
         user_id=user_id,

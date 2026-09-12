@@ -179,3 +179,44 @@ def test_prediction_scoring_ignores_preissuance_data():
 def test_sleep_interval_rejects_invalid_duration():
     with pytest.raises(ValueError):
         SleepSummary(start=NOW, end=NOW + timedelta(hours=1), total_minutes=400)
+
+
+def engine_state(history, base):
+    from modeling.engine import reconcile, readiness
+    latest, quality = reconcile(history, NOW)
+    return readiness("u", history, base, NOW, quality, latest)
+
+def test_confidence_is_measured_against_reportable_signals():
+    """A sensor that never reports RMSSD should not cap confidence at 60%.
+
+    Weights are sleep 0.35 / hrv 0.30 / resting 0.20 / debt 0.15, so leaving an
+    unreported signal in the denominator limits a Venu 2 to 0.60 however complete
+    its own measurements are. A late or contested reading must still cost full
+    confidence -- only a never-observed one is discounted.
+    """
+    history = []
+    for day in range(1, 8):
+        stamp = NOW - timedelta(days=day)
+        history.append(
+            frame(resting_hr_bpm=52, heart_rate_bpm=52).model_copy(
+                update={"event_time": stamp}
+            )
+        )
+        history.append(
+            frame(
+                sleep=SleepSummary(
+                    start=stamp - timedelta(hours=8),
+                    end=stamp,
+                    total_minutes=450,
+                )
+            ).model_copy(update={"event_time": stamp})
+        )
+    history.sort(key=lambda f: f.event_time)
+    base = baseline(history, "u", NOW, fit=False)
+    assert base.hrv_rmssd.n_days == 0, "fixture must contain no RMSSD"
+
+    state = engine_state(history, base)
+    assert state.confidence > 0.62, (
+        f"confidence {state.confidence} still limited by an unreported signal"
+    )
+    assert "not reported by this device" in (state.degraded_reason or "")

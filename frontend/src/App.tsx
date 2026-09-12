@@ -137,6 +137,20 @@ function MetricCard({
     </Card>
   );
 }
+const SIGNAL_NAMES: Record<string, string> = {
+  sleep: "your sleep",
+  hrv: "heart-rate variability",
+  resting_hr: "your resting pattern",
+  sleep_debt: "recent sleep debt",
+};
+function contributingSignals(ready: Readiness) {
+  const names = Object.keys(ready.contributions ?? {})
+    .map((k) => SIGNAL_NAMES[k])
+    .filter(Boolean);
+  if (!names.length) return "the measurements available";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 function ReadinessPanel({
   state,
   onSignals,
@@ -190,8 +204,11 @@ function ReadinessPanel({
           <p>
             {score == null
               ? "Connect your Garmin or import a recorded activity to begin."
-              : "An estimate based on your sleep, heart-rate variability, and resting pattern."}
+              : `An estimate based on ${contributingSignals(ready)}.`}
           </p>
+          {ready.degraded_reason && (
+            <span className="readiness-limit">{ready.degraded_reason}</span>
+          )}
           <span className="confidence">
             Confidence <b>{value(ready.confidence * 100)}%</b>
           </span>

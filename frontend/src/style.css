@@ -2772,3 +2772,12 @@ h1 {
 .main-shell main:has(.offline-banner) .stage {
   height: min(calc(100vh - 427px), 900px);
 }
+
+/* Why a signal is absent belongs beside the score, not hidden in a tooltip. */
+.readiness-limit {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #99a398;
+}
