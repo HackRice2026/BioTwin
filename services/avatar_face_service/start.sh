@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd /data/saurav/avatar_face_service
-source /data/saurav/envs/avatar_face_service/bin/activate
+source /data/saurav/envs/avatar_face_lipsync/bin/activate
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 

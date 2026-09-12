@@ -395,6 +395,31 @@ This file is a living document. The agent MUST:
      `exec` gotcha. Took the whole `avatar-face` tmux session down for
      about a minute by sending it C-c; recovered by recreating the session
      and rerunning `start.sh`, no data lost, but worth not repeating.
+- 2026-09-12 — Two more requests, handled together: seed a teammate's data
+  (see the onboarding script entry above) and replace the lip-sync
+  heuristic with "an actual model actually serving," not more heuristic
+  tuning. On the model: checked thoroughly for NGC/NVIDIA registry
+  credentials (this machine, the SCC box's docker config, saurav's env and
+  home directory) to pull the real Audio2Face-3D NIM as originally
+  planned -- genuinely nothing found, GPU/Docker/disk were all otherwise
+  ready. User's call (asked directly): use a real open-source model
+  instead of waiting on NVIDIA credentials. Deployed
+  `facebook/wav2vec2-base-960h` (real ASR, GPU-accelerated) in
+  `services/avatar_face_service/app.py`, replacing the procedural
+  generator -- full details, and the honest scope of what this is and
+  isn't, are in `docs/AVATAR_IMPLEMENTATION_PLAN.md`'s "Lip sync: what
+  changed" section. Verified end-to-end through the real production
+  WebSocket (local tunnel -> SCC box -> model -> back): service logs show
+  real inference completing (first call ~340ms cold, then consistently
+  under 30ms) and the returned mouth shapes tracking actual audio content.
+  First attempt used `facebook/wav2vec2-lv-60-espeak-cv-ft` (outputs real
+  IPA phonemes, would have been a better mapping than letters) but its
+  `phonemizer` dependency couldn't detect a genuinely-present, working
+  espeak/espeak-ng install (installed both `espeak-ng` and `espeak`,
+  confirmed both run fine standalone, `phonemizer` still reported "espeak
+  not installed") -- a real unresolved library compatibility issue, not a
+  missing-package problem; abandoned in favor of the plain-English model
+  rather than sinking more time into it.
 
 ---
 
@@ -608,6 +633,26 @@ This file is a living document. The agent MUST:
   with a login shell (that combination is what disconnected an earlier
   attempt that bundled it with a port-forward command -- plain non-login
   `sudo -n -u saurav` avoids whatever the bastion didn't like about that).
+- The SCC box's original `avatar_face_service` venv
+  (`/data/saurav/envs/avatar_face_service`) is Python 3.14 -- too new for a
+  stable PyTorch wheel as of 2026-09. Real ML work there runs in a
+  separate venv, `/data/saurav/envs/avatar_face_lipsync`, built from the
+  system's `/usr/bin/python3.12` instead (`nvcc`/CUDA toolkit isn't
+  installed system-wide either, but that's fine -- PyTorch's own wheels
+  bundle the CUDA runtime they need for inference; only building custom
+  CUDA kernels from source would need `nvcc`). Torch was installed via
+  `pip install torch --index-url https://download.pytorch.org/whl/cu124`
+  (driver is 595.71, plenty new enough for cu124). `start.sh` now
+  activates this venv, not the original one.
+- `ffmpeg` and `espeak`/`espeak-ng` are now installed system-wide on the
+  SCC box (`apt-get install -y ffmpeg espeak-ng espeak`, `nvidia` has
+  passwordless root sudo so this needed no workaround). Only `ffmpeg` is
+  actually used by anything running today -- see AGENTS.md's Log entry
+  and the plan doc for why `espeak` is installed but unused (a
+  `phonemizer` compatibility issue, not a missing package).
+- HuggingFace Hub (`huggingface.co`) is reachable from the SCC box with no
+  proxy/auth needed -- confirmed both a plain `curl` 200 and real model
+  downloads (`facebook/wav2vec2-base-960h`, ~360MB) working.
 
 ---
 

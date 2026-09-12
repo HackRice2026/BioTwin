@@ -47,11 +47,58 @@ Branch: `3d-gesturing`
 
 ## Important limitation
 
-The SCC service is currently an API-compatible `procedural_audio_fallback`, not NVIDIA Audio2Face yet. It streams ARKit-style blendshape frames from the incoming audio chunk envelope so the app has working mouth/facial motion and the correct WebSocket contract. The next model/agent should replace the internals of `services/avatar_face_service/app.py` with real NVIDIA Audio2Face/TensorRT inference while keeping the same API:
+Updated 2026-09-12: the SCC service now runs a real model (`facebook/wav2vec2-base-960h` ASR, GPU-accelerated) instead of the original pure-heuristic `procedural_audio_fallback` -- see "Lip sync: what changed" below for what that is and is not. It is still **not NVIDIA Audio2Face**: no NGC/NVIDIA registry credentials were available on this machine or the SCC box to pull the actual Audio2Face-3D NIM (checked thoroughly, nothing found), so this is a different real model solving the same problem, not a step toward Audio2Face specifically. If NGC access becomes available later, replacing the internals of `services/avatar_face_service/app.py` with real NVIDIA Audio2Face/TensorRT inference while keeping the same API is still the option that was originally planned here:
 
 - `GET /health`
 - `GET /metrics`
 - `WS /ws/face`
+
+### Lip sync: what changed, and what it actually is
+
+`services/avatar_face_service/app.py` now, per connection: spawns a persistent
+`ffmpeg` subprocess to decode the client's raw MP3 byte chunks to 16kHz mono
+PCM (the client sends compressed bytes straight off the network, not decoded
+audio -- see `frontend/src/voice.ts`'s `emitAvatarAudio` calls if that ever
+needs to change), buffers the PCM, and every ~0.4s of new audio runs
+`facebook/wav2vec2-base-960h` (a real, GPU-accelerated ASR model, loaded once
+at startup) on a ~1.6s sliding window for context. The newest portion of the
+recognized per-timestep characters gets mapped to one of 5 mouth shapes
+(`char_to_viseme`) and queued for the existing frame-emission loop to play
+back (capped at ~2s queued, oldest dropped first, so a slow drain never lets
+playback drift further and further behind real time).
+
+Be precise about what this is: **a real, general-purpose speech-to-text
+model whose recognized letters are mapped to mouth shapes by a simple rule
+table -- not a phoneme classifier, not lip-sync-specific, and not remotely
+what NVIDIA Audio2Face does.** It picked the exact input sentence correctly
+in testing and produces mouth shapes that vary with real speech content
+instead of a blind cycle, which is the honest bar it clears: better than the
+heuristic it replaced, not equivalent to real viseme-accurate lip sync.
+When the model isn't loaded (torch/transformers missing, no GPU, load
+failure) or a stretch of audio hasn't been scored yet, it falls back to the
+same shape-cycling heuristic as before -- the two paths share `VISEMES`,
+they just pick the current shape differently.
+
+Runs in its own venv (`/data/saurav/envs/avatar_face_lipsync`, Python 3.12 --
+the original `avatar_face_service` venv is Python 3.14, which had no stable
+PyTorch wheel available at the time; see AGENTS.md). Needs `ffmpeg` and
+`espeak` as system packages (`apt-get install -y ffmpeg espeak-ng espeak`) --
+only `ffmpeg` is actually used at runtime; `espeak`/`espeak-ng` were installed
+chasing a different, phoneme-output model (`wav2vec2-lv-60-espeak-cv-ft`)
+that was abandoned after its `phonemizer` dependency failed to detect a
+working espeak install despite one genuinely being present (a real, if
+unresolved, `phonemizer`/espeak-ng version-compatibility issue -- not worth
+the time to chase further once a dependency-free alternative worked).
+
+Manual end-to-end test: `services/avatar_face_service/test_lipsync.py` --
+see its docstring. Real verification of this exact setup: streamed a real
+ElevenLabs-generated speech clip through the actual production WebSocket
+(through the local SSH tunnel, exactly as the browser does) and confirmed
+via the service's own logs that real inference ran (`inference ok: N new
+samples -> M visemes in T ms`, first call ~340ms cold, then consistently
+under 30ms -- comfortably real-time on the H100) and that the returned
+mouth-shape sequence changed with the audio content rather than cycling
+blindly.
 
 ## How to run what exists now
 
