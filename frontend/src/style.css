@@ -2592,3 +2592,148 @@ h1 {
   color: var(--muted, #6b7c76);
   max-width: 68ch;
 }
+
+/* ---------------------------------------------------------------------------
+   Overview stage: recent measurements on the left, the twin centre and large,
+   predictions and model fit on the right. The twin is the subject of the page,
+   so it takes the widest column and sets the row height; the side columns
+   scroll within it rather than stretching it.
+   --------------------------------------------------------------------------- */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 340px);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 22px;
+}
+.stage-left,
+.stage-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.stage-center {
+  display: flex;
+  min-width: 0;
+  /* The twin drives the height of the whole row. */
+  min-height: 620px;
+}
+.stage-center .avatar-card {
+  flex: 1;
+  min-width: 0;
+}
+.stage-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted, #6b7c76);
+}
+/* Inside the narrow columns the tiles stack instead of sitting four across. */
+.stage-left .metrics-grid,
+.stage-right .metrics-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 0;
+}
+.stage-left .vendor-row {
+  margin-bottom: 0;
+}
+.stage-left .vendor-label {
+  display: none; /* the column already carries a heading */
+}
+.stage-left .vitals-strip {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+}
+.stage-left .vitals-strip > div {
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+.stage-left .vitals-strip > div:last-child {
+  border-bottom: 0;
+}
+.stage-right .hero-panels {
+  gap: 14px;
+}
+
+/* Reserved for the fitted model: populated from the baseline today, and the
+   place MATLAB-identified parameters will report into. */
+.model-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.model-card .pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #eaf1e6;
+  color: #3c5f46;
+}
+.model-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin: 0;
+}
+.model-stats dt {
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted, #6b7c76);
+  margin-bottom: 3px;
+}
+.model-stats dd {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.model-stats dd small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted, #6b7c76);
+  margin-left: 3px;
+}
+.model-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted, #6b7c76);
+}
+
+@media (max-width: 1360px) {
+  .stage {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  }
+  .stage-right {
+    grid-column: 1 / -1;
+  }
+  .stage-right .hero-panels,
+  .stage-right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .stage-right .stage-label {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 900px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stage-center {
+    min-height: 460px;
+  }
+  .stage-right,
+  .stage-right .hero-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -59,11 +59,7 @@ import {
 } from "./Charts";
 
 type Page =
-  | "Overview"
-  | "Signals"
-  | "Daily plan"
-  | "What-if lab"
-  | "Connections";
+  "Overview" | "Signals" | "Daily plan" | "What-if lab" | "Connections";
 const navigation: { name: Page; icon: typeof Activity }[] = [
   { name: "Overview", icon: LayoutDashboard },
   { name: "Signals", icon: Activity },
@@ -360,8 +356,8 @@ export default function App() {
   }
   async function simulate(scenario: string) {
     if (status === "offline" && bundle?.simulations[scenario]) {
-      const result=bundle.simulations[scenario];
-      overlay.current=result;
+      const result = bundle.simulations[scenario];
+      overlay.current = result;
       setSimulation(result);
       return;
     }
@@ -501,7 +497,9 @@ export default function App() {
   // Each tile shows the newest reading FOR ITS OWN METRIC, so sleep can be several
   // days older than heart rate. Name the night instead of implying it was last night.
   const sleepEnd = latest?.sleep ? new Date(latest.sleep.end) : null;
-  const sleepAgeHours = sleepEnd ? (Date.now() - sleepEnd.getTime()) / 3600000 : null;
+  const sleepAgeHours = sleepEnd
+    ? (Date.now() - sleepEnd.getTime()) / 3600000
+    : null;
   const sleepIsLastNight = sleepAgeHours !== null && sleepAgeHours <= 18;
   const sleepDetail =
     sleepEnd === null || sleepAgeHours === null
@@ -823,9 +821,15 @@ export default function App() {
                   source={source("hrv_rmssd_ms")}
                 />
                 <MetricCard
-                  name={sleepIsLastNight ? "Last night's sleep" : "Most recent sleep"}
+                  name={
+                    sleepIsLastNight
+                      ? "Last night's sleep"
+                      : "Most recent sleep"
+                  }
                   reading={
-                    latest?.sleep ? latest.sleep.total_minutes / 60 : latest?.sleep?.total_minutes
+                    latest?.sleep
+                      ? latest.sleep.total_minutes / 60
+                      : latest?.sleep?.total_minutes
                   }
                   unit="h"
                   icon={Moon}
@@ -848,86 +852,145 @@ export default function App() {
                   source={source("resting_hr_bpm")}
                 />
               </div>
-              <div className="vendor-row">
-                <p className="vendor-label">
-                  Straight from your watch · Garmin's own summaries, shown as
-                  measured and deliberately not folded into your readiness score
-                </p>
-                <div className="metrics-grid">
-                  <MetricCard
-                    name="Body Battery drained"
-                    reading={latest?.body_battery_drained}
-                    unit=""
-                    icon={BatteryCharging}
-                    detail={
-                      latest?.body_battery_charged != null
-                        ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
-                        : "Garmin's own energy estimate"
-                    }
-                    data={metrics.body_battery_drained ?? []}
-                    source={source("body_battery_drained")}
-                  />
-                  <MetricCard
-                    name="Stress"
-                    reading={latest?.stress_avg}
-                    unit="/100"
-                    icon={Gauge}
-                    detail={
-                      latest?.stress_max != null
-                        ? `Daily average · peaked at ${latest.stress_max}`
-                        : "Garmin's own daily average"
-                    }
-                    data={metrics.stress_avg ?? []}
-                    source={source("stress_avg")}
-                  />
-                  <MetricCard
-                    name="Active energy"
-                    reading={latest?.active_calories}
-                    unit="kcal"
-                    icon={Flame}
-                    detail={[
-                      latest?.active_seconds != null
-                        ? `${Math.round(latest.active_seconds / 60)} min active`
-                        : null,
-                      latest?.highly_active_seconds != null
-                        ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
-                        : null,
-                      latest?.floors_climbed != null
-                        ? `${Math.round(latest.floors_climbed)} floors`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "Recorded movement"}
-                    data={metrics.active_calories ?? []}
-                    source={source("active_calories")}
-                  />
-                  <MetricCard
-                    name="Sleep score"
-                    reading={latest?.sleep?.score}
-                    unit="/100"
-                    icon={Moon}
-                    detail="Garmin's own score · not used in your readiness"
-                    data={sleep
-                      .filter((x) => x.value.score != null)
-                      .map((x) => ({
-                        time: x.time,
-                        value: x.value.score as number,
-                        provenance: x.provenance,
-                        confidence: 1,
-                      }))}
-                    source={source("sleep")}
+              <div className="stage">
+                <div className="stage-left">
+                  <p className="stage-label">Your recent measurements</p>
+                  <div className="vendor-row">
+                    <p className="vendor-label">
+                      Straight from your watch · Garmin's own summaries, shown
+                      as measured and deliberately not folded into your
+                      readiness score
+                    </p>
+                    <div className="metrics-grid">
+                      <MetricCard
+                        name="Body Battery drained"
+                        reading={latest?.body_battery_drained}
+                        unit=""
+                        icon={BatteryCharging}
+                        detail={
+                          latest?.body_battery_charged != null
+                            ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
+                            : "Garmin's own energy estimate"
+                        }
+                        data={metrics.body_battery_drained ?? []}
+                        source={source("body_battery_drained")}
+                      />
+                      <MetricCard
+                        name="Stress"
+                        reading={latest?.stress_avg}
+                        unit="/100"
+                        icon={Gauge}
+                        detail={
+                          latest?.stress_max != null
+                            ? `Daily average · peaked at ${latest.stress_max}`
+                            : "Garmin's own daily average"
+                        }
+                        data={metrics.stress_avg ?? []}
+                        source={source("stress_avg")}
+                      />
+                      <MetricCard
+                        name="Active energy"
+                        reading={latest?.active_calories}
+                        unit="kcal"
+                        icon={Flame}
+                        detail={
+                          [
+                            latest?.active_seconds != null
+                              ? `${Math.round(latest.active_seconds / 60)} min active`
+                              : null,
+                            latest?.highly_active_seconds != null
+                              ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
+                              : null,
+                            latest?.floors_climbed != null
+                              ? `${Math.round(latest.floors_climbed)} floors`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "Recorded movement"
+                        }
+                        data={metrics.active_calories ?? []}
+                        source={source("active_calories")}
+                      />
+                      <MetricCard
+                        name="Sleep score"
+                        reading={latest?.sleep?.score}
+                        unit="/100"
+                        icon={Moon}
+                        detail="Garmin's own score · not used in your readiness"
+                        data={sleep
+                          .filter((x) => x.value.score != null)
+                          .map((x) => ({
+                            time: x.time,
+                            value: x.value.score as number,
+                            provenance: x.provenance,
+                            confidence: 1,
+                          }))}
+                        source={source("sleep")}
+                      />
+                    </div>
+                  </div>
+                  <div className="vitals-strip">
+                    {[
+                      {
+                        name: "Respiration",
+                        field: "respiration_brpm",
+                        unit: "br/min",
+                        icon: Wind,
+                      },
+                      {
+                        name: "Blood oxygen",
+                        field: "spo2_pct",
+                        unit: "%",
+                        icon: Activity,
+                      },
+                      {
+                        name: "Recorded steps",
+                        field: "steps",
+                        unit: "steps",
+                        icon: Footprints,
+                      },
+                    ].map((m) => (
+                      <div key={m.field}>
+                        <m.icon size={18} />
+                        <span>
+                          {m.name}
+                          <small>
+                            {quality[m.field]
+                              ? new Date(
+                                  quality[m.field].event_time,
+                                ).toLocaleString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "No measurement"}
+                          </small>
+                        </span>
+                        <b>
+                          {value(
+                            latest?.[m.field as keyof typeof latest] as
+                              number | null,
+                            1,
+                          )}
+                          <small>{m.unit}</small>
+                        </b>
+                        <ProvenanceChip source={source(m.field)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="stage-center">
+                  <Avatar
+                    live={live}
+                    overlay={overlay}
+                    state={state}
+                    reduced={reduced}
+                    speaking={speaking}
                   />
                 </div>
-              </div>
-              <div className="hero-grid">
-                <Avatar
-                  live={live}
-                  overlay={overlay}
-                  state={state}
-                  reduced={reduced}
-                  speaking={speaking}
-                />
-                <div className="hero-panels">
+                <div className="stage-right">
+                  <p className="stage-label">Predictions and modelling</p>
                   <ReadinessPanel
                     state={state}
                     onSignals={() => navigate("Signals")}
@@ -955,58 +1018,49 @@ export default function App() {
                       </span>
                     </div>
                   </Card>
+                  <Card className="model-card">
+                    <div className="card-heading">
+                      <h3>Model fit</h3>
+                      <span className="pill">MATLAB</span>
+                    </div>
+                    <dl className="model-stats">
+                      <div>
+                        <dt>Recovery constant</dt>
+                        <dd>
+                          {value(state.baseline_summary.recovery_tau_s, 1)}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Held-out error</dt>
+                        <dd>
+                          {value(state.baseline_summary.tau_fit_rmse, 2)}
+                          <small>bpm</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Fitted on</dt>
+                        <dd>
+                          {state.baseline_summary.tau_fit_n_sessions}
+                          <small>sessions</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Spread (IQR)</dt>
+                        <dd>
+                          {state.baseline_summary.tau_iqr?.length === 2
+                            ? `${value(state.baseline_summary.tau_iqr[0], 0)}–${value(state.baseline_summary.tau_iqr[1], 0)}`
+                            : "—"}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="model-note">
+                      Fitted to your own recovery segments. A wellness estimate,
+                      not a clinical measurement.
+                    </p>
+                  </Card>
                 </div>
-              </div>
-              <div className="vitals-strip">
-                {[
-                  {
-                    name: "Respiration",
-                    field: "respiration_brpm",
-                    unit: "br/min",
-                    icon: Wind,
-                  },
-                  {
-                    name: "Blood oxygen",
-                    field: "spo2_pct",
-                    unit: "%",
-                    icon: Activity,
-                  },
-                  {
-                    name: "Recorded steps",
-                    field: "steps",
-                    unit: "steps",
-                    icon: Footprints,
-                  },
-                ].map((m) => (
-                  <div key={m.field}>
-                    <m.icon size={18} />
-                    <span>
-                      {m.name}
-                      <small>
-                        {quality[m.field]
-                          ? new Date(
-                              quality[m.field].event_time,
-                            ).toLocaleString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "No measurement"}
-                      </small>
-                    </span>
-                    <b>
-                      {value(
-                        latest?.[m.field as keyof typeof latest] as
-                          | number
-                          | null,
-                        1,
-                      )}
-                      <small>{m.unit}</small>
-                    </b>
-                    <ProvenanceChip source={source(m.field)} />
-                  </div>
-                ))}
               </div>
               {Object.values(quality).some((q) => q.contested) && (
                 <div className="notice">
@@ -1108,7 +1162,11 @@ export default function App() {
                     title: "Intense minutes",
                     unit: "s",
                   },
-                  { field: "floors_climbed", title: "Floors climbed", unit: "" },
+                  {
+                    field: "floors_climbed",
+                    title: "Floors climbed",
+                    unit: "",
+                  },
                 ].map((m) => (
                   <Card key={m.field}>
                     <div className="card-heading">
