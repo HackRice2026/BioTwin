@@ -7,6 +7,45 @@ from modeling.planning import overlaps
 CALENDAR_PROVIDERS = ("google-calendar", "microsoft-calendar")
 
 
+def _t(h, m=0):
+    return timedelta(hours=h, minutes=m)
+
+
+# A representative week, not the same three blocks repeated every day --
+# 4 classes at scattered/irregular times (not a clean grid -- a real student
+# schedule rarely is), ~20 campus-work hours split into weekday shifts inside
+# 9-5, and 4 professor/club meetings. Keyed by Python's Monday=0 weekday();
+# weekends are deliberately light, same as most students actually run.
+DEMO_WEEKLY_SCHEDULE = {
+    0: [  # Monday
+        (_t(9), _t(9, 50), "Class · Data Structures"),
+        (_t(10), _t(14), "Work · Campus IT help desk"),
+        (_t(18), _t(19), "Club · Robotics club meeting"),
+    ],
+    1: [  # Tuesday
+        (_t(9), _t(12, 30), "Work · Campus IT help desk"),
+        (_t(13), _t(14, 15), "Class · Organic Chemistry"),
+        (_t(16), _t(16, 45), "Office hours · Prof. Whitfield"),
+    ],
+    2: [  # Wednesday
+        (_t(11), _t(11, 50), "Class · Microeconomics"),
+        (_t(13), _t(17), "Work · Campus IT help desk"),
+        (_t(17, 30), _t(18, 15), "Club · Data Science Club"),
+    ],
+    3: [  # Thursday
+        (_t(9), _t(13), "Work · Campus IT help desk"),
+        (_t(14, 30), _t(15, 15), "Office hours · Prof. Alvarez"),
+        (_t(19), _t(20), "Club · Intramural soccer"),
+    ],
+    4: [  # Friday
+        (_t(9), _t(13, 30), "Work · Campus IT help desk"),
+        (_t(15), _t(16, 15), "Class · American Literature"),
+    ],
+    5: [],  # Saturday
+    6: [],  # Sunday
+}
+
+
 class CalendarService:
     def __init__(self, oauth, http, store):
         self.oauth, self.http, self.store = oauth, http, store
@@ -24,12 +63,8 @@ class CalendarService:
         day = datetime.combine(now.date(), time.min, tz)
         if uid == "demo":
             busy = [
-                BusyInterval(start=day + timedelta(hours=a), end=day + timedelta(hours=b), title=title)
-                for a, b, title in [
-                    (9, 10, "Focus time"),
-                    (11, 12, "Team catch-up"),
-                    (15, 16, "Project work"),
-                ]
+                BusyInterval(start=day + a, end=day + b, title=title)
+                for a, b, title in DEMO_WEEKLY_SCHEDULE[now.weekday()]
             ]
             return busy, "demo"
         cached = self.store.get(uid, "calendar")
