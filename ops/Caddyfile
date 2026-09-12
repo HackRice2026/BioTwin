@@ -1,0 +1,5 @@
+# Set BIOTWIN_DOMAIN to your owned hostname; point its DNS at this server first.
+{$BIOTWIN_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8000
+}

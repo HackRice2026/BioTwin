@@ -1,0 +1,101 @@
+# Integration setup
+
+The user's final requirements are Garmin first (watch paired with iPhone), minimum achievable latency, calendar writes with reminders, and ElevenLabs speech. Fitbit remains an optional adapter. Garmin recorded-data fallback is accepted. No real wearable credentials or voice credentials were supplied during implementation.
+
+## Local environment
+
+Run `uv run python -m scripts.setup`. This creates a mode-0600 `.env` with a random token-encryption key and empty provider credentials. It preserves an existing file and prints no secrets. Restart the API after editing `.env`.
+
+The encryption key must remain stable: rotating it without re-encrypting existing token envelopes makes those tokens unreadable. Reconnect accounts after such a rotation. Use your deployment secret manager in production.
+
+## Garmin watch and iPhone
+
+### Recorded import, available now
+
+1. Sync the watch using Garmin Connect on the iPhone.
+2. Open Garmin Connect on the web and export the **original FIT activity** for an activity with heart-rate recording.
+3. Create a BioTwin account and choose Connections → Import Garmin data.
+4. Import `.fit`, an array of normalized frames, or a JSON object with `frames`, `dailies`, or `sleeps`.
+
+FIT import validates CRC and reads timestamped heart-rate records. Sleep, daily resting HR, and HRV may need separate exports. A proprietary stress/readiness/body-battery score or SDNN is never mapped into RMSSD. The included `fixtures/golden/generated-recovery.fit` is a generated test fixture, not a person's recording.
+
+Normalized JSON example (use actual recorded values and timestamps):
+
+```json
+{"frames":[{"event_time":"2026-09-11T12:00:00Z","heart_rate_bpm":70,"resting_hr_bpm":61,"hrv_rmssd_ms":48,"respiration_brpm":14,"spo2_pct":98}]}
+```
+
+All file data is marked recorded/replay. Requests cannot choose another account's `user_id` or claim a live provenance. File upload limit: 20 MB; JSON limit: 100,000 records per import. Large exports can be split into multiple imports; duplicate samples are suppressed.
+
+### Direct heart-rate broadcasting
+
+If the watch supports standard Bluetooth Heart Rate Service broadcasting, enable its broadcast mode and choose **Connect heart-rate broadcast** in BioTwin using a supporting desktop Chromium browser. Keep Connections open. The browser sends timestamped measured BPM through the same normalizer/store/model/WebSocket path. Neither HRV nor breathing is inferred from Bluetooth BPM.
+
+The app feature-detects `navigator.bluetooth`. When unavailable (including iPhone Safari), it explains that limitation and offers recorded imports. Whether the user's particular watch supports Bluetooth broadcasting is still unknown; the watch model was not supplied. Garmin mobile SDK live sensor streaming is not supplied by an iPhone PWA and requires a separate native integration.
+
+### Approved Garmin cloud API
+
+`TODO(blocked): Garmin Connect Developer Program approval, client ID/secret, and partner-specific delivery configuration — supply approved credentials and configure an HTTPS callback.`
+
+Set:
+
+```dotenv
+GARMIN_CLIENT_ID=...
+GARMIN_CLIENT_SECRET=...
+GARMIN_WEBHOOK_SECRET=...
+```
+
+Register `${PUBLIC_URL}/auth/garmin/callback` as the OAuth redirect and configure the partner webhook to POST to `${PUBLIC_URL}/webhooks/garmin` with `Authorization: Bearer <GARMIN_WEBHOOK_SECRET>`. The receiver fails closed when that authorization is absent. If the approved partner setup requires another authentication mechanism, update and verify this boundary against the supplied partner documentation before enabling live delivery; the private delivery contract was not available here.
+
+OAuth uses Garmin's PKCE authorization and token endpoints, stores a stable Garmin user-ID mapping, refreshes tokens before expiry, and calls the official registration deletion endpoint on disconnect. Health API daily/sleep pull uses upload-time windows; push payloads and allowlisted ping callback URLs enter the durable queue. No arbitrary callback host or redirect is followed with credentials.
+
+Cloud notifications mean “data uploaded,” not a guaranteed per-heartbeat stream. BioTwin publishes after each committed measurement. The device → phone → vendor delay is outside its control. Overnight metrics cannot be honestly presented as live respiratory/HRV samples.
+
+Primary references: [Garmin Health API](https://developer.garmin.com/gc-developer-program/health-api/), [Connect Developer overview](https://developer.garmin.com/gc-developer-program/overview/), [Garmin OAuth2 PKCE specification](https://developerportal.garmin.com/sites/default/files/OAuth2PKCE.pdf).
+
+## Google Calendar, events and reminders
+
+`TODO(blocked): Google Cloud OAuth client, enabled Calendar API and user consent — configure client credentials, redirect URI and test users.`
+
+Enable Google Calendar API, create a web OAuth client, and add `${PUBLIC_URL}/auth/google-calendar/callback` as an authorized redirect. During unverified testing, allowlist each account in the consent screen's test users. Configure:
+
+```dotenv
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+Connect from BioTwin. Scopes are `calendar.readonly` and `calendar.events`: the second scope implements the user's explicit event/reminder requirement. The primary calendar timezone is read after consent. The event cache uses incremental sync tokens; a 410 response discards the sync token and refetches. FreeBusy remains authoritative for conflicts.
+
+Daily plan → choose the reminder lead time → click the arrow on a proposal. The server requires an authentic stored proposal, rechecks current model constraints and calendar availability, then inserts an idempotently identified event in the primary calendar. It includes one popup reminder. No attendees are added and no invitations are sent. Clinical data and readiness values are not placed into the calendar description. Google Calendar and device settings control delivery of the reminder; BioTwin does not claim it can guarantee a notification on a sleeping phone.
+
+The server supports multiple calendar IDs through profile settings (`calendar_ids`); the default is `primary`. It refuses to present an empty, verified schedule if a selected calendar returns an error.
+
+References: [Create events](https://developers.google.com/workspace/calendar/api/guides/create-events), [Reminders and notifications](https://developers.google.com/workspace/calendar/api/concepts/reminders), [Incremental synchronization](https://developers.google.com/workspace/calendar/api/guides/sync).
+
+## ElevenLabs
+
+`TODO(blocked): ElevenLabs API key with text-to-speech access and available credits — add the key and an accessible voice, then verify speech in the UI.`
+
+```dotenv
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+```
+
+Ask the twin a question, then click **Listen with ElevenLabs**. A short-lived, account-scoped response ID retrieves the already validated answer, and the backend streams MP3 from ElevenLabs to the audio player. The API key never goes to the browser. Arbitrary client-written speech text is not accepted. Failed speech remains an explicit error alongside the usable text answer; browser speech synthesis is not silently substituted.
+
+Voice playback is intentionally initiated by a user gesture, which also supports mobile browser audio restrictions. Model and voice availability depend on the ElevenLabs account. Optional microphone input uses the browser's supported speech-recognition service and is independently permission-gated by the browser; ElevenLabs provides the spoken output.
+
+Reference: [ElevenLabs stream speech](https://elevenlabs.io/docs/api-reference/text-to-speech/stream).
+
+## Optional Fitbit / Google Health
+
+Enable Google Health API and configure `${PUBLIC_URL}/auth/fitbit/callback` using the same Google OAuth client. Scopes are limited to read-only activity/fitness, sleep, and health metrics/measurements. The implementation was checked against the current [v4 discovery schema](https://health.googleapis.com/$discovery/rest?version=v4).
+
+Set `GOOGLE_WEBHOOK_SECRET` and create an HTTPS Google Health subscriber for `${PUBLIC_URL}/webhooks/google-health`. Configure its endpoint authorization as `Bearer <GOOGLE_WEBHOOK_SECRET>` and automatic subscriptions for the supported data types. Subscriber registration is an operator action in the Google project, not something performed with a consumer's wearable token.
+
+The receiver implements Google's authorized/unauthorized verification handshake, requires the bearer secret, then verifies the actual webhook body's rotating Tink ECDSA signature against Google's public keyset. The durable worker maps `healthUserId` to the consenting account and fetches the notification's changed metric. Unsupported data types are not silently treated as physiological signals. Deletion events target the corresponding metric and interval/record.
+
+`TODO(blocked): Google Health API OAuth consent and subscriber registration — complete configuration and verify with a real Fitbit measurement before claiming live Fitbit support.`
+
+References: [Google Health endpoints](https://developers.google.com/health/endpoints), [Webhook subscriptions and signature verification](https://developers.google.com/health/webhooks).

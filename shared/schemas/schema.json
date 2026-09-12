@@ -1,0 +1,1147 @@
+{
+  "$defs": {
+    "AvatarDrivers": {
+      "additionalProperties": false,
+      "properties": {
+        "pulse_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pulse Hz"
+        },
+        "breath_hz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Breath Hz"
+        },
+        "fatigue": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Fatigue",
+          "type": "number"
+        },
+        "exertion": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Exertion",
+          "type": "number"
+        },
+        "recovery_progress": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Recovery Progress",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fatigue",
+        "exertion",
+        "recovery_progress"
+      ],
+      "title": "AvatarDrivers",
+      "type": "object"
+    },
+    "Baseline": {
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "title": "User Id",
+          "type": "string"
+        },
+        "computed_at": {
+          "format": "date-time",
+          "title": "Computed At",
+          "type": "string"
+        },
+        "n_observations": {
+          "title": "N Observations",
+          "type": "integer"
+        },
+        "shrinkage_weight": {
+          "title": "Shrinkage Weight",
+          "type": "number"
+        },
+        "resting_hr": {
+          "$ref": "#/$defs/RobustStat"
+        },
+        "hrv_rmssd": {
+          "$ref": "#/$defs/RobustStat"
+        },
+        "sleep_minutes": {
+          "$ref": "#/$defs/RobustStat"
+        },
+        "respiration": {
+          "$ref": "#/$defs/RobustStat"
+        },
+        "recovery_tau_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recovery Tau S"
+        },
+        "tau_fit_rmse": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tau Fit Rmse"
+        },
+        "tau_fit_n_sessions": {
+          "default": 0,
+          "title": "Tau Fit N Sessions",
+          "type": "integer"
+        },
+        "tau_iqr": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Tau Iqr",
+          "type": "array"
+        },
+        "cv_errors": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cv Errors",
+          "type": "array"
+        },
+        "prior_label": {
+          "default": "Engineering priors; not clinically validated",
+          "title": "Prior Label",
+          "type": "string"
+        },
+        "model_version": {
+          "default": "recovery-1.0.0",
+          "title": "Model Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "computed_at",
+        "n_observations",
+        "shrinkage_weight",
+        "resting_hr",
+        "hrv_rmssd",
+        "sleep_minutes",
+        "respiration"
+      ],
+      "title": "Baseline",
+      "type": "object"
+    },
+    "BusyInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "title": {
+          "default": "Busy",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "BusyInterval",
+      "type": "object"
+    },
+    "CurvePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "time": {
+          "format": "date-time",
+          "title": "Time",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        },
+        "lower": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower"
+        },
+        "upper": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper"
+        }
+      },
+      "required": [
+        "time",
+        "value"
+      ],
+      "title": "CurvePoint",
+      "type": "object"
+    },
+    "DailyPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "calendar_status": {
+          "enum": [
+            "connected",
+            "demo",
+            "unavailable"
+          ],
+          "title": "Calendar Status",
+          "type": "string"
+        },
+        "proposals": {
+          "items": {
+            "$ref": "#/$defs/Proposal"
+          },
+          "title": "Proposals",
+          "type": "array"
+        },
+        "busy": {
+          "items": {
+            "$ref": "#/$defs/BusyInterval"
+          },
+          "title": "Busy",
+          "type": "array"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "date",
+        "timezone",
+        "calendar_status",
+        "proposals",
+        "busy",
+        "explanation"
+      ],
+      "title": "DailyPlan",
+      "type": "object"
+    },
+    "DayOutlook": {
+      "additionalProperties": false,
+      "properties": {
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "curve": {
+          "items": {
+            "$ref": "#/$defs/CurvePoint"
+          },
+          "title": "Curve",
+          "type": "array"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "label": {
+          "default": "EXPERIMENTAL \u00b7 daily readiness projection",
+          "title": "Label",
+          "type": "string"
+        },
+        "assumptions": {
+          "title": "Assumptions",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issued_at",
+        "timezone",
+        "curve",
+        "confidence",
+        "assumptions"
+      ],
+      "title": "DayOutlook",
+      "type": "object"
+    },
+    "EnergyState": {
+      "enum": [
+        "very_drained",
+        "drained",
+        "below_average",
+        "balanced",
+        "strong",
+        "peak"
+      ],
+      "title": "EnergyState",
+      "type": "string"
+    },
+    "MetricQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "event_time": {
+          "format": "date-time",
+          "title": "Event Time",
+          "type": "string"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "contested": {
+          "default": false,
+          "title": "Contested",
+          "type": "boolean"
+        },
+        "alternatives": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        }
+      },
+      "required": [
+        "provenance",
+        "event_time",
+        "confidence"
+      ],
+      "title": "MetricQuality",
+      "type": "object"
+    },
+    "NarrationContext": {
+      "additionalProperties": false,
+      "properties": {
+        "readiness": {
+          "$ref": "#/$defs/Readiness"
+        },
+        "baseline_summary": {
+          "$ref": "#/$defs/Baseline"
+        },
+        "recent_trend": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Recent Trend",
+          "type": "array"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DailyPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prediction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecoveryPrediction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "facts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Facts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "readiness",
+        "baseline_summary"
+      ],
+      "title": "NarrationContext",
+      "type": "object"
+    },
+    "NarrationResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "template",
+            "language_service",
+            "guard_fallback"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "grounded": {
+          "default": true,
+          "title": "Grounded",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "answer",
+        "mode"
+      ],
+      "title": "NarrationResponse",
+      "type": "object"
+    },
+    "Proposal": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "nap",
+            "workout"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "intensity": {
+          "title": "Intensity",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "terms": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Terms",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "start",
+        "end",
+        "intensity",
+        "reason",
+        "score",
+        "terms"
+      ],
+      "title": "Proposal",
+      "type": "object"
+    },
+    "Provenance": {
+      "enum": [
+        "fitbit_live",
+        "fitbit_backfill",
+        "garmin_ble_live",
+        "garmin_live",
+        "garmin_fit_replay",
+        "replay",
+        "synthetic"
+      ],
+      "title": "Provenance",
+      "type": "string"
+    },
+    "Readiness": {
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "title": "User Id",
+          "type": "string"
+        },
+        "computed_at": {
+          "format": "date-time",
+          "title": "Computed At",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "state": {
+          "$ref": "#/$defs/EnergyState"
+        },
+        "contributions": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Contributions",
+          "type": "object"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "degraded_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Degraded Reason"
+        },
+        "sleep_debt_minutes": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sleep Debt Minutes"
+        },
+        "cuts": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cuts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "user_id",
+        "computed_at",
+        "state",
+        "contributions",
+        "confidence"
+      ],
+      "title": "Readiness",
+      "type": "object"
+    },
+    "RecoveryPrediction": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "horizon_s": {
+          "title": "Horizon S",
+          "type": "integer"
+        },
+        "curve": {
+          "items": {
+            "$ref": "#/$defs/CurvePoint"
+          },
+          "title": "Curve",
+          "type": "array"
+        },
+        "observed": {
+          "items": {
+            "$ref": "#/$defs/CurvePoint"
+          },
+          "title": "Observed",
+          "type": "array"
+        },
+        "rmse": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rmse"
+        },
+        "model_version": {
+          "default": "recovery-1.0.0",
+          "title": "Model Version",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "assumption": {
+          "default": "Assumes activity stops and recovery follows the fitted exponential.",
+          "title": "Assumption",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "issued_at",
+        "horizon_s",
+        "curve",
+        "provenance"
+      ],
+      "title": "RecoveryPrediction",
+      "type": "object"
+    },
+    "RobustStat": {
+      "additionalProperties": false,
+      "properties": {
+        "median": {
+          "title": "Median",
+          "type": "number"
+        },
+        "mad": {
+          "title": "Mad",
+          "type": "number"
+        },
+        "p10": {
+          "title": "P10",
+          "type": "number"
+        },
+        "p90": {
+          "title": "P90",
+          "type": "number"
+        },
+        "n_days": {
+          "default": 0,
+          "title": "N Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "median",
+        "mad",
+        "p10",
+        "p90"
+      ],
+      "title": "RobustStat",
+      "type": "object"
+    },
+    "SimulationOverlay": {
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "enum": [
+            "rest",
+            "light",
+            "exercise"
+          ],
+          "title": "Scenario",
+          "type": "string"
+        },
+        "label": {
+          "default": "SIMULATED \u00b7 illustrative assumptions, not a measured forecast",
+          "title": "Label",
+          "type": "string"
+        },
+        "drivers": {
+          "$ref": "#/$defs/AvatarDrivers"
+        },
+        "curve": {
+          "items": {
+            "$ref": "#/$defs/CurvePoint"
+          },
+          "title": "Curve",
+          "type": "array"
+        },
+        "assumption": {
+          "title": "Assumption",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario",
+        "drivers",
+        "curve",
+        "assumption"
+      ],
+      "title": "SimulationOverlay",
+      "type": "object"
+    },
+    "SleepSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "total_minutes": {
+          "maximum": 1440,
+          "minimum": 0,
+          "title": "Total Minutes",
+          "type": "integer"
+        },
+        "awake_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Awake Minutes"
+        },
+        "light_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Light Minutes"
+        },
+        "deep_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deep Minutes"
+        },
+        "rem_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rem Minutes"
+        },
+        "efficiency_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Efficiency Pct"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "total_minutes"
+      ],
+      "title": "SleepSummary",
+      "type": "object"
+    },
+    "TwinFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "title": "User Id",
+          "type": "string"
+        },
+        "event_time": {
+          "format": "date-time",
+          "title": "Event Time",
+          "type": "string"
+        },
+        "ingest_time": {
+          "format": "date-time",
+          "title": "Ingest Time",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "dedupe_key": {
+          "default": "",
+          "title": "Dedupe Key",
+          "type": "string"
+        },
+        "sequence": {
+          "default": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "source_record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Record Id"
+        },
+        "heart_rate_bpm": {
+          "anyOf": [
+            {
+              "maximum": 250,
+              "minimum": 25,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heart Rate Bpm"
+        },
+        "resting_hr_bpm": {
+          "anyOf": [
+            {
+              "maximum": 150,
+              "minimum": 25,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resting Hr Bpm"
+        },
+        "hrv_rmssd_ms": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hrv Rmssd Ms"
+        },
+        "respiration_brpm": {
+          "anyOf": [
+            {
+              "maximum": 65,
+              "minimum": 4,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Respiration Brpm"
+        },
+        "spo2_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 50,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spo2 Pct"
+        },
+        "activity_level": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activity Level"
+        },
+        "sleep": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SleepSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "maximum": 200000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Steps"
+        },
+        "confidence": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "user_id",
+        "event_time",
+        "provenance"
+      ],
+      "title": "TwinFrame",
+      "type": "object"
+    },
+    "TwinState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "server_time": {
+          "format": "date-time",
+          "title": "Server Time",
+          "type": "string"
+        },
+        "readiness": {
+          "$ref": "#/$defs/Readiness"
+        },
+        "latest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TwinFrame"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baseline_summary": {
+          "$ref": "#/$defs/Baseline"
+        },
+        "drivers": {
+          "$ref": "#/$defs/AvatarDrivers"
+        },
+        "simulation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SimulationOverlay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "provenance_banner": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "quality": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MetricQuality"
+          },
+          "title": "Quality",
+          "type": "object"
+        },
+        "latency_ms": {
+          "default": 0,
+          "title": "Latency Ms",
+          "type": "number"
+        },
+        "prediction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecoveryPrediction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "sequence",
+        "server_time",
+        "readiness",
+        "latest",
+        "baseline_summary",
+        "drivers",
+        "provenance_banner"
+      ],
+      "title": "TwinState",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "TwinState": {
+      "$ref": "#/$defs/TwinState"
+    },
+    "TwinFrame": {
+      "$ref": "#/$defs/TwinFrame"
+    },
+    "Baseline": {
+      "$ref": "#/$defs/Baseline"
+    },
+    "Readiness": {
+      "$ref": "#/$defs/Readiness"
+    },
+    "RecoveryPrediction": {
+      "$ref": "#/$defs/RecoveryPrediction"
+    },
+    "DailyPlan": {
+      "$ref": "#/$defs/DailyPlan"
+    },
+    "NarrationContext": {
+      "$ref": "#/$defs/NarrationContext"
+    },
+    "NarrationResponse": {
+      "$ref": "#/$defs/NarrationResponse"
+    },
+    "SimulationOverlay": {
+      "$ref": "#/$defs/SimulationOverlay"
+    },
+    "DayOutlook": {
+      "$ref": "#/$defs/DayOutlook"
+    }
+  },
+  "required": [
+    "TwinState",
+    "TwinFrame",
+    "Baseline",
+    "Readiness",
+    "RecoveryPrediction",
+    "DailyPlan",
+    "NarrationContext",
+    "NarrationResponse",
+    "SimulationOverlay",
+    "DayOutlook"
+  ],
+  "title": "BioTwinContracts",
+  "type": "object"
+}

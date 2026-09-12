@@ -1,0 +1,357 @@
+"""Portable transactional persistence. Raw frames are append-only; derived documents are replaceable."""
+
+import hashlib
+import secrets
+from datetime import timedelta, datetime
+from pathlib import Path
+from threading import RLock
+from sqlalchemy import (
+    create_engine,
+    MetaData,
+    Table,
+    Column,
+    String,
+    Integer,
+    Float,
+    JSON,
+    Text,
+    UniqueConstraint,
+    select,
+    insert,
+    update,
+    delete,
+    func,
+    event,
+)
+from shared.schemas import TwinFrame, utcnow
+
+metadata = MetaData()
+users = Table(
+    "users",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("email", String, unique=True),
+    Column("password", String),
+    Column("name", String),
+    Column("profile", JSON),
+    Column("sequence", Integer, default=0, nullable=False),
+)
+frames = Table(
+    "measurements",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", String, index=True),
+    Column("event_time", Float, index=True),
+    Column("ingest_time", Float),
+    Column("provenance", String),
+    Column("dedupe_key", String),
+    Column("sequence", Integer),
+    Column("payload", JSON),
+    UniqueConstraint("user_id", "dedupe_key"),
+)
+documents = Table(
+    "documents",
+    metadata,
+    Column("user_id", String, primary_key=True),
+    Column("kind", String, primary_key=True),
+    Column("key", String, primary_key=True),
+    Column("payload", JSON),
+)
+sessions = Table(
+    "sessions",
+    metadata,
+    Column("hash", String, primary_key=True),
+    Column("user_id", String),
+    Column("expires", Float),
+)
+outbox = Table(
+    "outbox",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("provider", String),
+    Column("payload", JSON),
+    Column("status", String),
+    Column("attempts", Integer),
+    Column("available", Float),
+    Column("error", Text),
+)
+
+
+class Store:
+    def __init__(self, url: str):
+        if url.startswith("sqlite:///./"):
+            Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+        self.engine = create_engine(
+            url,
+            connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
+            pool_pre_ping=True,
+        )
+        if url.startswith("sqlite"):
+
+            @event.listens_for(self.engine, "connect")
+            def configure(dbapi, _):
+                dbapi.execute("PRAGMA journal_mode=WAL")
+                dbapi.execute("PRAGMA busy_timeout=10000")
+
+        self.lock = RLock()
+        metadata.create_all(self.engine)
+
+    def user(self, user_id):
+        with self.engine.connect() as c:
+            row = c.execute(select(users).where(users.c.id == user_id)).mappings().first()
+            return dict(row) if row else None
+
+    def by_email(self, email):
+        with self.engine.connect() as c:
+            row = c.execute(select(users).where(users.c.email == email)).mappings().first()
+            return dict(row) if row else None
+
+    def create_user(self, user_id, email, password, name, profile):
+        with self.engine.begin() as c:
+            c.execute(
+                insert(users).values(
+                    id=user_id, email=email, password=password, name=name, profile=profile, sequence=0
+                )
+            )
+
+    def save_profile(self, user_id, profile):
+        with self.engine.begin() as c:
+            c.execute(update(users).where(users.c.id == user_id).values(profile=profile))
+
+    def create_session(self, user_id):
+        token = secrets.token_urlsafe(48)
+        with self.engine.begin() as c:
+            c.execute(
+                insert(sessions).values(
+                    hash=hashlib.sha256(token.encode()).hexdigest(),
+                    user_id=user_id,
+                    expires=(utcnow() + timedelta(days=7)).timestamp(),
+                )
+            )
+        return token
+
+    def session_user(self, token):
+        if not token:
+            return None
+        with self.engine.connect() as c:
+            row = c.execute(
+                select(sessions.c.user_id).where(
+                    sessions.c.hash == hashlib.sha256(token.encode()).hexdigest(),
+                    sessions.c.expires > utcnow().timestamp(),
+                )
+            ).first()
+        return self.user(row[0]) if row else None
+
+    def end_session(self, token):
+        with self.engine.begin() as c:
+            c.execute(delete(sessions).where(sessions.c.hash == hashlib.sha256(token.encode()).hexdigest()))
+
+    def append(self, frame: TwinFrame) -> TwinFrame | None:
+        with self.lock, self.engine.begin() as c:
+            # A row lock serializes writers per user on Postgres; RLock covers SQLite in this process.
+            seq = c.execute(
+                select(users.c.sequence).where(users.c.id == frame.user_id).with_for_update()
+            ).scalar_one()
+            if c.execute(
+                select(frames.c.id).where(
+                    frames.c.user_id == frame.user_id, frames.c.dedupe_key == frame.dedupe_key
+                )
+            ).first():
+                return None
+            committed = frame.model_copy(update={"sequence": seq + 1})
+            c.execute(
+                insert(frames).values(
+                    user_id=frame.user_id,
+                    event_time=frame.event_time.timestamp(),
+                    ingest_time=frame.ingest_time.timestamp(),
+                    provenance=frame.provenance.value,
+                    dedupe_key=frame.dedupe_key,
+                    sequence=seq + 1,
+                    payload=committed.model_dump(mode="json"),
+                )
+            )
+            c.execute(update(users).where(users.c.id == frame.user_id).values(sequence=seq + 1))
+        return committed
+
+    def history(self, user_id, since=None, until=None, limit=None):
+        q = select(frames.c.payload).where(frames.c.user_id == user_id)
+        if since:
+            q = q.where(frames.c.event_time >= since.timestamp())
+        if until:
+            q = q.where(frames.c.event_time <= until.timestamp())
+        with self.engine.connect() as c:
+            rows = (
+                c.execute(q.order_by(frames.c.event_time.desc(), frames.c.sequence.desc()).limit(limit))
+                .scalars()
+                .all()
+            )
+        return [TwinFrame.model_validate(p) for p in reversed(rows)]
+
+    def get(self, user_id, kind, key="current"):
+        with self.engine.connect() as c:
+            return c.execute(
+                select(documents.c.payload).where(
+                    documents.c.user_id == user_id, documents.c.kind == kind, documents.c.key == key
+                )
+            ).scalar_one_or_none()
+
+    def put(self, user_id, kind, payload, key="current", immutable=False):
+        with self.lock, self.engine.begin() as c:
+            condition = (
+                (documents.c.user_id == user_id) & (documents.c.kind == kind) & (documents.c.key == key)
+            )
+            exists = c.execute(select(documents.c.key).where(condition)).first()
+            if exists:
+                if immutable:
+                    raise ValueError("Issued artifacts cannot be overwritten")
+                c.execute(update(documents).where(condition).values(payload=payload))
+            else:
+                c.execute(insert(documents).values(user_id=user_id, kind=kind, key=key, payload=payload))
+
+    def docs(self, user_id, kind):
+        with self.engine.connect() as c:
+            q = select(documents.c.key, documents.c.payload).where(documents.c.kind == kind)
+            if user_id is not None:
+                q = q.where(documents.c.user_id == user_id)
+            return [(r[0], r[1]) for r in c.execute(q)]
+
+    def remove_doc(self, user_id, kind, key="current"):
+        with self.engine.begin() as c:
+            c.execute(
+                delete(documents).where(
+                    documents.c.user_id == user_id, documents.c.kind == kind, documents.c.key == key
+                )
+            )
+
+    def take(self, user_id, kind, key):
+        with self.lock, self.engine.begin() as c:
+            cond = (documents.c.user_id == user_id) & (documents.c.kind == kind) & (documents.c.key == key)
+            result = c.execute(select(documents.c.payload).where(cond).with_for_update()).scalar_one_or_none()
+            if result is not None:
+                c.execute(delete(documents).where(cond))
+            return result
+
+    def enqueue(self, provider, payload):
+        with self.engine.begin() as c:
+            c.execute(
+                insert(outbox).values(
+                    provider=provider,
+                    payload=payload,
+                    status="pending",
+                    attempts=0,
+                    available=utcnow().timestamp(),
+                    error=None,
+                )
+            )
+
+    def claim(self):
+        now = utcnow().timestamp()
+        with self.lock, self.engine.begin() as c:
+            row = (
+                c.execute(
+                    select(outbox)
+                    .where(outbox.c.status.in_(["pending", "processing"]), outbox.c.available <= now)
+                    .order_by(outbox.c.id)
+                    .with_for_update(skip_locked=True)
+                    .limit(1)
+                )
+                .mappings()
+                .first()
+            )
+            if not row:
+                return None
+            c.execute(
+                update(outbox)
+                .where(outbox.c.id == row["id"])
+                .values(status="processing", available=now + 120)
+            )
+            return dict(row)
+
+    def finish(self, job, error=None):
+        with self.engine.begin() as c:
+            if error is None:
+                c.execute(delete(outbox).where(outbox.c.id == job["id"]))
+            else:
+                attempts = job["attempts"] + 1
+                c.execute(
+                    update(outbox)
+                    .where(outbox.c.id == job["id"])
+                    .values(
+                        status="failed" if attempts >= 8 else "pending",
+                        attempts=attempts,
+                        error=error,
+                        available=utcnow().timestamp() + min(300, 2**attempts),
+                    )
+                )
+
+    def stats(self):
+        with self.engine.connect() as c:
+            return {
+                "measurements": c.execute(select(func.count()).select_from(frames)).scalar(),
+                "queue": dict(
+                    c.execute(select(outbox.c.status, func.count()).group_by(outbox.c.status)).all()
+                ),
+            }
+
+    def purge(self, days):
+        cutoff = (utcnow() - timedelta(days=days)).timestamp()
+        with self.engine.begin() as c:
+            c.execute(delete(frames).where(frames.c.event_time < cutoff))
+            c.execute(delete(sessions).where(sessions.c.expires < utcnow().timestamp()))
+            # Derived history also contains health data and follows the same retention horizon.
+            for row in c.execute(
+                select(documents).where(documents.c.kind.in_(["prediction", "readiness", "prediction_score"]))
+            ).mappings():
+                stamp = row["payload"].get("issued_at") or row["payload"].get("computed_at")
+                if stamp and datetime.fromisoformat(stamp).timestamp() < cutoff:
+                    c.execute(
+                        delete(documents).where(
+                            documents.c.user_id == row["user_id"],
+                            documents.c.kind == row["kind"],
+                            documents.c.key == row["key"],
+                        )
+                    )
+            for row in (
+                c.execute(select(documents).where(documents.c.kind.in_(["speech", "oauth_state"])))
+                .mappings()
+                .all()
+            ):
+                if row["payload"].get("expires", 0) < utcnow().timestamp():
+                    c.execute(
+                        delete(documents).where(
+                            documents.c.user_id == row["user_id"],
+                            documents.c.kind == row["kind"],
+                            documents.c.key == row["key"],
+                        )
+                    )
+
+    def delete_user(self, user_id):
+        with self.engine.begin() as c:
+            ids = {user_id}
+            for identity in c.execute(
+                select(documents.c.payload).where(
+                    documents.c.user_id == user_id, documents.c.kind == "identity"
+                )
+            ).scalars():
+                ids.add(identity["vendor_id"])
+
+            def scrub(value):
+                if isinstance(value, list):
+                    return [clean for item in value if (clean := scrub(item)) not in [None, {}, []]]
+                if isinstance(value, dict):
+                    if any(value.get(k) in ids for k in ["user_id", "userId", "healthUserId"]):
+                        return None
+                    return {
+                        k: clean for k, item in value.items() if (clean := scrub(item)) not in [None, {}, []]
+                    }
+                return value
+
+            for row in c.execute(select(outbox)).mappings().all():
+                clean = scrub(row["payload"])
+                if not clean:
+                    c.execute(delete(outbox).where(outbox.c.id == row["id"]))
+                elif clean != row["payload"]:
+                    c.execute(update(outbox).where(outbox.c.id == row["id"]).values(payload=clean))
+            for table in [frames, documents, sessions]:
+                c.execute(delete(table).where(table.c.user_id == user_id))
+            c.execute(delete(users).where(users.c.id == user_id))

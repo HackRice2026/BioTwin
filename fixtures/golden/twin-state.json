@@ -1,0 +1,184 @@
+{
+  "schema_version": "1.0.0",
+  "sequence": 464,
+  "server_time": "2026-09-12T07:13:33.214767Z",
+  "readiness": {
+    "user_id": "demo",
+    "computed_at": "2026-09-12T07:13:33.214767Z",
+    "score": 54.4,
+    "state": "balanced",
+    "contributions": {
+      "sleep": 0.272,
+      "hrv": 0.749,
+      "resting_hr": 0.524,
+      "sleep_debt": -1.065
+    },
+    "confidence": 0.75,
+    "degraded_reason": null,
+    "sleep_debt_minutes": 191.7,
+    "cuts": [
+      20.5,
+      34.7,
+      49.6,
+      65.1,
+      79.1
+    ]
+  },
+  "latest": {
+    "user_id": "demo",
+    "event_time": "2026-09-12T07:13:21.214485Z",
+    "ingest_time": "2026-09-12T07:13:33.214490Z",
+    "provenance": "synthetic",
+    "dedupe_key": "d38b95c89a0ce5f14f29070f99abc4f19caa42821e3f8097d1e1bd6df559c17f",
+    "sequence": 464,
+    "source_record_id": null,
+    "heart_rate_bpm": 66.0,
+    "resting_hr_bpm": 61.0,
+    "hrv_rmssd_ms": 58.0,
+    "respiration_brpm": 14.0,
+    "spo2_pct": 98.1,
+    "activity_level": 0.04,
+    "sleep": {
+      "start": "2026-09-11T21:13:32.994875Z",
+      "end": "2026-09-12T05:13:32.994875Z",
+      "total_minutes": 460,
+      "awake_minutes": 20,
+      "light_minutes": 245,
+      "deep_minutes": 100,
+      "rem_minutes": 115,
+      "efficiency_pct": null
+    },
+    "steps": 6240,
+    "confidence": 1.0
+  },
+  "baseline_summary": {
+    "user_id": "demo",
+    "computed_at": "2026-09-12T07:13:33.206521Z",
+    "n_observations": 463,
+    "shrinkage_weight": 0.562,
+    "resting_hr": {
+      "median": 64.02,
+      "mad": 3.89,
+      "p10": 60.4,
+      "p90": 66.26,
+      "n_days": 9
+    },
+    "hrv_rmssd": {
+      "median": 48.37,
+      "mad": 8.67,
+      "p10": 39.5,
+      "p90": 57.92,
+      "n_days": 8
+    },
+    "sleep_minutes": {
+      "median": 446.45,
+      "mad": 33.65,
+      "p10": 379.99,
+      "p90": 469.53,
+      "n_days": 8
+    },
+    "respiration": {
+      "median": 14.64,
+      "mad": 1.29,
+      "p10": 13.05,
+      "p90": 14.89,
+      "n_days": 7
+    },
+    "recovery_tau_s": 174.0,
+    "tau_fit_rmse": 13.56,
+    "tau_fit_n_sessions": 6,
+    "tau_iqr": [
+      171.1,
+      177.1
+    ],
+    "cv_errors": [
+      13.06,
+      13.09,
+      13.65,
+      13.67,
+      13.87,
+      14.03
+    ],
+    "prior_label": "Engineering priors; not clinically validated",
+    "model_version": "recovery-1.0.0"
+  },
+  "drivers": {
+    "pulse_hz": 1.1,
+    "breath_hz": 0.23333333333333334,
+    "fatigue": 0.45599999999999996,
+    "exertion": 0.04,
+    "recovery_progress": 0.9717142857142856
+  },
+  "simulation": null,
+  "provenance_banner": "synthetic",
+  "quality": {
+    "heart_rate_bpm": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T07:13:21.214485Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "resting_hr_bpm": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T05:13:32.994875Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "hrv_rmssd_ms": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T05:13:32.994875Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "respiration_brpm": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T07:13:21.214485Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "spo2_pct": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T05:13:32.994875Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "activity_level": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T07:13:21.214485Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "sleep": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T05:13:32.994875Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    },
+    "steps": {
+      "provenance": "synthetic",
+      "event_time": "2026-09-12T05:13:32.994875Z",
+      "confidence": 1.0,
+      "contested": false,
+      "alternatives": []
+    }
+  },
+  "latency_ms": 1.21,
+  "prediction": {
+    "id": "650f9048c830436182eb08587244270a",
+    "issued_at": "2026-09-10T15:00:20Z",
+    "horizon_s": 600,
+    "curve": [],
+    "observed": [],
+    "rmse": 9.96,
+    "model_version": "recovery-1.0.0",
+    "provenance": "synthetic",
+    "assumption": "Assumes activity stops and recovery follows the fitted exponential."
+  }
+}

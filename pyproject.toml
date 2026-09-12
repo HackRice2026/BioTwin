@@ -1,0 +1,21 @@
+[project]
+name = "biotwin"
+version = "0.1.0"
+description = "Personal wearable recovery twin"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.8,<3", "sqlalchemy>=2.0,<3", "psycopg[binary]>=3.2,<4", "numpy>=2.2,<3", "scipy>=1.15,<2", "httpx>=0.28,<1", "cryptography>=44", "fitdecode>=0.11,<1", "python-multipart>=0.0.20", "tzdata>=2025.1"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.25", "hypothesis>=6", "ruff>=0.11"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
