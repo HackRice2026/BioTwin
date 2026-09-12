@@ -9,6 +9,7 @@ import {
   Battery,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronRight,
   CloudOff,
   FlaskConical,
@@ -252,12 +253,14 @@ export default function App() {
     question,
     setQuestion,
     asking,
+    transcribing,
     speaking,
     listening,
+    needsTap,
     ask,
-    speak,
     microphone,
     stopSpeaking,
+    resumeSpeech,
   } = conversation;
   const notify = (s: string) => setToast(s);
   const changed = () => {
@@ -1269,10 +1272,62 @@ export default function App() {
                   state={state}
                   reduced={reduced}
                   speaking={speaking}
+                  listening={listening}
+                  thinking={asking}
                 />
               </div>
             )}
-            <div className="chat-messages">
+            <div className="chat-scroll">
+              <div className="voice-stage">
+                <button
+                  type="button"
+                  className={`mic-primary${listening ? " is-listening" : ""}${speaking ? " is-speaking" : ""}${asking ? " is-thinking" : ""}`}
+                  aria-pressed={listening}
+                  aria-label={
+                    listening ? "Stop listening" : "Start listening"
+                  }
+                  disabled={asking}
+                  onClick={microphone}
+                >
+                  <span className="mic-rings" aria-hidden="true" />
+                  <Mic size={30} />
+                </button>
+                <p className="voice-caption">
+                  {listening
+                    ? "Listening… tap to stop"
+                    : asking
+                      ? transcribing
+                        ? "Transcribing…"
+                        : "Thinking…"
+                      : speaking
+                        ? "Speaking…"
+                        : "Tap to talk to your twin"}
+                </p>
+                {needsTap && !conversation.voiceError && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={resumeSpeech}
+                  >
+                    <Volume2 size={13} />
+                    Tap to hear your twin
+                  </button>
+                )}
+                {conversation.voiceNotice && (
+                  <p
+                    className={`conversation-status ${conversation.voiceError ? "error" : ""}`}
+                    role={conversation.voiceError ? "alert" : "status"}
+                  >
+                    {conversation.voiceNotice}
+                  </p>
+                )}
+                {speaking && (
+                  <button className="text-button" onClick={stopSpeaking}>
+                    <Pause size={14} />
+                    Stop speaking
+                  </button>
+                )}
+              </div>
               <div className="chat-welcome">
                 <Sparkles size={24} />
                 <h2>
@@ -1294,85 +1349,57 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {conversation.historyBusy && (
-                <p className="conversation-status" role="status">
-                  Loading saved conversations…
-                </p>
-              )}
-              {conversation.historyError && (
-                <p className="conversation-status error" role="alert">
-                  {conversation.historyError}
-                </p>
-              )}
-              {conversation.nextBefore && (
-                <button
-                  className="text-button"
-                  disabled={conversation.historyBusy}
-                  onClick={() =>
-                    conversation.loadHistory(conversation.nextBefore!)
-                  }
-                >
-                  Load earlier conversations
-                </button>
-              )}
-              {messages.map((m) => (
-                <div key={m.key} className={`message ${m.role}`}>
-                  <small>
-                    {m.role === "user" ? "YOU" : "YOUR TWIN"} ·{" "}
-                    <time dateTime={m.created_at}>
-                      {new Date(m.created_at).toLocaleString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                  </small>
-                  <p>{m.text}</p>
-                  {m.reply?.notice && (
-                    <p className="message-notice">{m.reply.notice}</p>
+              <details className="chat-transcript">
+                <summary>
+                  <span>Transcript</span>
+                  <ChevronDown size={14} />
+                </summary>
+                <div className="chat-messages">
+                  {conversation.historyBusy && (
+                    <p className="conversation-status" role="status">
+                      Loading saved conversations…
+                    </p>
                   )}
-                  {m.reply && (
+                  {conversation.historyError && (
+                    <p className="conversation-status error" role="alert">
+                      {conversation.historyError}
+                    </p>
+                  )}
+                  {conversation.nextBefore && (
                     <button
-                      className="listen-button"
-                      onClick={() => speak(m.reply!)}
+                      className="text-button"
+                      disabled={conversation.historyBusy}
+                      onClick={() =>
+                        conversation.loadHistory(conversation.nextBefore!)
+                      }
                     >
-                      <Volume2 size={13} />
-                      Listen with ElevenLabs
+                      Load earlier conversations
                     </button>
                   )}
+                  {messages.map((m) => (
+                    <div key={m.key} className={`message ${m.role}`}>
+                      <small>
+                        {m.role === "user" ? "YOU" : "YOUR TWIN"} ·{" "}
+                        <time dateTime={m.created_at}>
+                          {new Date(m.created_at).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </time>
+                      </small>
+                      <p>{m.text}</p>
+                      {m.reply?.notice && (
+                        <p className="message-notice">{m.reply.notice}</p>
+                      )}
+                    </div>
+                  ))}
+                  <div ref={messagesEnd} />
                 </div>
-              ))}
-              {asking && (
-                <div className="thinking">
-                  <LoaderCircle size={15} className="spin" />
-                  {conversation.transcribing
-                    ? "Transcribing your recording…"
-                    : "Reading your computed context…"}
-                </div>
-              )}
-              <div ref={messagesEnd} />
+              </details>
             </div>
             <div className="chat-input-area">
-              {conversation.voiceNotice && (
-                <p
-                  className={`conversation-status ${conversation.voiceError ? "error" : ""}`}
-                  role={conversation.voiceError ? "alert" : "status"}
-                >
-                  {conversation.voiceNotice}
-                </p>
-              )}
-              {listening && (
-                <p className="conversation-status" role="status">
-                  Listening… Tap the microphone when you’re done.
-                </p>
-              )}
-              {speaking && (
-                <button className="text-button" onClick={stopSpeaking}>
-                  <Pause size={14} />
-                  Stop speaking
-                </button>
-              )}
               <form
                 className="chat-input"
                 onSubmit={(e: FormEvent) => {
@@ -1385,20 +1412,8 @@ export default function App() {
                   value={question}
                   maxLength={1000}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask your twin something…"
+                  placeholder="Or type a question…"
                 />
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label={
-                    listening ? "Finish dictation" : "Dictate a question"
-                  }
-                  aria-pressed={listening}
-                  disabled={asking}
-                  onClick={microphone}
-                >
-                  <Mic size={17} />
-                </button>
                 <button
                   className="send-button"
                   aria-label="Send question"
