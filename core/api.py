@@ -1,11 +1,12 @@
 import asyncio
+import hashlib
 import hmac
 import json
 import secrets
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
@@ -18,6 +19,7 @@ from fastapi import (
     WebSocketDisconnect,
     UploadFile,
     File,
+    Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
@@ -36,6 +38,7 @@ from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
 from narration.service import narrate
+from narration.transcription import transcribe
 
 
 class AuthInput(BaseModel):
@@ -55,7 +58,9 @@ class ProfileInput(BaseModel):
 
 
 class Question(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=1, max_length=1000)
+    request_id: str = Field(default_factory=lambda: secrets.token_hex(16), pattern=r"^[a-zA-Z0-9_-]{16,64}$")
 
 
 class Scenario(BaseModel):
@@ -179,6 +184,7 @@ def create_app(config=None):
             "user": public_user(u),
             "demo": u["id"] == "demo",
             "voice_configured": bool(config.elevenlabs_api_key),
+            "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
         }
 
@@ -372,36 +378,122 @@ def create_app(config=None):
         rt().store.put(u["id"], "added_event", result, proposal.id)
         return result
 
-    @app.post("/api/twin/ask")
-    async def ask(data: Question, request: Request):
+    def conversation_owner(request, response=None):
         u = user(request)
+        if u["id"] != "demo":
+            return u["id"]
+        token = request.cookies.get("biotwin_conversation", "")
+        if len(token) != 64 or any(c not in "0123456789abcdef" for c in token):
+            if response is None:
+                return None
+            token = secrets.token_hex(32)
+            response.set_cookie(
+                "biotwin_conversation",
+                token,
+                httponly=True,
+                secure=config.cookie_secure,
+                samesite="lax",
+                max_age=604800,
+            )
+        # The public demo's measurements are shared; visitors' questions never are.
+        return "guest:" + hashlib.sha256(token.encode()).hexdigest()
+
+    def transcript(row):
+        return {
+            **{key: row[key] for key in ["id", "question", "answer", "mode", "notice", "model"]},
+            "created_at": datetime.fromtimestamp(row["created_at"], timezone.utc).isoformat(),
+            "completed_at": datetime.fromtimestamp(row["completed_at"], timezone.utc).isoformat()
+            if row["completed_at"]
+            else None,
+        }
+
+    def speech_ticket(owner, row):
+        if not row or not row["answer"]:
+            raise HTTPException(404, "This conversation has no completed answer to speak.")
+        reply_id = secrets.token_hex(16)
+        rt().store.put(
+            owner, "speech", {"answer": row["answer"], "expires": utcnow().timestamp() + 300}, reply_id
+        )
+        return {"reply_id": reply_id, "voice_configured": bool(config.elevenlabs_api_key)}
+
+    @app.post("/api/twin/transcribe")
+    async def transcribe_question(request: Request, audio: UploadFile = File(...)):
+        user(request)
+        recording = await audio.read(5 * 1024 * 1024 + 1)
+        mime_type = (audio.content_type or "").split(";", 1)[0]
+        try:
+            question = await transcribe(recording, mime_type, config, rt().http)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        return {"question": question}
+
+    @app.get("/api/twin/conversations")
+    async def conversation_history(
+        request: Request, limit: int = Query(30, ge=1, le=100), before: str | None = None
+    ):
+        owner = conversation_owner(request)
+        rows = rt().store.conversation_history(owner, limit + 1, before) if owner else []
+        more = len(rows) > limit
+        rows = rows[-limit:]
+        return {
+            "conversations": [transcript(row) for row in rows],
+            "next_before": rows[0]["id"] if more else None,
+        }
+
+    @app.post("/api/twin/conversations/{conversation_id}/speech")
+    async def replay_speech(conversation_id: str, request: Request):
+        owner = conversation_owner(request)
+        row = rt().store.conversation(owner, conversation_id) if owner else None
+        return speech_ticket(owner, row)
+
+    @app.post("/api/twin/ask")
+    async def ask(data: Question, request: Request, response: Response):
+        u = user(request)
+        owner = conversation_owner(request, response)
+        question = data.question.strip()
+        if not question:
+            raise HTTPException(422, "Enter a question for your twin.")
         current = await state(request)
+        if current.prediction:
+            stored_prediction = rt().store.get(u["id"], "prediction", current.prediction.id)
+            if stored_prediction:
+                stored_score = rt().store.get(u["id"], "prediction_score", current.prediction.id) or {}
+                current = current.model_copy(
+                    update={
+                        "prediction": RecoveryPrediction.model_validate({**stored_prediction, **stored_score})
+                    }
+                )
         stored = rt().store.get(u["id"], "plan")
         ctx = narration_context(
             current,
             DailyPlan.model_validate(stored) if stored else None,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
         )
-        answer = await narrate(data.question, ctx, config, rt().http)
-        reply_id = secrets.token_hex(16)
-        rt().store.put(
-            u["id"], "speech", {"answer": answer.answer, "expires": utcnow().timestamp() + 300}, reply_id
+        row, created = rt().store.begin_conversation(
+            owner, data.request_id, question, ctx.model_dump(mode="json")
         )
+        if created:
+            answer = await narrate(question, ctx, config, rt().http)
+            row = rt().store.complete_conversation(owner, data.request_id, answer)
+        elif row["mode"] == "pending":
+            raise HTTPException(409, "Your twin is still answering this question. Try again shortly.")
+        if row is None:
+            raise HTTPException(410, "This account or conversation was deleted.")
         return {
-            **answer.model_dump(),
-            "reply_id": reply_id,
-            "voice_configured": bool(config.elevenlabs_api_key),
+            **transcript(row),
+            "grounded": True,
+            **speech_ticket(owner, row),
         }
 
     @app.get("/api/voice/{reply_id}")
     async def voice(reply_id: str, request: Request):
-        uid = user(request)["id"]
+        uid = conversation_owner(request)
         if not config.elevenlabs_api_key:
             raise HTTPException(
                 503,
                 "ElevenLabs needs ELEVENLABS_API_KEY in the server .env. Your text answer is still available.",
             )
-        speech = rt().store.take(uid, "speech", reply_id)
+        speech = rt().store.take(uid, "speech", reply_id) if uid else None
         if not speech or speech["expires"] < utcnow().timestamp():
             raise HTTPException(404, "Speech expired. Ask the twin again.")
         upstream = rt().http.build_request(
@@ -411,17 +503,36 @@ def create_app(config=None):
             headers={"xi-api-key": config.elevenlabs_api_key},
             json={"text": speech["answer"], "model_id": config.elevenlabs_model_id},
         )
-        response = await rt().http.send(upstream, stream=True)
+        try:
+            response = await rt().http.send(upstream, stream=True)
+        except httpx.HTTPError:
+            raise HTTPException(
+                502, "ElevenLabs is unavailable. Your text answer is saved; try Listen again."
+            ) from None
         if response.status_code != 200:
             await response.aclose()
             raise HTTPException(
                 502,
-                "ElevenLabs could not generate speech. Check your API key, voice access, and credit balance.",
+                "The selected ElevenLabs voice requires a paid plan or more credits. Choose a voice available to your account. Your text answer is saved."
+                if response.status_code == 402
+                else "ElevenLabs could not generate speech. Check your API key, voice access, and credit balance. Your text answer is saved.",
             )
+
+        stream = response.aiter_bytes()
+        try:
+            first = await anext(stream)
+            if not first:
+                raise StopAsyncIteration
+        except (httpx.HTTPError, StopAsyncIteration):
+            await response.aclose()
+            raise HTTPException(
+                502, "ElevenLabs returned no usable audio. Your text answer is saved."
+            ) from None
 
         async def chunks():
             try:
-                async for chunk in response.aiter_bytes():
+                yield first
+                async for chunk in stream:
                     yield chunk
             finally:
                 await response.aclose()
@@ -662,7 +773,12 @@ def create_app(config=None):
     async def export(request: Request):
         uid = user(request, True)["id"]
         return Response(
-            json.dumps({"frames": [f.model_dump(mode="json") for f in rt().history(uid)]}),
+            json.dumps(
+                {
+                    "frames": [f.model_dump(mode="json") for f in rt().history(uid)],
+                    "conversations": [transcript(row) for row in rt().store.conversation_history(uid)],
+                }
+            ),
             media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=biotwin-data.json"},
         )

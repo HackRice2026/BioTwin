@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"
     elevenlabs_model_id: str = "eleven_flash_v2_5"
-    narration_url: str = ""
+    narration_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     narration_api_key: str = ""
-    narration_model: str = ""
+    narration_model: str = "gemini-3.1-flash-lite"
     allow_external_narration: bool = False

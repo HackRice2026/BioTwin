@@ -125,6 +125,16 @@ export type Facts = string[];
 export type Answer = string;
 export type Mode = "template" | "language_service" | "guard_fallback";
 export type Grounded = boolean;
+export type Notice = string | null;
+export type Model = string | null;
+export type Id2 = string;
+export type Question = string;
+export type Answer1 = string | null;
+export type CreatedAt = string;
+export type CompletedAt = string | null;
+export type Mode1 = string;
+export type Notice1 = string | null;
+export type Model1 = string | null;
 export type IssuedAt1 = string;
 export type Timezone1 = string;
 export type Curve2 = CurvePoint[];
@@ -141,6 +151,7 @@ export interface BioTwinContracts {
   DailyPlan: DailyPlan;
   NarrationContext: NarrationContext;
   NarrationResponse: NarrationResponse;
+  Conversation: Conversation;
   SimulationOverlay: SimulationOverlay;
   DayOutlook: DayOutlook;
 }
@@ -315,11 +326,28 @@ export interface NarrationContext {
   plan?: DailyPlan | null;
   prediction?: RecoveryPrediction | null;
   facts?: Facts;
+  provenance?: Provenance | null;
+  quality?: Quality1;
+}
+export interface Quality1 {
+  [k: string]: MetricQuality;
 }
 export interface NarrationResponse {
   answer: Answer;
   mode: Mode;
   grounded?: Grounded;
+  notice?: Notice;
+  model?: Model;
+}
+export interface Conversation {
+  id: Id2;
+  question: Question;
+  answer?: Answer1;
+  created_at: CreatedAt;
+  completed_at?: CompletedAt;
+  mode: Mode1;
+  notice?: Notice1;
+  model?: Model1;
 }
 export interface DayOutlook {
   issued_at: IssuedAt1;

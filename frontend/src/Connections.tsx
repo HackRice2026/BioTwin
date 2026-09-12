@@ -501,7 +501,7 @@ export default function Connections({
           </p>
           <small className="setup-note">
             {sources?.elevenlabs.configured
-              ? "Use Listen in the twin conversation."
+              ? "Ask your twin a question to hear its answer. Saved conversations can be replayed with Listen."
               : "Add ELEVENLABS_API_KEY to the server .env, then restart."}
           </small>
         </section>

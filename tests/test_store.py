@@ -51,3 +51,42 @@ def test_user_deletion_scrubs_only_their_webhook_batch(store):
     job = store.claim()
     assert job["payload"] == {"dailies": [{"userId": "another-user", "steps": 600}]}
     store.finish(job)
+
+
+def test_conversation_persistence_idempotence_and_deletion(store):
+    from shared.schemas import NarrationResponse
+
+    uid = uuid.uuid4().hex
+    cid = uuid.uuid4().hex
+    store.create_user(uid, uid + "@test.invalid", "unused", "Transcript test", {})
+    try:
+        row, created = store.begin_conversation(
+            uid, cid, "How am I doing?", {"facts": ["Recorded test context"]}
+        )
+        assert created and row["mode"] == "pending"
+        _, duplicate = store.begin_conversation(uid, cid, "How am I doing?", {"facts": []})
+        assert not duplicate
+        saved = store.complete_conversation(
+            uid,
+            cid,
+            NarrationResponse(
+                answer="The requested measurement is unavailable.",
+                mode="language_service",
+                model="test-model",
+            ),
+        )
+        assert saved["gemini_answer"] == saved["answer"]
+        assert saved["completed_at"] >= saved["created_at"]
+        reopened = Store(store.engine.url.render_as_string(hide_password=False))
+        try:
+            assert reopened.conversation_history(uid)[0]["answer"] == saved["answer"]
+        finally:
+            reopened.engine.dispose()
+        store.delete_user(uid)
+        assert store.conversation_history(uid) == []
+        assert (
+            store.complete_conversation(uid, cid, NarrationResponse(answer="Late answer", mode="template"))
+            is None
+        )
+    finally:
+        store.delete_user(uid)

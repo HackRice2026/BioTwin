@@ -15,7 +15,7 @@ const page = await context.newPage();
 await mkdir("test-results", { recursive: true });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
-await page.goto("http://localhost:8000");
+await page.goto(process.env.BIOTWIN_TEST_URL || "http://localhost:8000");
 await page.getByText("Your day, understood.", { exact: true }).waitFor();
 await page.locator("canvas").waitFor();
 await page.getByText("Synthetic demo", { exact: true }).waitFor();
@@ -63,9 +63,13 @@ await page
   .waitFor({ timeout: 20000 });
 await page.locator("canvas").waitFor();
 await page.screenshot({ path: "test-results/offline.png", fullPage: true });
-await page.getByRole("button", {name: "What-if lab", exact: false}).click();
-await page.getByRole("button", {name: "Take a breather", exact: false}).click();
-await page.getByRole("heading", {name: "SIMULATED heart-rate trajectory"}).waitFor();
+await page.getByRole("button", { name: "What-if lab", exact: false }).click();
+await page
+  .getByRole("button", { name: "Take a breather", exact: false })
+  .click();
+await page
+  .getByRole("heading", { name: "SIMULATED heart-rate trajectory" })
+  .waitFor();
 await mkdir("test-results", { recursive: true });
 await writeFile(
   "test-results/browser-report.json",
