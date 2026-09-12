@@ -155,25 +155,64 @@ for h = 1:size(HORIZONS, 1)
 
     % Did anything beat the best rule? Paired over validation days, which is the
     % comparison that survives a small sample better than the pooled figure.
+    %
+    % Two comparisons, because they are not the same claim:
+    %
+    %   the physiology ridge  pre-specified -- Stage 2 chose its predictors on
+    %                         TRAIN, so validation is untouched and this figure
+    %                         is an honest estimate
+    %   the best fitted model picked by looking at this very validation table,
+    %                         so its margin is optimistic by construction and is
+    %                         a lead to confirm in Stage 5, not a result
+    %
+    % Reporting only the first is what made an earlier version of this script
+    % print "the best rule still wins" at 3h while its own table showed the
+    % bagged trees ahead of every rule.
     ruleLabels = labels(startsWith(string(labels), "baseline:"));
     ruleMae = cellfun(@(L) scoreModel(yVa, predictions(L)).mae, ruleLabels);
-    [bestRuleMae, bi] = min(ruleMae);
+    [~, bi] = min(ruleMae);
     bestRule = ruleLabels{bi};
 
+    fittedLabels = labels(~startsWith(string(labels), "baseline:"));
+    fittedMae = cellfun(@(L) scoreModel(yVa, predictions(L)).mae, fittedLabels);
+    [~, fi] = min(fittedMae);
+    bestFitted = fittedLabels{fi};
+
     physLabel = char(featureSets{end, 1});
-    d = perDay(bestRule) - perDay(physLabel);   % same day order for both
-    fprintf(['  physiology vs %s: %+.2f +/- %.2f MAE paired over %d days, ' ...
-             'better on %d/%d\n'], bestRule, mean(d), std(d) / sqrt(numel(d)), ...
-             numel(d), sum(d > 0), numel(d));
-    if mean(d) > 0
-        fprintf('  -> the model improves on the best rule at this horizon\n');
-    else
-        fprintf(['  -> the best rule still wins here; the selected predictors did ' ...
-                 'not transfer\n']);
+    contenders = {physLabel, 'pre-specified'};
+    if ~strcmp(bestFitted, physLabel)
+        contenders = [contenders; {bestFitted, 'chosen on validation'}];
     end
-    results = [results; table(name, "paired: physiology vs " + string(bestRule), ...
-        "validation", numel(d), mean(d), std(d) / sqrt(numel(d)), sum(d > 0), ...
-        'VariableNames', {'horizon', 'model', 'split', 'n', 'mae', 'rmse', 'r2'})]; %#ok<AGROW>
+
+    for c = 1:size(contenders, 1)
+        label = contenders{c, 1};
+        d = perDay(bestRule) - perDay(label);   % same day order for both
+        fprintf(['  %s vs %s: %+.2f +/- %.2f MAE paired over %d days, ' ...
+                 'better on %d/%d (%s)\n'], label, bestRule, mean(d), ...
+                 std(d) / sqrt(numel(d)), numel(d), sum(d > 0), numel(d), ...
+                 contenders{c, 2});
+        results = [results; table(name, ...
+            "paired: " + string(label) + " vs " + string(bestRule), ...
+            "validation", numel(d), mean(d), std(d) / sqrt(numel(d)), ...
+            sum(d > 0), 'VariableNames', ...
+            {'horizon', 'model', 'split', 'n', 'mae', 'rmse', 'r2'})]; %#ok<AGROW>
+    end
+
+    % The verdict names whichever model actually leads the table, so it can no
+    % longer contradict the rows printed above it.
+    physGain = mean(perDay(bestRule) - perDay(physLabel));
+    if physGain > 0
+        fprintf('  -> the pre-specified physiology model improves on %s here\n', bestRule);
+    elseif min(fittedMae) < min(ruleMae)
+        fprintf(['  -> the pre-specified predictors did not transfer, but %s ' ...
+                 'leads the table\n     (%.2f vs %.2f MAE for %s). Chosen by ' ...
+                 'looking at validation, so treat it as a\n     candidate for ' ...
+                 'Stage 5 rather than a win.\n'], bestFitted, min(fittedMae), ...
+                 min(ruleMae), bestRule);
+    else
+        fprintf(['  -> %s still wins here; no fitted model beat it, on the ' ...
+                 'pooled figure or paired\n'], bestRule);
+    end
 end
 
 writetable(results, fullfile(OUTDIR, 's03_models.csv'));
