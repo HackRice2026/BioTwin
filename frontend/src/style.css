@@ -2579,3 +2579,16 @@ h1 {
     animation-duration: 3s;
   }
 }
+
+/* Vendor summaries sit apart from BioTwin's own measurements so a reader can see
+   which numbers the watch computed and which this app derived. */
+.vendor-row {
+  margin-bottom: 22px;
+}
+.vendor-label {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted, #6b7c76);
+  max-width: 68ch;
+}

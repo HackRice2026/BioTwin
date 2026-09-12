@@ -31,6 +31,9 @@ import {
   X,
   Footprints,
   Mic,
+  BatteryCharging,
+  Gauge,
+  Flame,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
@@ -75,6 +78,15 @@ const emptySeries: Record<string, MetricPoint[]> = {
   respiration_brpm: [],
   spo2_pct: [],
   steps: [],
+  // Vendor daily composites, shown with provenance and kept out of readiness.
+  body_battery_charged: [],
+  body_battery_drained: [],
+  stress_avg: [],
+  stress_max: [],
+  active_calories: [],
+  active_seconds: [],
+  highly_active_seconds: [],
+  floors_climbed: [],
 };
 type Reply = {
   answer: string;
@@ -314,7 +326,7 @@ export default function App() {
           next[m] = (result.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(6);
+      const [s, h, p, pl, out] = results.slice(Object.keys(emptySeries).length);
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -486,6 +498,17 @@ export default function App() {
     day: "numeric",
   });
   const latest = state?.latest;
+  // Each tile shows the newest reading FOR ITS OWN METRIC, so sleep can be several
+  // days older than heart rate. Name the night instead of implying it was last night.
+  const sleepEnd = latest?.sleep ? new Date(latest.sleep.end) : null;
+  const sleepAgeHours = sleepEnd ? (Date.now() - sleepEnd.getTime()) / 3600000 : null;
+  const sleepIsLastNight = sleepAgeHours !== null && sleepAgeHours <= 18;
+  const sleepDetail =
+    sleepEnd === null || sleepAgeHours === null
+      ? "Time asleep · latest session"
+      : sleepAgeHours <= 18
+        ? "Time asleep · last night"
+        : `Night of ${sleepEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${Math.round(sleepAgeHours / 24)} days ago`;
   const title: Record<Page, string> = {
     Overview: "Your day, understood.",
     Signals: "Listen to your signals.",
@@ -800,14 +823,16 @@ export default function App() {
                   source={source("hrv_rmssd_ms")}
                 />
                 <MetricCard
-                  name="Last night's sleep"
-                  reading={latest?.sleep?.total_minutes}
-                  unit="min"
+                  name={sleepIsLastNight ? "Last night's sleep" : "Most recent sleep"}
+                  reading={
+                    latest?.sleep ? latest.sleep.total_minutes / 60 : latest?.sleep?.total_minutes
+                  }
+                  unit="h"
                   icon={Moon}
-                  detail="Time asleep · latest session"
+                  detail={sleepDetail}
                   data={sleep.map((s) => ({
                     time: s.time,
-                    value: s.value.total_minutes,
+                    value: s.value.total_minutes / 60,
                     provenance: s.provenance,
                     confidence: 1,
                   }))}
@@ -822,6 +847,77 @@ export default function App() {
                   data={metrics.resting_hr_bpm ?? []}
                   source={source("resting_hr_bpm")}
                 />
+              </div>
+              <div className="vendor-row">
+                <p className="vendor-label">
+                  Straight from your watch · Garmin's own summaries, shown as
+                  measured and deliberately not folded into your readiness score
+                </p>
+                <div className="metrics-grid">
+                  <MetricCard
+                    name="Body Battery drained"
+                    reading={latest?.body_battery_drained}
+                    unit=""
+                    icon={BatteryCharging}
+                    detail={
+                      latest?.body_battery_charged != null
+                        ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
+                        : "Garmin's own energy estimate"
+                    }
+                    data={metrics.body_battery_drained ?? []}
+                    source={source("body_battery_drained")}
+                  />
+                  <MetricCard
+                    name="Stress"
+                    reading={latest?.stress_avg}
+                    unit="/100"
+                    icon={Gauge}
+                    detail={
+                      latest?.stress_max != null
+                        ? `Daily average · peaked at ${latest.stress_max}`
+                        : "Garmin's own daily average"
+                    }
+                    data={metrics.stress_avg ?? []}
+                    source={source("stress_avg")}
+                  />
+                  <MetricCard
+                    name="Active energy"
+                    reading={latest?.active_calories}
+                    unit="kcal"
+                    icon={Flame}
+                    detail={[
+                      latest?.active_seconds != null
+                        ? `${Math.round(latest.active_seconds / 60)} min active`
+                        : null,
+                      latest?.highly_active_seconds != null
+                        ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
+                        : null,
+                      latest?.floors_climbed != null
+                        ? `${Math.round(latest.floors_climbed)} floors`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Recorded movement"}
+                    data={metrics.active_calories ?? []}
+                    source={source("active_calories")}
+                  />
+                  <MetricCard
+                    name="Sleep score"
+                    reading={latest?.sleep?.score}
+                    unit="/100"
+                    icon={Moon}
+                    detail="Garmin's own score · not used in your readiness"
+                    data={sleep
+                      .filter((x) => x.value.score != null)
+                      .map((x) => ({
+                        time: x.time,
+                        value: x.value.score as number,
+                        provenance: x.provenance,
+                        confidence: 1,
+                      }))}
+                    source={source("sleep")}
+                  />
+                </div>
               </div>
               <div className="hero-grid">
                 <Avatar
@@ -991,6 +1087,28 @@ export default function App() {
                   },
                   { field: "spo2_pct", title: "Blood oxygen", unit: "%" },
                   { field: "steps", title: "Recorded steps", unit: "steps" },
+                  {
+                    field: "body_battery_drained",
+                    title: "Body Battery drained",
+                    unit: "",
+                  },
+                  {
+                    field: "body_battery_charged",
+                    title: "Body Battery charged",
+                    unit: "",
+                  },
+                  { field: "stress_avg", title: "Stress", unit: "/100" },
+                  {
+                    field: "active_calories",
+                    title: "Active energy",
+                    unit: "kcal",
+                  },
+                  {
+                    field: "highly_active_seconds",
+                    title: "Intense minutes",
+                    unit: "s",
+                  },
+                  { field: "floors_climbed", title: "Floors climbed", unit: "" },
                 ].map((m) => (
                   <Card key={m.field}>
                     <div className="card-heading">

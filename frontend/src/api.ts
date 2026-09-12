@@ -55,6 +55,8 @@ export type SleepPoint = {
     light_minutes?: number;
     deep_minutes?: number;
     rem_minutes?: number;
+    efficiency_pct?: number;
+    score?: number;
   };
   provenance: string;
 };
