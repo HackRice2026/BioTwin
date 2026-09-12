@@ -17,3 +17,11 @@ playwright-report/
 
 # MATLAB Online upload bundles, rebuilt by zipping matlab/ and processed_data/
 *.zip
+
+# Derived training tables: 22 MB, rebuilt by scripts/build_garmin_master.py
+# and scripts/build_garmin_training.py from raw_json/
+processed_data/*.csv
+!processed_data/garmin_feature_manifest.csv
+
+# MATLAB Online downloads, copied into matlab/results/
+result/
