@@ -686,7 +686,9 @@ export default function App() {
               {status === "offline"
                 ? "Offline replay"
                 : isDemo
-                  ? "Synthetic demo"
+                  ? state?.provenance_banner === "synthetic"
+                    ? "Synthetic demo"
+                    : "Live demo (real data)"
                   : status === "online"
                     ? "Twin connected"
                     : "Connecting"}
@@ -761,7 +763,10 @@ export default function App() {
           {isDemo && status !== "offline" && (
             <div className="demo-banner">
               <span>
-                <i />A working preview with synthetic wearable data.
+                <i />
+                {state?.provenance_banner === "synthetic"
+                  ? "A working preview with synthetic wearable data."
+                  : "Live wearable data — not yet saved to your own account."}
               </span>
               <button onClick={() => setAuth(true)}>
                 Connect your own story <ArrowRight size={14} />
