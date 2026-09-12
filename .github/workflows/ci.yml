@@ -32,9 +32,17 @@ jobs:
       - run: npm run test --prefix frontend
       - run: npm run build --prefix frontend
       - run: npx --prefix frontend playwright install --with-deps chromium
-      - run: |
-          uv run uvicorn core.api:app --host 127.0.0.1 --port 8000 --no-access-log &
+      - name: Verify browser and offline behavior
+        run: |
+          .venv/bin/uvicorn core.api:app --host 127.0.0.1 --port 8000 --no-access-log &
+          biotwin_server_pid=$!
+          cleanup() {
+            kill "$biotwin_server_pid" 2>/dev/null || true
+            wait "$biotwin_server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
           for attempt in {1..30}; do curl -fsS http://localhost:8000/healthz && break || sleep 1; done
+          curl -fsS http://localhost:8000/healthz
           node scripts/browser-check.mjs
         env:
           BIOTWIN_TEST_BUNDLED_CHROMIUM: 'true'
