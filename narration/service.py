@@ -3,28 +3,8 @@ import json
 import re
 import httpx
 from urllib.parse import urlparse
+from narration.vertex_auth import vertex_token
 from shared.schemas import NarrationResponse
-
-_vertex_credentials = None  # lazy-loaded, module-level so the token is reused/refreshed across requests instead of re-authenticating every call
-
-
-def _vertex_token():
-    """Blocking (google-auth has no native async transport) -- always call
-    via asyncio.to_thread. Loads Application Default Credentials once
-    (from `gcloud auth application-default login`'s local file) and
-    refreshes the cached access token only when it's actually expired.
-    """
-    global _vertex_credentials
-    import google.auth
-    from google.auth.transport.requests import Request as GoogleAuthRequest
-
-    if _vertex_credentials is None:
-        _vertex_credentials, _ = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-    if not _vertex_credentials.valid:
-        _vertex_credentials.refresh(GoogleAuthRequest())
-    return _vertex_credentials.token
 
 FORBIDDEN = re.compile(
     r"\b(diagnos\w*|prescrib\w*|clinically|cure\w*|disease|disorder|diabetes|arrhythmia|"
@@ -138,7 +118,7 @@ def template(question, ctx):
 
 async def _vertex_narrate(question, ctx, config, http, fallback):
     try:
-        token = await asyncio.to_thread(_vertex_token)
+        token = await asyncio.to_thread(vertex_token)
     except Exception:
         # Covers google.auth's own exceptions (no ADC file, expired refresh
         # token, wrong scopes) without importing its exception module just

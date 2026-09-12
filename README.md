@@ -13,10 +13,25 @@ uv sync --frozen
 npm ci --prefix frontend
 uv run python -m scripts.setup
 npm run build --prefix frontend
-uv run uvicorn core.api:app --host 127.0.0.1 --port 8000 --no-access-log
+uv run uvicorn core.api:app --host 0.0.0.0 --port 8000 --no-access-log
 ```
 
 Open **http://localhost:8000**. For frontend hot reload, run `bash scripts/dev.sh` and open http://localhost:5173. Offline installation must be tested using the production build on port 8000.
+
+### LAN access (share your dev server with a teammate)
+
+Both dev servers listen on `0.0.0.0` by default, so anyone on the same WiFi can reach them at your machine's LAN IP instead of `localhost`. Find that IP:
+
+```sh
+# macOS
+ipconfig getifaddr en0
+# Linux
+hostname -I
+# Windows (PowerShell)
+ipconfig
+```
+
+Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — voice, live updates and API calls all work the same as on `localhost`. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
 
 Create an adult account from “Connect your own story.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
 
