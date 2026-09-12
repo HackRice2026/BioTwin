@@ -7,7 +7,7 @@ import { Sparkles } from "lucide-react";
  */
 export function InsightCard({ body }: { body: string }) {
   return (
-    <div className="rounded-3xl border border-amber/25 bg-gradient-to-br from-amber-fill/60 to-card p-5">
+    <div className="h-full rounded-2xl border border-amber/25 bg-linear-to-br from-amber-fill/60 to-card p-4">
       <div className="flex items-center gap-2 text-amber">
         <Sparkles size={16} strokeWidth={2} />
         <span className="text-xs font-semibold uppercase tracking-wider">
