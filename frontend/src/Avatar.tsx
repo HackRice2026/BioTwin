@@ -388,6 +388,12 @@ function Body({
     damp("LeftEye", 0, eyeBreak, 0, 12);
     damp("RightEye", 0, eyeBreak, 0, 12);
 
+    // The GLB's bind pose has arms out near-horizontal (a T-pose, for clean
+    // skinning) -- every non-gesture state used to offset from that pose by
+    // only a few hundredths of a radian, so "idle" rendered as a scarecrow
+    // instead of a relaxed stance. This is the rotation (on top of that same
+    // bind pose) that actually brings the arm down to the side.
+    const ARMS_DOWN = 1.48;
     for (const side of ["Left", "Right"] as const) {
       const sign = side === "Left" ? 1 : -1;
       const armSwing = walk * sign * (action === "run" ? 0.92 : 0.55);
@@ -399,8 +405,8 @@ function Body({
           : celebrate
             ? -1.55
             : speaking
-              ? -0.3 + Math.sin(clock * 2 + sign) * 0.16
-              : -0.04 + armSwing,
+              ? ARMS_DOWN - 0.3 + Math.sin(clock * 2 + sign) * 0.16
+              : ARMS_DOWN + armSwing,
         isPointing ? -0.42 : 0,
         isPointing ? -0.48 : sign * (0.15 + emotion.current.energy * 0.13),
       );

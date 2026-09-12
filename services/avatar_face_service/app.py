@@ -100,27 +100,40 @@ def chunk_energy(chunk: bytes) -> float:
     return max(0.0, min(1.0, mean / 82.0))
 
 
+# A small set of distinct viseme-like mouth shapes to cycle through, instead
+# of driving jawOpen/mouthFunnel/mouthPucker/mouthStretch all off one shared
+# sine wave -- that made every shape rise and fall together, which reads as
+# a single hinge opening and closing, not speech. This still isn't real
+# phoneme detection (no audio content is analyzed, just energy + a cycle
+# timer), but distinct shapes in sequence read as talking, not a hinge.
+VISEMES: list[dict[str, float]] = [
+    {"jawOpen": 0.05, "mouthClose": 0.35, "mouthFunnel": 0.0, "mouthPucker": 0.0,
+     "mouthStretchLeft": 0.0, "mouthStretchRight": 0.0, "mouthSmileLeft": 0.05, "mouthSmileRight": 0.05},
+    {"jawOpen": 0.55, "mouthClose": 0.0, "mouthFunnel": 0.0, "mouthPucker": 0.0,
+     "mouthStretchLeft": 0.05, "mouthStretchRight": 0.05, "mouthSmileLeft": 0.1, "mouthSmileRight": 0.1},
+    {"jawOpen": 0.15, "mouthClose": 0.0, "mouthFunnel": 0.0, "mouthPucker": 0.0,
+     "mouthStretchLeft": 0.42, "mouthStretchRight": 0.42, "mouthSmileLeft": 0.3, "mouthSmileRight": 0.3},
+    {"jawOpen": 0.25, "mouthClose": 0.0, "mouthFunnel": 0.55, "mouthPucker": 0.35,
+     "mouthStretchLeft": 0.0, "mouthStretchRight": 0.0, "mouthSmileLeft": 0.0, "mouthSmileRight": 0.0},
+    {"jawOpen": 0.35, "mouthClose": 0.05, "mouthFunnel": 0.1, "mouthPucker": 0.0,
+     "mouthStretchLeft": 0.12, "mouthStretchRight": 0.12, "mouthSmileLeft": 0.12, "mouthSmileRight": 0.12},
+]
+
+
 def make_frame(timestamp_ms: int, energy: float, phase: float) -> dict[str, Any]:
-    vowel = abs(math.sin(phase * 1.7))
-    narrow = abs(math.sin(phase * 0.73 + 0.4))
-    smile = 0.07 + energy * 0.05
-    jaw = min(1.0, 0.04 + energy * 0.72 + vowel * 0.18)
-    return {
-        "type": "blendshape_frame",
-        "timestamp_ms": timestamp_ms,
-        "weights": {
-            "jawOpen": jaw,
-            "mouthClose": max(0.0, 0.2 - jaw * 0.16),
-            "mouthFunnel": min(1.0, energy * 0.22 + narrow * 0.12),
-            "mouthPucker": min(1.0, narrow * 0.14),
-            "mouthSmileLeft": smile,
-            "mouthSmileRight": smile,
-            "mouthStretchLeft": min(1.0, energy * 0.1 + vowel * 0.07),
-            "mouthStretchRight": min(1.0, energy * 0.1 + vowel * 0.07),
-            "eyeBlinkLeft": 0.0,
-            "eyeBlinkRight": 0.0,
-        },
+    step = phase / 0.9
+    i = int(step) % len(VISEMES)
+    j = (i + 1) % len(VISEMES)
+    t = step - int(step)
+    eased = t * t * (3 - 2 * t)  # smoothstep -- avoids a linear snap at each viseme boundary
+    gate = 0.15 + energy * 0.85  # near-silence still settles mostly closed, never fully rigid
+    weights = {
+        key: round((VISEMES[i][key] + (VISEMES[j][key] - VISEMES[i][key]) * eased) * gate, 4)
+        for key in VISEMES[0]
     }
+    weights["eyeBlinkLeft"] = 0.0
+    weights["eyeBlinkRight"] = 0.0
+    return {"type": "blendshape_frame", "timestamp_ms": timestamp_ms, "weights": weights}
 
 
 @app.websocket("/ws/face")
