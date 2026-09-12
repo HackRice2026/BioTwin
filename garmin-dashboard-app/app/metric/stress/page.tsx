@@ -34,6 +34,7 @@ export default async function StressDetail({
         subtitle={`Currently ${stressLabel(summary.stressLevel)}${
           summary.stressLevel != null && summary.stressLevel >= 0 ? ` (${summary.stressLevel})` : ""
         }`}
+        backRange={range}
       />
 
       <RangeTabs basePath="/metric/stress" current={range} />

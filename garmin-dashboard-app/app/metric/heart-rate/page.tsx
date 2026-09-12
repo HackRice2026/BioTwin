@@ -24,6 +24,7 @@ export default async function HeartRateDetail({
         color="coral"
         title="Heart Rate"
         subtitle={`Currently ${summary.latestHr ?? "--"} bpm`}
+        backRange={range}
       />
 
       <RangeTabs basePath="/metric/heart-rate" current={range} />

@@ -34,6 +34,7 @@ export default async function ActivityDetail({
         color="amber"
         title="Activity"
         subtitle={`${summary.steps?.toLocaleString() ?? "--"} steps today`}
+        backRange={range}
       />
 
       <RangeTabs basePath="/metric/activity" current={range} />

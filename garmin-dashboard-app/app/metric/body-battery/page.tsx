@@ -24,6 +24,7 @@ export default async function BodyBatteryDetail({
         color="violet"
         title="Body Battery"
         subtitle={`Currently ${summary.bodyBattery ?? "--"} / 100`}
+        backRange={range}
       />
 
       <RangeTabs basePath="/metric/body-battery" current={range} />
