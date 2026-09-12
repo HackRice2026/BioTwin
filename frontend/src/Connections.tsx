@@ -170,6 +170,11 @@ export default function Connections({
     status: string;
     detail?: string;
   }>({ status: "stopped" });
+  const [influxSyncStatus, setInfluxSyncStatus] = useState<{
+    status: string;
+    detail?: string;
+    last_frame_at?: string;
+  }>({ status: "stopped" });
   const reload = () =>
     api<Sources>("/sources")
       .then(setSources)
@@ -180,10 +185,20 @@ export default function Connections({
     )
       .then(setBleBridgeStatus)
       .catch(() => {});
+  const pollInfluxSync = () =>
+    api<{ status: string; detail?: string; last_frame_at?: string }>(
+      "/api/connect/garmin-influx/live/status",
+    )
+      .then(setInfluxSyncStatus)
+      .catch(() => {});
   useEffect(() => {
     reload();
     pollBridge();
-    const interval = setInterval(pollBridge, 3000);
+    pollInfluxSync();
+    const interval = setInterval(() => {
+      pollBridge();
+      pollInfluxSync();
+    }, 3000);
     return () => {
       bleDevice.current?.gatt?.disconnect();
       clearInterval(interval);
@@ -296,19 +311,26 @@ export default function Connections({
       notify((e as Error).message);
     }
   }
-  async function syncGarminInflux() {
+  async function toggleGarminInflux() {
     if (session?.demo) {
       onAuth();
       return;
     }
     setBusy("garmin-influx");
     try {
-      const result = await post<{ count: number }>(
-        "/api/connect/garmin-influx/sync",
-      );
-      notify(
-        `Synced ${result.count} measurements from your local Garmin dashboard.`,
-      );
+      if (
+        influxSyncStatus.status === "live" ||
+        influxSyncStatus.status === "starting"
+      ) {
+        await post("/api/connect/garmin-influx/live/stop");
+        setInfluxSyncStatus({ status: "stopped" });
+      } else {
+        setInfluxSyncStatus({ status: "starting" });
+        await post("/api/connect/garmin-influx/live/start");
+        notify(
+          "Pulling your history from InfluxDB, then staying connected for new data.",
+        );
+      }
       onChange();
       reload();
     } catch (e) {
@@ -523,20 +545,32 @@ export default function Connections({
           <h4>Local Garmin dashboard (InfluxDB)</h4>
           <p>
             Already running the standalone garmin viz dashboard on this
-            machine? Pull its historical heart rate, resting HR, steps,
-            breathing rate, and sleep straight from its InfluxDB into this
-            twin.
+            machine? Pull its history, then stay connected -- new points it
+            writes keep flowing into this twin as they land, not just once.
           </p>
           <button
             className="button"
-            onClick={syncGarminInflux}
+            onClick={toggleGarminInflux}
             disabled={busy === "garmin-influx"}
           >
             <RefreshCw size={16} />
-            {busy === "garmin-influx"
-              ? "Syncing…"
-              : "Connect to Garmin (sync from InfluxDB)"}
+            {influxSyncStatus.status === "live"
+              ? "Disconnect (stop live sync)"
+              : influxSyncStatus.status === "starting"
+                ? "Connecting…"
+                : "Connect to Garmin (sync + stay live)"}
           </button>
+          {influxSyncStatus.status === "live" && (
+            <small className="setup-note">
+              Live · watching for new InfluxDB data
+              {influxSyncStatus.last_frame_at
+                ? ` · last point ${new Date(influxSyncStatus.last_frame_at).toLocaleTimeString()}`
+                : ""}
+            </small>
+          )}
+          {influxSyncStatus.status === "error" && (
+            <p className="error">{influxSyncStatus.detail}</p>
+          )}
           <h4>Live from the terminal script</h4>
           <p>
             Bridges the already-running <code>ble_hr_live.py</code> BLE

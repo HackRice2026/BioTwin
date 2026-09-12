@@ -508,6 +508,21 @@ def create_app(config=None):
     async def garmin_influx_health():
         return await rt().adapters["garmin_influx"].health()
 
+    @app.post("/api/connect/garmin-influx/live/start")
+    async def start_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_influx_live_sync(uid)
+
+    @app.post("/api/connect/garmin-influx/live/stop")
+    async def stop_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_influx_live_sync(uid)
+
+    @app.get("/api/connect/garmin-influx/live/status")
+    async def garmin_influx_live_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().influx_sync_status.get(uid, {"status": "stopped"})
+
     @app.post("/api/connect/garmin-ble-bridge/start")
     async def start_garmin_ble_bridge(request: Request):
         uid = user(request, True)["id"]

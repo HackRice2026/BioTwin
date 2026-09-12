@@ -8,6 +8,7 @@ conflating the two would misrepresent which pipeline actually produced a
 measurement.
 """
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from pydantic import ValidationError
 
-from shared.schemas import Provenance, SleepSummary, TwinFrame
+from shared.schemas import Provenance, SleepSummary, TwinFrame, utcnow
 
 log = logging.getLogger("biotwin")
 
@@ -158,11 +159,25 @@ class InfluxSyncAdapter:
             if frame:
                 yield frame
 
-    async def stream(self, user_id: str):
-        # Pull-only source (a database, not a subscription) -- live updates
-        # come from the separate BLE bridge (Provenance.GARMIN_BLE_LIVE),
-        # not from here. An empty async generator, not a plain function:
-        # SourceAdapter.stream must be usable as `async for` by callers even
-        # for a source with no live path.
-        return
-        yield  # pragma: no cover
+    async def stream(self, user_id: str, poll_seconds: int = 30):
+        """Follow the InfluxDB `garmin viz dashboard` keeps filling, going
+        forward. That dashboard's own fetch container polls Garmin's cloud
+        on its own schedule (UPDATE_INTERVAL_SECONDS, default every 5 min);
+        this just re-reads the local database it writes into, which is
+        cheap -- no vendor rate limit involved -- so a short interval here
+        is fine and gets new points into the twin shortly after that
+        container commits them, not on the next manual click.
+
+        Mirrors GarminAdapter.stream()'s shape (repeated backfill from a
+        rolling watermark) rather than a true push subscription, because
+        the source is a database, not a socket.
+        """
+        cursor = utcnow() - timedelta(minutes=10)
+        while True:
+            latest = cursor
+            async for frame in self.backfill(user_id, cursor):
+                if frame.event_time > latest:
+                    latest = frame.event_time
+                yield frame
+            cursor = latest
+            await asyncio.sleep(poll_seconds)

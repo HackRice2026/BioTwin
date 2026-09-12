@@ -41,6 +41,8 @@ class Runtime:
         }
         self.ble_bridge_tasks = {}
         self.ble_bridge_status = {}
+        self.influx_sync_tasks = {}
+        self.influx_sync_status = {}
         self.synthetic = SyntheticAdapter()
         self.history_cache = {}
         self.latest_index = {}
@@ -377,6 +379,48 @@ class Runtime:
         if task:
             task.cancel()
         self.ble_bridge_status[uid] = {"status": "stopped"}
+        return {"status": "stopped"}
+
+    async def start_influx_live_sync(self, uid):
+        """Keep following the InfluxDB garmin viz dashboard fills, instead
+        of only pulling once per button click. Runs the initial backfill
+        first (broadcast=False, same as a manual sync -- no point recomputing
+        readiness hundreds of times for historical points), then switches to
+        InfluxSyncAdapter.stream()'s rolling poll with broadcast=True so
+        each new point updates the live twin/avatar as it lands, not just
+        on the next page reload.
+        """
+        existing = self.influx_sync_tasks.get(uid)
+        if existing and not existing.done():
+            return {"status": "already_running"}
+
+        async def run():
+            try:
+                await self.sync(uid, "garmin_influx")
+                self.influx_sync_status[uid] = {"status": "live"}
+                async for frame in self.adapters["garmin_influx"].stream(uid):
+                    await self.ingest(frame)
+                    self.influx_sync_status[uid] = {
+                        "status": "live",
+                        "last_frame_at": utcnow().isoformat(),
+                    }
+            except asyncio.CancelledError:
+                self.influx_sync_status[uid] = {"status": "stopped"}
+                raise
+            except Exception as exc:
+                self.influx_sync_status[uid] = {"status": "error", "detail": str(exc)}
+
+        task = asyncio.create_task(run())
+        self.influx_sync_tasks[uid] = task
+        self.tasks.append(task)
+        self.influx_sync_status[uid] = {"status": "starting"}
+        return {"status": "starting"}
+
+    async def stop_influx_live_sync(self, uid):
+        task = self.influx_sync_tasks.pop(uid, None)
+        if task:
+            task.cancel()
+        self.influx_sync_status[uid] = {"status": "stopped"}
         return {"status": "stopped"}
 
     def lookup_identity(self, provider, vendor_id):
