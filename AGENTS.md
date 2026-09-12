@@ -320,6 +320,37 @@ This file is a living document. The agent MUST:
   (`/api/health` → 200). Decision: each teammate runs their OWN full local
   stack against the same shared Garmin account (not one shared instance) —
   see the Teammate Setup steps in Remember below.
+- 2026-09-12 — Four `3d-gesturing` reports fixed in one pass, each verified
+  before/after rather than assumed:
+  1. "GPU FACE SERVICE: FALLBACK" was a closed SSH tunnel, not a dead
+     service -- `curl` straight to the SCC host confirmed the remote
+     service itself is healthy and reachable, just still running as
+     `procedural_audio_fallback` / `model_loaded:false` (the known,
+     already-documented limitation -- real NVIDIA Audio2Face was never
+     installed there). Opened `ssh -N -L 8765:localhost:8765 scc` locally;
+     badge flips to ONLINE. See Remember -- this isn't automatic.
+  2. Swapped in the new ARKit export (was sitting as a stray, untracked
+     `docs/model (1).glb`) as the default `frontend/public/assets/model.glb`.
+     Did not swap blindly: parsed both GLBs' binary JSON chunks directly and
+     diffed skeleton joints (73/73 identical names) and morph target /
+     blendshape names (51/51 identical) before touching anything, since the
+     avatar code binds animation by name, not index. Only difference was
+     outfit material naming (`outfit_bottom/outfit_shoes/outfit_top` ->
+     single `outfit`, plus a new `haircut` material) -- nothing in code
+     references those specific names, so harmless. Old file backed up
+     outside the repo, not committed.
+  3. Root-caused "hey, hi" getting an irrelevant readiness/sleep data-dump
+     instead of a greeting: `narration/service.py`'s `SYSTEM_PROMPT` had
+     zero handling for small talk, so Gemini/Vertex defaulted to narrating
+     the day's stats for literally any input, including "hey, hi" and
+     "thanks". Added one line permitting a brief natural reply with empty
+     evidence for greetings/small-talk/thanks. Verified with direct
+     `POST /api/twin/ask` calls before and after the change (before: full
+     readiness paragraph; after: "Hi there!" / "You're welcome!").
+  4. `model.glb` is and always was tracked in git (not gitignored, checked
+     `git ls-files` directly) -- a teammate on the same branch seeing a
+     different model is a stale checkout or a cached browser response, not
+     a repo/gitignore problem. See Remember for the exact check to run.
 
 ---
 
@@ -457,6 +488,41 @@ This file is a living document. The agent MUST:
      just a restart) or the refresh silently clamps to 5s.
 - (Architecture, entry point, and module map to be filled in after the
   repository inspection task is completed — see Log.)
+- The avatar's GPU face service tunnel is **not automatic**. Each dev
+  session needs `ssh -N -L 8765:localhost:8765 scc` running locally, or the
+  app silently shows "GPU FACE SERVICE: FALLBACK" with no error explaining
+  why. Check `curl http://localhost:8765/health` locally to confirm the
+  tunnel is actually up. The remote service currently always answers
+  `"backend":"procedural_audio_fallback","model_loaded":false` even when
+  healthy and reachable -- that's the known limitation (real NVIDIA
+  Audio2Face/ACE was never installed on the SCC box), not a sign the
+  tunnel is broken. Port 8765 is also used by an unrelated local BLE tool
+  elsewhere in this repo (`--ws-port`, default 8765) -- if both are ever
+  run on the same machine at once, one will fail to bind.
+- Before swapping `frontend/public/assets/model.glb` for a different
+  export: parse the GLB directly (read the GLB header, decode the JSON
+  chunk with `JSON.parse`) and diff skeleton joint names (`skins[0].joints`
+  -> `nodes[i].name`) and morph target names (`meshes[i].primitives[0]
+  .extras.targetNames`) against the current file *first*. The avatar code
+  binds gaze/gesture/lip-sync by name, not index -- a same-named rig from
+  the same export pipeline drops in safely (confirmed identical between
+  the two models in this branch's history); a differently-named rig will
+  silently break body pose or facial blendshapes with no error at all.
+- `narration/service.py`'s `SYSTEM_PROMPT` has one line carving out
+  greetings/small-talk/thanks to get a brief natural reply with empty
+  evidence. Without it, Gemini/Vertex narrates the day's readiness/sleep/HR
+  numbers for literally any input, including "hey, hi" -- the rest of the
+  prompt only ever talks about explaining wearable data, so that's what it
+  defaults to. Don't delete that line as dead-looking boilerplate.
+- If a teammate on the same branch/commit reports a different 3D model
+  than you see: `model.glb` is tracked in git (not gitignored), lives at
+  `frontend/public/assets/model.glb`, and is served to the browser from
+  the *built* `frontend/dist/assets/model.glb` copy -- Vite copies
+  `public/` verbatim with no content hash, so the URL never changes even
+  when the file's bytes do. Check `git log -1 --format=%H` matches on both
+  machines first (a stale checkout is the most likely cause); if commits
+  already match, a hard-refresh or private window rules out a stale
+  browser cache at that same unchanging URL.
 
 ---
 
