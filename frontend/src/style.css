@@ -642,7 +642,7 @@ h1 {
 }
 .avatar-voice-status {
   position: absolute;
-  top: 22px;
+  top: 55px;
   right: 24px;
   z-index: 3;
   display: flex;
@@ -683,6 +683,109 @@ h1 {
 }
 .avatar-phase-speaking .avatar-voice-pulse {
   animation: voice-pulse 0.9s ease-out infinite;
+}
+.avatar-face-link {
+  position: absolute;
+  top: 90px;
+  right: 24px;
+  z-index: 3;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid #557e6340;
+  background: #142f2795;
+  color: #9dbca8;
+  font-size: 7px;
+  letter-spacing: 0.8px;
+}
+.avatar-face-link.online {
+  color: #c8e8b7;
+  border-color: #79ad7266;
+}
+.avatar-face-link.fallback {
+  color: #e5cca0;
+  border-color: #b58b4566;
+}
+.avatar-workout-hud {
+  position: absolute;
+  left: 24px;
+  bottom: 72px;
+  z-index: 3;
+  display: grid;
+  gap: 3px;
+  min-width: 130px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  border: 1px solid #80b99245;
+  background: #102d25c9;
+  box-shadow: 0 18px 45px #07130f6e;
+  color: #e8f3da;
+}
+.avatar-workout-hud span,
+.avatar-workout-hud small {
+  font-size: 7px;
+  letter-spacing: 1.1px;
+  color: #9cbd9d;
+}
+.avatar-workout-hud b {
+  font-size: 22px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.avatar-workout-icon {
+  position: absolute;
+  left: 24px;
+  top: 58px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e1f0d8;
+  color: #214b3c;
+}
+.avatar-debug {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 50px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 0.75fr 1fr;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #92b99945;
+  background: #0e241fcc;
+  color: #dcebd1;
+  box-shadow: 0 16px 50px #06110e80;
+}
+.avatar-debug div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.avatar-debug b {
+  flex-basis: 100%;
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  color: #95bca1;
+}
+.avatar-debug span {
+  font-size: 9px;
+  color: #d8e7cc;
+}
+.avatar-debug-actions {
+  grid-column: 1 / -1;
+}
+.avatar-debug-actions button {
+  border: 1px solid #6f9a764f;
+  border-radius: 5px;
+  background: #173a30;
+  color: #dcebd1;
+  padding: 6px 8px;
+  font-size: 10px;
 }
 @keyframes voice-pulse {
   0% {

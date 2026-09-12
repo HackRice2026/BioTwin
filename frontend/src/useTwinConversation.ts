@@ -3,6 +3,7 @@ import { api, post, type OfflineBundle, type Session } from "./api";
 import type { Conversation } from "./contracts";
 import { TwinVoice } from "./voice";
 import { recordQuestion } from "./microphone";
+import { emitAvatarSemantic } from "./avatar/avatarBus";
 
 export type Reply = {
   id?: string;
@@ -212,6 +213,27 @@ export function useTwinConversation({
   async function ask(text: string) {
     text = text.trim();
     if (!text || busy.current) return;
+    if (/exhausted|tired|four hours|4 hours|depleted|drained/i.test(text)) {
+      emitAvatarSemantic({
+        emotion: {
+          energy: 0.32,
+          happiness: 0.24,
+          fatigue: 0.66,
+          stress: 0.16,
+          confidence: 0.88,
+          excitement: 0.08,
+          concern: 0.72,
+        },
+        action: "listen",
+        gaze: "user",
+      });
+    } else if (/show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)) {
+      emitAvatarSemantic({
+        action: "squat",
+        gaze: "workout",
+        camera: "exercise",
+      });
+    }
     busy.current = true;
     const currentEpoch = epoch.current;
     stopSpeaking();

@@ -1,4 +1,6 @@
 /** Streams MP3 when supported; keeps completed audio in memory for gesture/replay retries. */
+import { emitAvatarAudio } from "./avatar/avatarBus";
+
 export type VoiceEvents = {
   speaking: (active: boolean) => void;
   status: (message: string) => void;
@@ -162,6 +164,7 @@ export class TwinVoice {
         if (done) break;
         const bytes = new Uint8Array(value).buffer;
         chunks.push(bytes);
+        emitAvatarAudio(bytes.slice(0));
         await event(buffer, "updateend", signal, () =>
           buffer.appendBuffer(bytes),
         );
