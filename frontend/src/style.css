@@ -2770,7 +2770,7 @@ h1 {
 /* The bundled demo adds an offline notice (83 px) that a real account never
    shows, so that view gets its own budget rather than overflowing. */
 .main-shell main:has(.offline-banner) .stage {
-  height: min(calc(100vh - 427px), 900px);
+  height: min(calc(100vh - 400px), 900px);
 }
 
 /* Why a signal is absent belongs beside the score, not hidden in a tooltip. */
@@ -2808,11 +2808,51 @@ h1 {
   margin-top: 4px;
 }
 
-/* No internal scroll: the columns are as tall as their contents. */
+/* The columns fill the stage instead of stacking fixed-height cards and leaving
+   a void underneath. Each child takes an equal share of whatever height the
+   window allows, so the layout holds at any viewport without a scrollbar and
+   without a gap -- the failure mode was two cards and 400 px of nothing. */
 .stage-left,
 .stage-right {
   overflow: visible;
   padding-right: 0;
+  gap: 8px;
+}
+.stage-left > .metric-card,
+.stage-right > .readiness-panel,
+.stage-right > .model-card,
+.stage-right > .recovery-card {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.stage-left > .stage-label,
+.stage-right > .stage-label {
+  flex: none;
+}
+/* Compact enough that six cards fit a column without squashing their content. */
+.stage-left .metric-card {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.stage-left .metric-name {
+  margin: 0;
+}
+.stage-left .metric-value {
+  font-size: 20px;
+  line-height: 1.1;
+}
+.stage-left .metric-footer {
+  margin-top: 0;
+  min-height: 0;
+}
+.stage-left .sparkline {
+  max-height: 26px;
+}
+.stage-label.divider {
+  margin-top: 2px;
 }
 
 /* The band beneath the twin. Same tile grid as the primary row, so the vendor
@@ -2848,4 +2888,136 @@ h1 {
   .below-twin .metrics-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Right column: three panels of unequal natural height. Flexing them equally
+   squashed the readiness ring and left the recovery chart 88 px tall, which is
+   not a chart. Readiness and model fit keep their own height; the chart takes
+   the remainder, and the column is widened so a predicted-versus-observed trace
+   is actually readable.
+   --------------------------------------------------------------------------- */
+.stage {
+  grid-template-columns: minmax(0, 296px) minmax(0, 1fr) minmax(0, 384px);
+}
+.stage-right > .readiness-card,
+.stage-right > .model-card {
+  flex: 0 0 auto;
+}
+.stage-right > .recovery-card {
+  flex: 1 1 auto;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+}
+.stage-right > .recovery-card > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+/* A tighter readiness panel: the ring was 124 px inside a 321 px card. */
+.stage-right .readiness-card {
+  padding: 14px 16px 12px;
+}
+.stage-right .readiness-content {
+  gap: 16px;
+}
+.stage-right .score-ring {
+  width: 96px;
+  height: 96px;
+}
+.stage-right .score-ring > div {
+  width: 84px;
+  height: 84px;
+}
+.stage-right .readiness-card h4 {
+  font-size: 16px;
+  line-height: 1.25;
+}
+.stage-right .calibration {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+/* The right column's natural height was 758 px against a 573 px stage, so it
+   spilled past the row. Compact each panel to what it needs to be legible: the
+   score, four model numbers, and a trace. */
+.stage-right .readiness-card {
+  padding: 12px 14px 10px;
+}
+.stage-right .score-ring {
+  width: 78px;
+  height: 78px;
+}
+.stage-right .score-ring > div {
+  width: 68px;
+  height: 68px;
+}
+.stage-right .score-ring strong {
+  font-size: 25px;
+}
+.stage-right .readiness-card h4 {
+  font-size: 14px;
+  margin: 3px 0;
+}
+.stage-right .readiness-card p {
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.stage-right .calibration {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.stage-right .model-card {
+  gap: 7px;
+  padding: 12px 14px;
+}
+.stage-right .model-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+.stage-right .model-stats dd {
+  font-size: 15px;
+}
+.stage-right .model-stats dt {
+  font-size: 8px;
+  letter-spacing: 0.4px;
+}
+.stage-right .model-note {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.stage-right .recovery-card {
+  padding: 12px 14px;
+}
+/* Nothing may escape the row: if a window is too short for the design, the
+   stage grows rather than letting a column overlap what follows. */
+.stage {
+  min-height: 520px;
+}
+
+/* RecoveryChart now fills its container, so the panel is sized by the layout.
+   Give it a definite height to fill and a floor below which a trace stops
+   meaning anything. */
+.recovery-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.recovery-card .recharts-responsive-container {
+  flex: 1 1 auto;
+  min-height: 110px;
+}
+.recovery-card .card-heading,
+.recovery-card .chart-legend {
+  flex: none;
+}
+.stage-right .recovery-card .chart-legend {
+  font-size: 7.5px;
+  gap: 10px;
+}
+
+/* The calibration bar repeats what the confidence figure already says and the
+   expanded readiness view shows in full; the overview cannot afford 40 px for it. */
+.stage-right .calibration {
+  display: none;
 }

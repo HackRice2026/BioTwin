@@ -853,89 +853,27 @@ export default function App() {
               <div className="stage">
                 <div className="stage-left">
                   <p className="stage-label">Your recent measurements</p>
-                  <div className="metrics-grid">
-                    <MetricCard
-                      name="Respiration"
-                      reading={latest?.respiration_brpm}
-                      unit="br/min"
-                      icon={Wind}
-                      detail="Breaths per minute · measured"
-                      data={metrics.respiration_brpm ?? []}
-                      source={source("respiration_brpm")}
-                    />
-                    <MetricCard
-                      name="Blood oxygen"
-                      reading={latest?.spo2_pct}
-                      unit="%"
-                      icon={Activity}
-                      detail="Pulse oximetry · overnight"
-                      data={metrics.spo2_pct ?? []}
-                      source={source("spo2_pct")}
-                    />
-                  </div>
-                </div>
-                <div className="stage-center">
-                  <Avatar
-                    live={live}
-                    overlay={overlay}
-                    state={state}
-                    reduced={reduced}
-                    speaking={speaking}
+                  <MetricCard
+                    name="Respiration"
+                    reading={latest?.respiration_brpm}
+                    unit="br/min"
+                    icon={Wind}
+                    detail="Breaths per minute · measured"
+                    data={metrics.respiration_brpm ?? []}
+                    source={source("respiration_brpm")}
                   />
-                </div>
-                <div className="stage-right">
-                  <p className="stage-label">Predictions and modelling</p>
-                  <ReadinessPanel
-                    state={state}
-                    onSignals={() => navigate("Signals")}
+                  <MetricCard
+                    name="Blood oxygen"
+                    reading={latest?.spo2_pct}
+                    unit="%"
+                    icon={Activity}
+                    detail="Pulse oximetry · overnight"
+                    data={metrics.spo2_pct ?? []}
+                    source={source("spo2_pct")}
                   />
-                  <Card className="model-card">
-                    <div className="card-heading">
-                      <h3>Model fit</h3>
-                      <span className="pill">MATLAB</span>
-                    </div>
-                    <dl className="model-stats">
-                      <div>
-                        <dt>Recovery constant</dt>
-                        <dd>
-                          {value(state.baseline_summary.recovery_tau_s, 1)}
-                          <small>s</small>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Held-out error</dt>
-                        <dd>
-                          {value(state.baseline_summary.tau_fit_rmse, 2)}
-                          <small>bpm</small>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Fitted on</dt>
-                        <dd>
-                          {state.baseline_summary.tau_fit_n_sessions}
-                          <small>sessions</small>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Spread (IQR)</dt>
-                        <dd>
-                          {state.baseline_summary.tau_iqr?.length === 2
-                            ? `${value(state.baseline_summary.tau_iqr[0], 0)}–${value(state.baseline_summary.tau_iqr[1], 0)}`
-                            : "—"}
-                          <small>s</small>
-                        </dd>
-                      </div>
-                    </dl>
-                    <p className="model-note">
-                      Fitted to your own recovery segments. A wellness estimate,
-                      not a clinical measurement.
-                    </p>
-                  </Card>
-                </div>
-              </div>
-              <div className="below-twin">
-                <p className="stage-label">Garmin&rsquo;s own summaries</p>
-                <div className="metrics-grid">
+                  <p className="stage-label divider">
+                    Garmin&rsquo;s own summaries
+                  </p>
                   <MetricCard
                     name="Body Battery drained"
                     reading={latest?.body_battery_drained}
@@ -1002,29 +940,87 @@ export default function App() {
                     source={source("sleep")}
                   />
                 </div>
-                <Card className="recovery-card">
-                  <div className="card-heading">
-                    <div>
-                      <h3>Recovery, in perspective</h3>
-                      <p>Predicted vs. observed heart rate</p>
+                <div className="stage-center">
+                  <Avatar
+                    live={live}
+                    overlay={overlay}
+                    state={state}
+                    reduced={reduced}
+                    speaking={speaking}
+                  />
+                </div>
+                <div className="stage-right">
+                  <p className="stage-label">Predictions and modelling</p>
+                  <ReadinessPanel
+                    state={state}
+                    onSignals={() => navigate("Signals")}
+                  />
+                  <Card className="model-card">
+                    <div className="card-heading">
+                      <h3>Model fit</h3>
+                      <span className="pill">MATLAB</span>
                     </div>
-                    <ProvenanceChip source={prediction?.provenance} />
-                  </div>
-                  <RecoveryChart prediction={prediction} />
-                  <div className="chart-legend">
-                    <span>
-                      <i className="line-swatch" />
-                      Observed
-                    </span>
-                    <span>
-                      <i className="line-swatch dashed" />
-                      Predicted
-                    </span>
-                    <span className="rmse">
-                      RMSE <b>{value(prediction?.rmse, 2)} bpm</b>
-                    </span>
-                  </div>
-                </Card>
+                    <dl className="model-stats">
+                      <div>
+                        <dt>Recovery constant</dt>
+                        <dd>
+                          {value(state.baseline_summary.recovery_tau_s, 1)}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Held-out error</dt>
+                        <dd>
+                          {value(state.baseline_summary.tau_fit_rmse, 2)}
+                          <small>bpm</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Fitted on</dt>
+                        <dd>
+                          {state.baseline_summary.tau_fit_n_sessions}
+                          <small>sessions</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Spread (IQR)</dt>
+                        <dd>
+                          {state.baseline_summary.tau_iqr?.length === 2
+                            ? `${value(state.baseline_summary.tau_iqr[0], 0)}–${value(state.baseline_summary.tau_iqr[1], 0)}`
+                            : "—"}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="model-note">
+                      Fitted to your own recovery segments. A wellness estimate,
+                      not a clinical measurement.
+                    </p>
+                  </Card>
+                  <Card className="recovery-card">
+                    <div className="card-heading">
+                      <div>
+                        <h3>Recovery, in perspective</h3>
+                        <p>Predicted vs. observed heart rate</p>
+                      </div>
+                      <ProvenanceChip source={prediction?.provenance} />
+                    </div>
+                    <RecoveryChart prediction={prediction} />
+                    <div className="chart-legend">
+                      <span>
+                        <i className="line-swatch" />
+                        Observed
+                      </span>
+                      <span>
+                        <i className="line-swatch dashed" />
+                        Predicted
+                      </span>
+                      <span className="rmse">
+                        RMSE <b>{value(prediction?.rmse, 2)} bpm</b>
+                      </span>
+                    </div>
+                  </Card>
+                </div>
               </div>
               {Object.values(quality).some((q) => q.contested) && (
                 <div className="notice">
