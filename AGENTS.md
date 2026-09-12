@@ -128,6 +128,23 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Origin checking is enforced in **three separate places** in
+  core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
+  custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
+  `/ws/live` WebSocket handler's own inline check (~line 828) -- each had
+  its own hardcoded `[config.frontend_origin, config.public_url]` list.
+  When `lan_origin` was added earlier for LAN/phone access, only the
+  middleware got it; the other two still silently rejected that origin
+  (WS closes with code 1008, no error surfaced to the user beyond the
+  frontend showing "offline"). All three now include `config.lan_origin`
+  when set. Found via a real symptom, not inspection: accessing over
+  `127.0.0.1` instead of `localhost` (same root cause, different browser)
+  showed "offline" with the WebSocket connection failing.
+  **If you add a fourth origin allowance in the future, grep for
+  `frontend_origin` and `public_url` together in core/api.py first --
+  there may be more than one spot to update, this file does not
+  centralize the allowed-origins list.**
+
 - 2026-09-12 — Added Vertex AI as a second, opt-in narration backend
   (`use_vertex_narration` in core/config.py; `_vertex_narrate()` in
   narration/service.py) alongside the existing AI Studio key, after
