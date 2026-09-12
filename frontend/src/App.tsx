@@ -873,76 +873,6 @@ export default function App() {
                       source={source("spo2_pct")}
                     />
                   </div>
-                  <div className="vendor-row">
-                    <p className="vendor-label">Garmin&rsquo;s own summaries</p>
-                    <div className="metrics-grid">
-                      <MetricCard
-                        name="Body Battery drained"
-                        reading={latest?.body_battery_drained}
-                        unit=""
-                        icon={BatteryCharging}
-                        detail={
-                          latest?.body_battery_charged != null
-                            ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
-                            : "Garmin's own energy estimate"
-                        }
-                        data={metrics.body_battery_drained ?? []}
-                        source={source("body_battery_drained")}
-                      />
-                      <MetricCard
-                        name="Stress"
-                        reading={latest?.stress_avg}
-                        unit="/100"
-                        icon={Gauge}
-                        detail={
-                          latest?.stress_max != null
-                            ? `Daily average · peaked at ${latest.stress_max}`
-                            : "Garmin's own daily average"
-                        }
-                        data={metrics.stress_avg ?? []}
-                        source={source("stress_avg")}
-                      />
-                      <MetricCard
-                        name="Active energy"
-                        reading={latest?.active_calories}
-                        unit="kcal"
-                        icon={Flame}
-                        detail={
-                          [
-                            latest?.active_seconds != null
-                              ? `${Math.round(latest.active_seconds / 60)} min active`
-                              : null,
-                            latest?.highly_active_seconds != null
-                              ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
-                              : null,
-                            latest?.floors_climbed != null
-                              ? `${Math.round(latest.floors_climbed)} floors`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || "Recorded movement"
-                        }
-                        data={metrics.active_calories ?? []}
-                        source={source("active_calories")}
-                      />
-                      <MetricCard
-                        name="Sleep score"
-                        reading={latest?.sleep?.score}
-                        unit="/100"
-                        icon={Moon}
-                        detail="Garmin's own score · not used in readiness"
-                        data={sleep
-                          .filter((x) => x.value.score != null)
-                          .map((x) => ({
-                            time: x.time,
-                            value: x.value.score as number,
-                            provenance: x.provenance,
-                            confidence: 1,
-                          }))}
-                        source={source("sleep")}
-                      />
-                    </div>
-                  </div>
                 </div>
                 <div className="stage-center">
                   <Avatar
@@ -959,29 +889,6 @@ export default function App() {
                     state={state}
                     onSignals={() => navigate("Signals")}
                   />
-                  <Card className="recovery-card">
-                    <div className="card-heading">
-                      <div>
-                        <h3>Recovery, in perspective</h3>
-                        <p>Predicted vs. observed heart rate</p>
-                      </div>
-                      <ProvenanceChip source={prediction?.provenance} />
-                    </div>
-                    <RecoveryChart prediction={prediction} />
-                    <div className="chart-legend">
-                      <span>
-                        <i className="line-swatch" />
-                        Observed
-                      </span>
-                      <span>
-                        <i className="line-swatch dashed" />
-                        Predicted
-                      </span>
-                      <span className="rmse">
-                        RMSE <b>{value(prediction?.rmse, 2)} bpm</b>
-                      </span>
-                    </div>
-                  </Card>
                   <Card className="model-card">
                     <div className="card-heading">
                       <h3>Model fit</h3>
@@ -1025,6 +932,99 @@ export default function App() {
                     </p>
                   </Card>
                 </div>
+              </div>
+              <div className="below-twin">
+                <p className="stage-label">Garmin&rsquo;s own summaries</p>
+                <div className="metrics-grid">
+                  <MetricCard
+                    name="Body Battery drained"
+                    reading={latest?.body_battery_drained}
+                    unit=""
+                    icon={BatteryCharging}
+                    detail={
+                      latest?.body_battery_charged != null
+                        ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
+                        : "Garmin's own energy estimate"
+                    }
+                    data={metrics.body_battery_drained ?? []}
+                    source={source("body_battery_drained")}
+                  />
+                  <MetricCard
+                    name="Stress"
+                    reading={latest?.stress_avg}
+                    unit="/100"
+                    icon={Gauge}
+                    detail={
+                      latest?.stress_max != null
+                        ? `Daily average · peaked at ${latest.stress_max}`
+                        : "Garmin's own daily average"
+                    }
+                    data={metrics.stress_avg ?? []}
+                    source={source("stress_avg")}
+                  />
+                  <MetricCard
+                    name="Active energy"
+                    reading={latest?.active_calories}
+                    unit="kcal"
+                    icon={Flame}
+                    detail={
+                      [
+                        latest?.active_seconds != null
+                          ? `${Math.round(latest.active_seconds / 60)} min active`
+                          : null,
+                        latest?.highly_active_seconds != null
+                          ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
+                          : null,
+                        latest?.floors_climbed != null
+                          ? `${Math.round(latest.floors_climbed)} floors`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "Recorded movement"
+                    }
+                    data={metrics.active_calories ?? []}
+                    source={source("active_calories")}
+                  />
+                  <MetricCard
+                    name="Sleep score"
+                    reading={latest?.sleep?.score}
+                    unit="/100"
+                    icon={Moon}
+                    detail="Garmin's own score · not used in readiness"
+                    data={sleep
+                      .filter((x) => x.value.score != null)
+                      .map((x) => ({
+                        time: x.time,
+                        value: x.value.score as number,
+                        provenance: x.provenance,
+                        confidence: 1,
+                      }))}
+                    source={source("sleep")}
+                  />
+                </div>
+                <Card className="recovery-card">
+                  <div className="card-heading">
+                    <div>
+                      <h3>Recovery, in perspective</h3>
+                      <p>Predicted vs. observed heart rate</p>
+                    </div>
+                    <ProvenanceChip source={prediction?.provenance} />
+                  </div>
+                  <RecoveryChart prediction={prediction} />
+                  <div className="chart-legend">
+                    <span>
+                      <i className="line-swatch" />
+                      Observed
+                    </span>
+                    <span>
+                      <i className="line-swatch dashed" />
+                      Predicted
+                    </span>
+                    <span className="rmse">
+                      RMSE <b>{value(prediction?.rmse, 2)} bpm</b>
+                    </span>
+                  </div>
+                </Card>
               </div>
               {Object.values(quality).some((q) => q.contested) && (
                 <div className="notice">

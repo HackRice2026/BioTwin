@@ -2781,3 +2781,71 @@ h1 {
   line-height: 1.45;
   color: #99a398;
 }
+
+/* ---------------------------------------------------------------------------
+   A smaller header, and no scrolling inside the stage.
+
+   The side columns held their own scrollbars, which hid measurements behind a
+   gesture on a page whose whole point is seeing your day at once. They now carry
+   only what fits beside the twin; everything else sits in a full-width band
+   below it, where the page's own scroll reaches it.
+   --------------------------------------------------------------------------- */
+.main-shell main > .page-heading {
+  margin-bottom: 10px;
+}
+.main-shell main > .page-heading .greeting {
+  font-size: 7.5px;
+  margin-bottom: 6px;
+}
+.main-shell main > .page-heading h1 {
+  font-size: 25px;
+  letter-spacing: -0.85px;
+  line-height: 1.15;
+  margin: 0;
+}
+.main-shell main > .page-heading p {
+  font-size: 10.5px;
+  margin-top: 4px;
+}
+
+/* No internal scroll: the columns are as tall as their contents. */
+.stage-left,
+.stage-right {
+  overflow: visible;
+  padding-right: 0;
+}
+
+/* The band beneath the twin. Same tile grid as the primary row, so the vendor
+   summaries read as peers of each other rather than as a leftover column. */
+.below-twin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.below-twin > .stage-label {
+  position: static;
+  padding: 0;
+}
+.below-twin .metrics-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 0;
+}
+.below-twin .metric-card {
+  padding: 12px 14px 9px;
+}
+.below-twin .metric-value {
+  font-size: 25px;
+}
+
+@media (max-width: 1180px) {
+  .below-twin .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .below-twin .metrics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
