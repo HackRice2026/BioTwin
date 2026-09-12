@@ -79,6 +79,13 @@ const emptySeries: Record<string, MetricPoint[]> = {
   respiration_brpm: [],
   spo2_pct: [],
   steps: [],
+  stress_level: [],
+  body_battery_pct: [],
+  distance_meters: [],
+  floors_ascended: [],
+  active_kcal: [],
+  max_hr_bpm: [],
+  min_hr_bpm: [],
 };
 type Reply = {
   answer: string;
@@ -318,7 +325,7 @@ export default function App() {
           next[m] = (result.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(6);
+      const [s, h, p, pl, out] = results.slice(Object.keys(emptySeries).length);
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -1046,6 +1053,37 @@ export default function App() {
                   },
                   { field: "spo2_pct", title: "Blood oxygen", unit: "%" },
                   { field: "steps", title: "Recorded steps", unit: "steps" },
+                  { field: "stress_level", title: "Stress level", unit: "" },
+                  {
+                    field: "body_battery_pct",
+                    title: "Body battery",
+                    unit: "%",
+                  },
+                  {
+                    field: "distance_meters",
+                    title: "Distance",
+                    unit: "m",
+                  },
+                  {
+                    field: "floors_ascended",
+                    title: "Floors climbed",
+                    unit: "",
+                  },
+                  {
+                    field: "active_kcal",
+                    title: "Active calories",
+                    unit: "kcal",
+                  },
+                  {
+                    field: "max_hr_bpm",
+                    title: "Max heart rate",
+                    unit: "bpm",
+                  },
+                  {
+                    field: "min_hr_bpm",
+                    title: "Min heart rate",
+                    unit: "bpm",
+                  },
                 ].map((m) => (
                   <Card key={m.field}>
                     <div className="card-heading">
