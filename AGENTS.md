@@ -128,6 +128,38 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Consolidated three diverged lineages (`main`, `live-garmin`,
+  a nearly-empty `dev`) onto `dev` as one squashed commit, then branched
+  `agentic-calendar` from it for real-calendar agentic work: Google Calendar
+  (real OAuth, connected and VERIFIED against the user's actual account --
+  a booked event's returned Google `htmlLink` decodes to `rizsaurav@gmail.com`,
+  not a mock) and Outlook Calendar (Graph API, built and unit-tested with a
+  mocked transport; real credentials not yet supplied). Added
+  `CalendarService.seed_if_empty()` -- writes a representative week (4
+  classes, 20 work hours, 5 meetings) only when the connected calendar has
+  nothing in the next 7 days; refuses outright otherwise. Built
+  `LiveSchedule` (frontend/src/LiveSchedule.tsx): asking "when should I
+  workout today" in chat (keyword match, deliberately bypasses the
+  Gemini narration path, which is locked to explaining not booking) opens
+  an animated day-timeline that finds the best-scored workout proposal
+  from the existing readiness-aware planner, proposes it by voice
+  (browser speechSynthesis, not ElevenLabs -- works without that key
+  configured) and on confirmation books it through the same
+  `/api/calendar/events` path the Daily Plan page already used.
+  Squash-merging `dev` from `live-garmin` breaks git's ability to
+  fast-path-merge later commits from the original unsquashed `main`
+  lineage for files touched in that squash (shows as spurious add/add
+  conflicts even when one side is a pure superset) -- expect this on
+  every future `main` -> `agentic-calendar` merge until the branches
+  reconverge properly; diff both conflict sides before resolving rather
+  than assume real divergence.
+  Gemini narration: `NARRATION_API_KEY` authenticates successfully
+  (VERIFIED via a direct call to the configured endpoint) but the
+  Google AI Studio project's prepayment credits are depleted (429
+  RESOURCE_EXHAUSTED) -- needs billing added at ai.studio/projects,
+  not a config fix. `.env` is never in git (confirmed: gitignored,
+  zero history on any branch, ever) -- a value missing from it cannot
+  be recovered from an old commit, only re-entered.
 - 2026-09-11 — Resolved the nested-`.git` open decision: verified (VERIFIED,
   via `find`) that no `garmin-grafana/` wrapper with its own `.git` exists on
   disk — only the plain `garmin-grafana-main/` download was present directly
@@ -287,6 +319,15 @@ This file is a living document. The agent MUST:
 - Central team repo: `BioTwin/` (git, remote `HackRice2026/BioTwin`, private)
   — this is the repo every team member works in, and the only `.git` in the
   tree.
+- Branch topology (as of 2026-09-12): `main` is Shivendra's line (FastAPI +
+  React/Three.js app, keeps moving -- check `git fetch` before assuming it's
+  current). `dev` is the shared team working branch going forward, kept
+  current with `main` via ordinary (non-squash) merges from here on. The
+  active feature branch for calendar/voice/agentic work is
+  `agentic-calendar`, branched from `dev`. The Next.js `garmin-dashboard-app`
+  and `garmin viz dashboard` (InfluxDB + Grafana + BLE) live alongside the
+  BioTwin app as sibling top-level directories on `dev`/`agentic-calendar`,
+  not on `main`.
 - `BioTwin/garmin viz dashboard/` (renamed from `garmin-grafana-main/`) —
   originally downloaded from `arpanghosh8453/garmin-grafana` (Python:
   `pyproject.toml`, `uv.lock`, `src/`, Docker, Grafana dashboard/datasource
