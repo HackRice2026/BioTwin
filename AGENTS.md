@@ -128,6 +128,18 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Added Vertex AI as a second, opt-in narration backend
+  (`use_vertex_narration` in core/config.py; `_vertex_narrate()` in
+  narration/service.py) alongside the existing AI Studio key, after
+  confirming by direct API call that the AI Studio key's "prepay credits"
+  billing bucket is genuinely separate from the project's normal Cloud
+  Billing account/card -- linking billing and adding a card there did not
+  fix it, but the same account/project works immediately through Vertex AI.
+  Full setup steps in Section 7 ("Vertex AI narration setup"). Both the
+  local dev path and the Docker path (`ops/docker-compose.yml`, mounting
+  each person's own `~/.config/gcloud/application_default_credentials.json`
+  read-only) were built and VERIFIED with a real end-to-end call each,
+  not just config changes -- see Section 7 for the exact evidence.
 - 2026-09-12 — Consolidated three diverged lineages (`main`, `live-garmin`,
   a nearly-empty `dev`) onto `dev` as one squashed commit, then branched
   `agentic-calendar` from it for real-calendar agentic work: Google Calendar
@@ -359,6 +371,57 @@ This file is a living document. The agent MUST:
   - Caveat: multiple people authenticating against the same Garmin account
     in a short window can trip Garmin's rate limiter (`429`) — if that
     happens, wait and retry, don't hammer it.
+- **Vertex AI narration setup (each person who wants it running does this
+  once, on whichever machine actually runs the server):**
+  - Why this exists: an AI Studio key (`NARRATION_API_KEY`) bills through a
+    separate "prepay credits" balance that's easy to accidentally deplete,
+    independent of a project's normal Cloud Billing account/card — confirmed
+    by hitting the real endpoint directly and getting `429
+    RESOURCE_EXHAUSTED` / "prepayment credits are depleted" even with
+    billing properly linked. Vertex AI bills through the project's ordinary
+    Cloud Billing instead, so it can keep working when that prepay balance
+    is the actual problem.
+  1. Install the `gcloud` CLI if it isn't already (`brew install
+     google-cloud-sdk` on a Mac).
+  2. `gcloud auth application-default login` — opens a browser, log in with
+     whichever Google account should own the usage/billing for this. This
+     does **not** create a downloadable key file (some Google orgs block
+     service-account key creation entirely via
+     `iam.disableServiceAccountKeyCreation` — this method sidesteps that,
+     it's also just the safer option regardless). Credentials land at
+     `~/.config/gcloud/application_default_credentials.json`, gitignored
+     territory by nature (outside the repo entirely), never committed.
+  3. Note the Google Cloud project ID this account actually has Owner/Editor
+     rights on (Cloud Console → top project switcher). A project AI Studio
+     auto-created for you when you first generated a key may belong to a
+     *different* identity than the one you just logged in as here — if so,
+     `gcloud services enable aiplatform.googleapis.com --project=<id>` will
+     fail with a clear `PERMISSION_DENIED`, which is exactly how to tell.
+  4. `gcloud services enable aiplatform.googleapis.com --project=<id>` —
+     one-time, needs to succeed before step 6.
+  5. In `.env`: set `USE_VERTEX_NARRATION=true`, `ALLOW_EXTERNAL_NARRATION=true`,
+     `VERTEX_PROJECT_ID=<id>` from step 3. `VERTEX_REGION` (default
+     `us-central1`) and `VERTEX_MODEL` (default `gemini-2.5-flash`) usually
+     don't need changing — VERIFIED this model/region pair actually serves
+     content; `gemini-2.0-flash`/`gemini-2.0-flash-001` both 404 on Vertex
+     even though they're valid AI-Studio-side model names, so don't assume
+     an AI Studio model name carries over.
+  6. Restart the server. A real answer (not the template fallback) confirms
+     it: ask the twin anything, check the response's `mode` is
+     `language_service` and `model` starts with `vertex:`.
+  - Docker: `ops/docker-compose.yml` mounts
+    `${GOOGLE_ADC_PATH:-$HOME/.config/gcloud/application_default_credentials.json}`
+    (your own local ADC file from step 2, per-person, never baked into the
+    image) into the container read-only at the path
+    `GOOGLE_APPLICATION_CREDENTIALS` points to. VERIFIED working end to end:
+    built the image, brought the full stack up with a real Postgres
+    database, and got a real `mode: "language_service"` answer back from
+    the containerized app, not just the local dev server.
+  - This machine's own local setup (2026-09-12): logged in as
+    `launchboxed@gmail.com`, project `project-b0574b76-03df-42f0-956`. If
+    that project's Vertex AI access or billing ever changes, re-verify with
+    a direct call before assuming this still works -- don't trust this note
+    past its date.
 - **Live HR streaming shortcut (VERIFIED working, Venu 2) — do this, in this
   exact order, every time, no re-deriving it:**
   1. Bluetooth ON on your Mac (menu bar / System Settings). If the script

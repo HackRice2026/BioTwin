@@ -19,6 +19,14 @@ services:
     env_file: ../.env
     environment:
       DATABASE_URL: postgresql+psycopg://biotwin:${POSTGRES_PASSWORD}@database:5432/biotwin
+      # Only read when USE_VERTEX_NARRATION=true in .env; harmless otherwise.
+      GOOGLE_APPLICATION_CREDENTIALS: /home/biotwin/.config/gcloud/application_default_credentials.json
+    volumes:
+      # Each teammate mounts their OWN local ADC file (from `gcloud auth
+      # application-default login`, run once on their own machine) --
+      # read-only, never baked into the image, never committed. See
+      # AGENTS.md for the one-time setup this expects.
+      - ${GOOGLE_ADC_PATH:-${HOME}/.config/gcloud/application_default_credentials.json}:/home/biotwin/.config/gcloud/application_default_credentials.json:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
