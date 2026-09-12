@@ -192,3 +192,66 @@ Stage 1's figures are on **validation**; Stage 2's are leave-one-day-out on
 **train**. They are not directly comparable — the Stage 2 control MAE of 10.39 at
 six hours cannot be read against Stage 1's clock at 7.37. Stage 3 evaluates on
 validation, where the two become comparable for the first time.
+
+---
+
+# Stage 3: which model beats the rules, and where?
+
+Produced by `matlab/s03_models.m`, scored on **validation** — the first numbers
+comparable to Stage 1. Validation is five days, so it confirms rather than
+measures; the test split remains sealed for one final evaluation.
+
+| horizon | best rule | ridge controls | ridge + physiology | verdict |
+|---|---:|---:|---:|---|
+| 30m | extrapolation **1.21** | 1.13 | **1.00** | model wins, better on 5/5 days |
+| 1h | extrapolation **2.35** | 2.14 | **1.99** | model wins on pooled MAE, marginal per day |
+| 3h | trend+clock **5.20** | 6.28 | 6.32 | **rule wins** |
+| 6h | time_of_day **7.37** | 8.47 | 9.21 | **rule wins**, model better on only 1/5 days |
+
+## Stage 2's gains did not transfer past one hour
+
+Stage 2 measured leave-one-day-out on the 23 training days and found physiology
+helping at every horizon — +1.02 MAE at three hours, +1.13 at six. On held-out
+validation days those gains **reverse**: the selected predictors make the model
+worse than the ridge without them, and worse than the hand-written rule.
+
+That is selection overfitting, and the cause is the sample size this project has
+kept running into. Features were chosen by searching 88 candidates against 23
+days; with that many comparisons some will fit those particular days by chance.
+The paired train figures at three and six hours were only 1.5–1.7 standard errors
+— labelled "suggestive" rather than "clear" for exactly this reason — and
+suggestive did not survive.
+
+## Where this data genuinely works
+
+**Thirty minutes.** Ridge with four physiology predictors reaches MAE 1.00
+against the best rule's 1.21, and is better on 5 of 5 validation days with a
+paired spread of ±0.01. That is a real, held-out, reproducible improvement.
+
+**One hour.** 1.99 against 2.35 pooled, but the paired per-day margin is
++0.04 ± 0.15 against the controls-only ridge. Directionally right, not
+established.
+
+**Three and six hours.** The simple rules win. At six hours a clock — the
+train-set average Body Battery for each hour of day, with no knowledge of the
+current state at all — beats every fitted model tried.
+
+## The claim this supports
+
+> Current heart rate and recent physiology measurably improve short-horizon
+> Body Battery forecasting over trend-and-clock extrapolation: MAE 1.21 → 1.00
+> at thirty minutes, better on every held-out day.
+
+And the claim it does **not** support: anything about predicting six hours ahead.
+The honest six-hour finding is that a clock is hard to beat, which is itself
+worth reporting — it says the metric is dominated by circadian shape rather than
+by the day's physiology.
+
+## Models still to run
+
+`s03_models.m` also fits bagged trees, boosted trees (LSBoost) and a Gaussian
+process on the same predictors, so any difference is the model rather than the
+information. Those need the Statistics and Machine Learning Toolbox and are
+skipped with a message on a base licence. They are **not** reproduced in
+`verify_s03_models.py` — scikit-learn is absent from that environment, and
+guessing their numbers would be worse than leaving them blank.
