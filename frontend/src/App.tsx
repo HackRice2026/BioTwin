@@ -8,7 +8,6 @@ import {
   Battery,
   CalendarDays,
   Check,
-  ChevronRight,
   CloudOff,
   FlaskConical,
   Heart,
@@ -612,93 +611,36 @@ export default function App() {
   );
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <a
-          href="#"
-          className="brand"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("Overview");
-          }}
-        >
-          <img src="/icon.svg" alt="" />
-          <span>
-            Bio<span>Twin</span>
-          </span>
-        </a>
-        <span className="sidebar-label">YOUR PERSONAL HEALTH SPACE</span>
-        <nav>
-          {navigation.map((item) => (
-            <button
-              key={item.name}
-              className={page === item.name ? "active" : ""}
-              onClick={() => navigate(item.name)}
-            >
-              <item.icon size={19} />
-              <span>{item.name}</span>
-              {item.name === "What-if lab" && (
-                <span className="nav-new">LAB</span>
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-twin">
-          <div className="twin-orbit">
-            <Sparkles size={21} />
-          </div>
-          <h4>
-            A little self-awareness
-            <br />
-            goes a long way.
-          </h4>
-          <p>
-            Get to know the patterns
-            <br />
-            that make you, you.
-          </p>
-          <button onClick={() => setChat(true)}>
-            Talk to your twin <ArrowUpRight size={15} />
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <button
-            className="sidebar-secondary"
-            onClick={() => {
-              setShowOps(true);
-              api<Record<string, unknown>>("/ops/status")
-                .then(setOps)
-                .catch((e) => notify(e.message));
-            }}
-          >
-            <ShieldCheck size={17} /> System status
-          </button>
-          <button
-            className="account"
-            onClick={() =>
-              session && !session.demo ? navigate("Connections") : setAuth(true)
-            }
-          >
-            <span className="user-avatar">
-              {isDemo ? "A" : (session?.user.name?.[0] ?? "Y")}
-            </span>
-            <span>
-              <b>
-                {isDemo
-                  ? "Explore the demo"
-                  : (session?.user.name ?? "Your account")}
-              </b>
-              <small>{isDemo ? "Make it yours →" : "Personal workspace"}</small>
-            </span>
-            <Settings2 size={16} />
-          </button>
-        </div>
-      </aside>
       <div className="main-shell">
         <header className="topbar">
-          <div className="breadcrumb">
-            Your workspace <ChevronRight size={13} />
-            <b>{page}</b>
-          </div>
+          <a
+            href="#"
+            className="brand"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("Overview");
+            }}
+          >
+            <img src="/icon.svg" alt="" />
+            <span>
+              Bio<span>Twin</span>
+            </span>
+          </a>
+          <nav>
+            {navigation.map((item) => (
+              <button
+                key={item.name}
+                className={page === item.name ? "active" : ""}
+                onClick={() => navigate(item.name)}
+              >
+                <item.icon size={19} />
+                <span>{item.name}</span>
+                {item.name === "What-if lab" && (
+                  <span className="nav-new">LAB</span>
+                )}
+              </button>
+            ))}
+          </nav>
           <div className="topbar-actions">
             <span
               className={`connection-status ${status === "offline" ? "offline" : ""}`}
@@ -735,6 +677,41 @@ export default function App() {
                 Sign out
               </button>
             )}
+            <span className="topbar-divider" />
+            <button
+              className="sidebar-secondary"
+              onClick={() => {
+                setShowOps(true);
+                api<Record<string, unknown>>("/ops/status")
+                  .then(setOps)
+                  .catch((e) => notify(e.message));
+              }}
+            >
+              <ShieldCheck size={17} /> System status
+            </button>
+            <button
+              className="account"
+              onClick={() =>
+                session && !session.demo
+                  ? navigate("Connections")
+                  : setAuth(true)
+              }
+            >
+              <span className="user-avatar">
+                {isDemo ? "A" : (session?.user.name?.[0] ?? "Y")}
+              </span>
+              <span>
+                <b>
+                  {isDemo
+                    ? "Explore the demo"
+                    : (session?.user.name ?? "Your account")}
+                </b>
+                <small>
+                  {isDemo ? "Make it yours →" : "Personal workspace"}
+                </small>
+              </span>
+              <Settings2 size={16} />
+            </button>
           </div>
         </header>
         <main>

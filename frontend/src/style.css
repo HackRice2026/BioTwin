@@ -2737,3 +2737,156 @@ h1 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Single top bar. The sidebar cost 226 px of width and forced the three stage
+   columns to scroll; brand, page navigation and account now share one row so
+   the whole overview fits on screen.
+   --------------------------------------------------------------------------- */
+.main-shell {
+  margin-left: 0;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 60px;
+  gap: 22px;
+  padding: 0 24px;
+  justify-content: flex-start;
+}
+.topbar .brand {
+  margin: 0;
+  flex: none;
+}
+.topbar nav {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar nav::-webkit-scrollbar {
+  display: none;
+}
+.topbar nav button {
+  width: auto;
+  flex: none;
+  padding: 8px 13px;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.topbar .topbar-actions {
+  margin-left: auto;
+  flex: none;
+}
+/* Compact forms of the two controls that used to sit at the foot of the sidebar. */
+.topbar .sidebar-secondary {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.topbar .account {
+  margin: 0;
+  padding: 5px 9px;
+  gap: 8px;
+  width: auto;
+  border-radius: 8px;
+}
+.topbar .account small {
+  display: none; /* the workspace subtitle does not survive one row */
+}
+.topbar .account b {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.main-shell main {
+  padding: 24px 24px 0;
+  max-width: 1760px;
+}
+/* With the full width back, the twin can take more of it. */
+.stage {
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr) minmax(0, 360px);
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 10px 18px;
+    gap: 10px 16px;
+  }
+  .topbar nav {
+    order: 3;
+    width: 100%;
+  }
+  .topbar .account b,
+  .topbar .sidebar-secondary span {
+    display: none;
+  }
+}
+
+/* The stage is sized to the window rather than to its contents, so the twin is
+   always fully visible without scrolling. The side columns are lists and scroll
+   inside their own track; the twin is a single object and must not be cropped. */
+.stage {
+  height: min(calc(100vh - 300px), 860px);
+  min-height: 500px;
+  align-items: stretch;
+}
+.stage-left,
+.stage-right {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 5px;
+  scrollbar-width: thin;
+}
+.stage-left::-webkit-scrollbar,
+.stage-right::-webkit-scrollbar {
+  width: 6px;
+}
+.stage-left::-webkit-scrollbar-thumb,
+.stage-right::-webkit-scrollbar-thumb {
+  background: #d7dfd3;
+  border-radius: 3px;
+}
+.stage-center {
+  min-height: 0;
+}
+.stage-label {
+  position: sticky;
+  top: 0;
+  background: var(--page, #f7f9f4);
+  padding-bottom: 6px;
+  z-index: 1;
+}
+/* Denser tiles, so more of the column is readable before it scrolls. */
+.stage-left .metric-card {
+  padding: 13px 15px;
+}
+.stage-left .metric-value {
+  font-size: 27px;
+}
+.stage-left .vitals-strip > div {
+  padding: 11px 15px;
+}
+
+/* Fit the stage to what is actually left below the header. The offline banner
+   only appears in the bundled demo, so a real account gains that height back. */
+.stage {
+  height: min(calc(100vh - 444px), 820px);
+  min-height: 420px;
+}
+.main-shell main > .page-heading {
+  margin-bottom: 16px;
+}
+.main-shell main > .page-heading h1 {
+  margin: 2px 0 4px;
+}
+.metrics-grid {
+  margin-bottom: 16px;
+}
