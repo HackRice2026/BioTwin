@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Independent port of s01_baselines.m, used to check the MATLAB script's logic.
+"""Independent port of s01_baselines.m: checks its logic and writes the results.
+
+MATLAB Online keeps its output in the cloud drive, so the table every later
+result is measured against would not live in the repository. This reproduces the
+same computation, asserts it matches figures measured straight from the CSV, and
+writes matlab/results/ so the locked baselines are committed alongside the code.
+
+Sample standard deviation (n-1) is used to match MATLAB's std exactly, so the
+committed numbers are the ones the script prints.
 
 MATLAB is not installed in every environment this repository is worked in, and a
 baseline table that every later result is measured against should not rest on a
@@ -10,6 +18,7 @@ CSV and asserts the figures match those measured directly from the data.
 """
 import collections
 import csv
+import os
 import math
 import statistics as st
 import sys
@@ -52,6 +61,7 @@ def score(actual, predicted):
 def main():
     rows = list(csv.DictReader(open(DATA)))
     results, failures = {}, []
+    summary_rows, per_day_rows = [], []
 
     for name, minutes in HORIZONS:
         target, eligible = f"target_bb_{name}", f"eligible_{name}"
@@ -85,7 +95,7 @@ def main():
             ],
         }
 
-        print(f"\n=== {name} | {EVAL_SPLIT} | n={len(actual)} | target sd={st.pstdev(actual):.1f} ===")
+        print(f"\n=== {name} | {EVAL_SPLIT} | n={len(actual)} | target sd={st.stdev(actual):.1f} ===")
         for label, predicted in predictions.items():
             metrics = score(actual, predicted)
             grouped = collections.defaultdict(lambda: ([], []))
@@ -97,9 +107,22 @@ def main():
             ]
             print(
                 f"  {label:<15}MAE {metrics['mae']:6.2f}  RMSE {metrics['rmse']:6.2f}  "
-                f"R2 {metrics['r2']:7.3f}  per-day {st.mean(per_day):5.2f} +/- {st.pstdev(per_day):.2f}"
+                f"R2 {metrics['r2']:7.3f}  per-day {st.mean(per_day):5.2f} +/- {st.stdev(per_day) if len(per_day) > 1 else 0.0:.2f}"
             )
             results[(name, label)] = metrics
+            summary_rows.append({
+                "horizon": name, "minutes": minutes, "baseline": label,
+                "n": len(actual), "target_sd": round(st.stdev(actual), 4),
+                "mae": round(metrics["mae"], 4), "rmse": round(metrics["rmse"], 4),
+                "r2": round(metrics["r2"], 4), "bias": round(metrics["bias"], 4),
+                "per_day_mae": round(st.mean(per_day), 4),
+                "per_day_sd": round(st.stdev(per_day) if len(per_day) > 1 else 0.0, 4),
+            })
+            for day, pair in grouped.items():
+                per_day_rows.append({
+                    "horizon": name, "baseline": label, "day": day,
+                    "mae": round(sum(abs(a - p) for a, p in zip(*pair)) / len(pair[0]), 4),
+                })
 
     print(f"\n=== agreement with the figures measured from the data ===")
     for key, expected in EXPECTED_MAE.items():
@@ -112,6 +135,17 @@ def main():
     if failures:
         print("\nMISMATCH:\n  " + "\n  ".join(failures))
         return 1
+    outdir = os.path.join("matlab", "results")
+    os.makedirs(outdir, exist_ok=True)
+    for name, data in (("s01_baselines.csv", summary_rows),
+                       ("s01_baselines_per_day.csv", per_day_rows)):
+        path = os.path.join(outdir, name)
+        with open(path, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(data[0]))
+            writer.writeheader()
+            writer.writerows(data)
+        print(f"  wrote {path} ({len(data)} rows)")
+
     print("\ns01_baselines.m logic verified against the data")
     return 0
 
