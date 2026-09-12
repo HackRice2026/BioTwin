@@ -201,3 +201,34 @@ def test_elevenlabs_stream_uses_validated_account_scoped_response(tmp_path):
         assert json.loads(calls[0].content)["text"] == reply["answer"]
         assert calls[0].headers["xi-api-key"] == "test-key"
         assert client.get("/api/voice/" + reply["reply_id"]).status_code == 404
+
+
+def test_rr_rmssd_needs_enough_beats_and_rejects_dropped_ones():
+    """RMSSD from measured intervals, computed in one place.
+
+    An optical sensor that misses a beat reports roughly double the interval,
+    which reads as a large variability swing -- a recovery signal that never
+    happened. Those are discarded rather than smoothed, and nothing is reported
+    until the window holds enough beats to mean anything.
+    """
+    from core.config import Settings
+    from core.runtime import Runtime
+
+    rt = Runtime(Settings())
+
+    assert rt.rr_rmssd("u", [800] * 19) is None, "reported before the window filled"
+
+    rt.rr_buffers.clear()
+    steady = rt.rr_rmssd("u", [800, 810, 795, 805] * 6)
+    assert steady is not None and steady < 20, f"steady beats gave RMSSD {steady}"
+
+    rt.rr_buffers.clear()
+    rt.rr_rmssd("u", [800] * 24)
+    before = rt.rr_rmssd("u", [])
+    rt.rr_buffers.clear()
+    rt.rr_rmssd("u", [800] * 24)
+    after = rt.rr_rmssd("u", [1600, 800])  # a missed beat, then a normal one
+    assert after == before, f"a dropped beat changed RMSSD {before} -> {after}"
+
+    rt.rr_buffers.clear()
+    assert rt.rr_rmssd("u", [50] * 30) is None, "implausible intervals were accepted"

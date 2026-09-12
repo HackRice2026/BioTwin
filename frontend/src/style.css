@@ -3021,3 +3021,44 @@ h1 {
 .stage-right .calibration {
   display: none;
 }
+
+/* Live broadcast readout: proof the stream is actually arriving, and a visible
+   count of beat intervals so a sensor that omits them is obvious rather than
+   looking like a broken RMSSD. */
+.broadcast-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.broadcast-stats dt {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #99a398;
+  margin-bottom: 2px;
+}
+.broadcast-stats dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.broadcast-stats dd small {
+  font-size: 10px;
+  font-weight: 500;
+  color: #99a398;
+}
+
+/* Go live: quiet until it is streaming, then it states the beat count so the
+   stream is visibly alive rather than merely connected. */
+.live-launch {
+  gap: 7px;
+  white-space: nowrap;
+}
+.live-launch.streaming {
+  background: #eaf3e4;
+  border-color: #bcd3ae;
+  color: #33623c;
+  font-variant-numeric: tabular-nums;
+}

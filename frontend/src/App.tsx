@@ -28,12 +28,14 @@ import {
   Volume2,
   Wind,
   X,
+  Bluetooth,
   Footprints,
   Mic,
   BatteryCharging,
   Gauge,
   Flame,
 } from "lucide-react";
+import { useHeartRateBroadcast } from "./ble";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
 import { useTwin } from "./transport";
@@ -270,6 +272,15 @@ export default function App() {
   const audio = useRef<HTMLAudioElement | null>(null),
     messagesEnd = useRef<HTMLDivElement>(null);
   const notify = (s: string) => setToast(s);
+  // Live heart rate is startable from whichever screen is open, so a
+  // demonstration does not have to leave the overview to begin streaming.
+  const broadcast = useHeartRateBroadcast(notify, () => {
+    if (session?.demo) {
+      setAuth(true);
+      return true;
+    }
+    return false;
+  });
   const changed = () => {
     audio.current?.pause();
     setSpeaking(false);
@@ -748,6 +759,20 @@ export default function App() {
                 <CalendarDays size={15} />
                 {dateLabel}
               </span>
+              <button
+                className={`button live-launch ${broadcast.broadcasting ? "streaming" : ""}`}
+                onClick={broadcast.toggle}
+                title={
+                  broadcast.supported
+                    ? "Stream measured heart rate from your watch over Bluetooth"
+                    : "Requires a desktop Chromium browser"
+                }
+              >
+                <Bluetooth size={16} />
+                {broadcast.broadcasting
+                  ? `Live · ${broadcast.beats} beats`
+                  : "Go live"}
+              </button>
               <button
                 className="button primary chat-launch"
                 onClick={() => setChat(true)}

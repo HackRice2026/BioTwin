@@ -71,6 +71,13 @@ class AddEvent(BaseModel):
 class BroadcastSample(BaseModel):
     heart_rate_bpm: float = Field(ge=25, le=250)
     event_time: datetime | None = None
+    # Beat-to-beat intervals, when the sensor reports them. A wrist optical
+    # sensor usually does not; a chest strap does. Carried so RMSSD can be
+    # derived from measured intervals rather than inferred from a rate.
+    rr_ms: list[float] = Field(default_factory=list, max_length=32)
+    # Standard heart-rate service contact bits: False means off-body, which is a
+    # reading to distrust rather than a reading to drop silently.
+    contact: bool | None = None
 
 
 def create_app(config=None):
@@ -497,14 +504,23 @@ def create_app(config=None):
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):
         uid = user(request, True)["id"]
+        rmssd = rt().rr_rmssd(uid, data.rr_ms) if data.rr_ms else None
         f = TwinFrame(
             user_id=uid,
             event_time=data.event_time or utcnow(),
             provenance=Provenance.GARMIN_BLE_LIVE,
             heart_rate_bpm=data.heart_rate_bpm,
+            hrv_rmssd_ms=rmssd,
+            # Off-body contact is reported, not hidden: the measurement still
+            # arrives and the model weighs it less.
+            confidence=0.4 if data.contact is False else 1.0,
         )
         committed = await rt().ingest(f)
-        return {"sequence": committed.sequence if committed else None}
+        return {
+            "sequence": committed.sequence if committed else None,
+            "hrv_rmssd_ms": rmssd,
+            "rr_intervals": len(data.rr_ms),
+        }
 
     @app.post("/api/ingest/file")
     async def import_file(request: Request, file: UploadFile = File(...)):
