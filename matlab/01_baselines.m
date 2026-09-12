@@ -30,23 +30,34 @@
 
 clear; clc;
 
-% Look for the data where the repository keeps it, then beside this script --
-% MATLAB Online uploads tend to land flat in one folder.
-here = fileparts(mfilename('fullpath'));
-CANDIDATES = { ...
-    fullfile('processed_data', 'garmin_5min_training.csv'), ...
-    fullfile(here, 'garmin_5min_training.csv'), ...
-    fullfile(here, '..', 'processed_data', 'garmin_5min_training.csv'), ...
-    'garmin_5min_training.csv'};
+% Find the data file rather than assuming a layout. MATLAB Online runs editor
+% buffers from a temporary directory, so mfilename('fullpath') does not point at
+% the uploaded files; a recursive search from the working directory and from the
+% MATLAB Drive root works whether this runs from the repository or from a folder
+% someone unzipped.
 DATA = '';
-for c = 1:numel(CANDIDATES)
-    if isfile(CANDIDATES{c}); DATA = CANDIDATES{c}; break; end
+roots = {pwd};
+if exist('userpath', 'file'); roots{end+1} = userpath; end
+roots{end+1} = fullfile(pwd, '..');
+for r = 1:numel(roots)
+    if isempty(roots{r}) || ~isfolder(roots{r}); continue; end
+    hits = dir(fullfile(roots{r}, '**', 'garmin_5min_training.csv'));
+    if ~isempty(hits)
+        DATA = fullfile(hits(1).folder, hits(1).name);
+        break
+    end
 end
-assert(~isempty(DATA), ['Cannot find garmin_5min_training.csv. Put it in ' ...
-    'processed_data/ or in the same folder as this script.']);
+assert(~isempty(DATA), ['Cannot find garmin_5min_training.csv anywhere under %s. ' ...
+    'cd to the folder holding it and run again.'], pwd);
 fprintf('data: %s\n', DATA);
 
-if isfolder('matlab'); OUTDIR = fullfile('matlab', 'results'); else; OUTDIR = 'results'; end
+% Results land beside the repository's matlab/ folder when it exists, otherwise
+% next to the data that produced them.
+if isfolder('matlab')
+    OUTDIR = fullfile('matlab', 'results');
+else
+    OUTDIR = fullfile(fileparts(DATA), 'results');
+end
 HORIZONS  = {'30m', 30; '1h', 60; '3h', 180; '6h', 360};
 EVAL_SPLIT = "validation";     % deliberately not "test"
 BB_MIN    = 0;                 % Body Battery is reported on 0-100
