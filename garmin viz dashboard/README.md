@@ -14,6 +14,7 @@ A docker container to fetch data from Garmin servers and store the data in a loc
   - EASY : [Automated installation](#automatic-install-with-helper-script-recommended-for-less-techy-people) with helper script
   - ADVANCED : [Manual step by step installation](#manual-install-with-docker-recommended-if-you-understand-linux-concepts) guide
 - **How to**
+  - How to see [live heart rate during a workout](#live-heart-rate-during-a-workout)?
   - How to [pull historic (old) data](#historical-data-fetching-bulk-update) (bulk update)?
   - How to [import from garmin connect local export files](#importing-from-garmin-connect-export)?
   - How to [update to newer versions](#update-to-new-versions) of this project?
@@ -207,6 +208,26 @@ There is a Grafana panel in the dashboard (given with this project) which displa
 ## Multi user instance setup
 
 If this is working well for you, maybe you want to set this up for your family/spouse. For that, you should not duplicate the full compose stack (you can, but then you will have two instances or Grafana and Influxdb containers running on the same host machine, which is not a smart idea). You should be able to do this by following [this guide](https://github.com/arpanghosh8453/garmin-grafana/issues/96#issuecomment-2868627808). There is no automatic setup script for this - you need to have a little understanding of docker and follow the given instructions.
+
+## Live heart rate during a workout
+
+The regular fetch loop polls Garmin Connect's cloud API on a timer (`UPDATE_INTERVAL_SECONDS`), and Garmin's cloud only has data after your watch syncs — there's no way to get true live, low-latency readings out of that path no matter how short the interval is set.
+
+For actually-live heart rate while working out, `src/garmin_grafana/ble_hr_live.py` connects directly to the watch over Bluetooth LE, using the same standard Heart Rate GATT service (`0x180D`/`0x2A37`) a gym treadmill or bike computer would use. It's a push subscription, not polling: the watch notifies the script the instant it has a new reading, which gets written straight to InfluxDB (`HeartRateLive` measurement) and shown on the "Live Workout" dashboard (1s refresh).
+
+This runs on your host machine directly, not in Docker (Docker Desktop can't reach host Bluetooth hardware), as a self-contained script via [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run src/garmin_grafana/ble_hr_live.py --name <your watch model>
+```
+
+Requirements:
+
+- **Broadcast Heart Rate must be turned on, on the watch**, and the watch has to stay awake on that screen — most Garmin watches stop advertising the HR service once idle. On a Venu 2 this is: hold the top button → Settings → **Wrist Heart Rate → Broadcast** (not "Sensors & Accessories", and not "Connectivity → Pair a Device", which are unrelated features that look similar).
+- Bluetooth on, on the machine running the script.
+- Only one device can usually hold the connection at a time — if a phone is already connected to the broadcast, turn its Bluetooth off first.
+
+If it can't find your watch, run `uv run src/garmin_grafana/ble_hr_live.py --list-all --scan-timeout 15` to see every nearby BLE device and what it's advertising, to check whether the watch is actually broadcasting the HR service or not.
 
 ## Update to new versions
 
