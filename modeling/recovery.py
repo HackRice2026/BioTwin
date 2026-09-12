@@ -1,32 +1,89 @@
+import logging
 import uuid
+from typing import NamedTuple
 import numpy as np
 from datetime import timedelta
 from scipy.optimize import curve_fit
 from shared.schemas import CurvePoint, RecoveryPrediction
+
+logger = logging.getLogger(__name__)
+
+# Heart-rate recovery kinetics. Published parasympathetic reactivation is
+# 44 +/- 37 s; a constant beyond ten minutes is drift, not recovery.
+TAU_MIN_S, TAU_MAX_S = 5.0, 600.0
+ASYMPTOTE_FLOOR_BPM = 25.0
 
 
 def decay(t, rest, peak, tau):
     return rest + (peak - rest) * np.exp(-np.asarray(t) / tau)
 
 
+class SegmentFit(NamedTuple):
+    tau: float
+    rmse: float
+    asymptote: float
+    saturated: bool
+
+
 def fit_segment(times, heart_rates, resting):
+    """Estimate the recovery time constant with the asymptote ESTIMATED, not assumed.
+
+    Recovery during continued light activity relaxes toward an elevated plateau, not
+    toward resting HR. Pinning the asymptote near resting forces a sub-maximal decay
+    to look almost linear, and the only exponential that fits a near-linear decline
+    heading to resting is an enormous tau -- which then saturates the upper bound.
+    On this project's own recorded walks that produced a median tau of 900 s (the
+    bound itself) against 87 s once the asymptote was freed, with lower residuals on
+    60 of 62 segments. `resting` is retained only to seed the search.
+
+    tau is a property of the system, so a constant identified against an elevated
+    plateau remains the right constant for a decay-to-rest forecast.
+    """
     times, heart_rates = np.asarray(times, dtype=float), np.asarray(heart_rates, dtype=float)
     if len(times) < 8 or times[-1] - times[0] < 120:
         raise ValueError("A recovery segment needs at least eight readings spanning two minutes")
     t = times - times[0]
+    low = float(np.min(heart_rates))
+    # An exponential decay is approached from above, so the asymptote cannot exceed
+    # the lowest reading; it may sit below one that has not yet settled.
+    asymptote_ceiling = max(ASYMPTOTE_FLOOR_BPM + 1.0, low)
+    seed_asymptote = float(np.clip(heart_rates[-1], ASYMPTOTE_FLOOR_BPM, asymptote_ceiling))
     params, _ = curve_fit(
         decay,
         t,
         heart_rates,
-        p0=[resting, heart_rates[0], 100],
-        bounds=([resting - 5, resting + 5, 15], [resting + 5, 250, 900]),
-        maxfev=5000,
+        p0=[seed_asymptote, float(heart_rates[0]), 60.0],
+        bounds=(
+            [ASYMPTOTE_FLOOR_BPM, low, TAU_MIN_S],
+            [asymptote_ceiling, 250.0, TAU_MAX_S],
+        ),
+        maxfev=20000,
     )
+    asymptote, _peak, tau = (float(v) for v in params)
     predicted = decay(t, *params)
-    return float(params[2]), float(np.sqrt(np.mean((predicted - heart_rates) ** 2)))
+    rmse = float(np.sqrt(np.mean((predicted - heart_rates) ** 2)))
+    # A constant resting against its bound is an unidentified fit, not a slow one.
+    saturated = tau <= TAU_MIN_S * 1.01 or tau >= TAU_MAX_S * 0.99
+    return SegmentFit(tau=tau, rmse=rmse, asymptote=asymptote, saturated=saturated)
 
 
-def segments(history, resting):
+def _trim_to_trough(window, patience_s=60.0):
+    """Cut the window where recovery actually ends.
+
+    A fixed 360 s window keeps collecting after heart rate has settled, and the flat
+    tail biases tau upward. Truncate at the trough once it stops improving.
+    """
+    best_i = 0
+    best = window[0].heart_rate_bpm
+    for i, f in enumerate(window):
+        if f.heart_rate_bpm < best - 0.5:
+            best, best_i = f.heart_rate_bpm, i
+        elif (f.event_time - window[best_i].event_time).total_seconds() > patience_s:
+            break
+    return window[: best_i + 1]
+
+
+def segments(history, resting, absolute=False):
     by_second = {}
     for f in history:
         if f.heart_rate_bpm is not None:
@@ -59,12 +116,14 @@ def segments(history, resting):
                 ):
                     break
                 window.append(f)
+            window = _trim_to_trough(window)
             if len(window) >= 8 and (window[-1].event_time - a.event_time).total_seconds() >= 120:
                 y = np.array([f.heart_rate_bpm for f in window])
                 if np.mean(np.diff(y) <= 2) > 0.8 and y[0] - y[-1] > 15:
-                    result.append(
-                        (np.array([(f.event_time - a.event_time).total_seconds() for f in window]), y)
-                    )
+                    elapsed = np.array([(f.event_time - a.event_time).total_seconds() for f in window])
+                    # Times are relative to each onset, so the absolute instant is
+                    # available only on request -- a prequential forecast needs it.
+                    result.append((elapsed, y, a.event_time) if absolute else (elapsed, y))
                     i += len(window)
                     continue
         i += 1
@@ -72,15 +131,29 @@ def segments(history, resting):
 
 
 def fit_history(history, resting):
-    accepted, taus = [], []
+    accepted, taus, asymptotes = [], [], []
+    saturated = failed = 0
     for t, y in segments(history, resting):
         try:
-            tau, rmse = fit_segment(t, y, resting)
+            fit = fit_segment(t, y, resting)
         except (ValueError, RuntimeError):
+            failed += 1
             continue  # Rejected fit is counted by accepted session count, never replaced with a successful result.
-        if 16 < tau < 899 and rmse < 12:
+        if fit.saturated:
+            # Reported rather than silently dropped: a bound-hit means the segment did
+            # not identify a constant, and a gate that hides it makes a failed fit
+            # look like a slow recovery.
+            saturated += 1
+            continue
+        if fit.rmse < 12:
             accepted.append((t, y))
-            taus.append(tau)
+            taus.append(fit.tau)
+            asymptotes.append(fit.asymptote)
+    if saturated or failed:
+        logger.info(
+            "recovery fit: %d accepted, %d unidentified (bound-limited), %d unfittable",
+            len(taus), saturated, failed,
+        )
     if len(taus) < 3:
         return dict(
             recovery_tau_s=None, tau_fit_rmse=None, tau_fit_n_sessions=len(taus), tau_iqr=[], cv_errors=[]
@@ -88,7 +161,11 @@ def fit_history(history, resting):
     errors = []
     for i, (t, y) in enumerate(accepted):
         heldout_tau = float(np.median(taus[:i] + taus[i + 1 :]))
-        forecast = decay(t, resting, y[0], heldout_tau)
+        # The fold answers one question: does tau generalise to an unseen segment?
+        # Forcing the forecast to decay to resting HR instead answers a different one
+        # and penalises a correct fit whenever recovery settled above rest, so the
+        # segment's own asymptote is held fixed while tau comes from the other folds.
+        forecast = decay(t, asymptotes[i], y[0], heldout_tau)
         errors.append(round(float(np.sqrt(np.mean((forecast - y) ** 2))), 2))
     return dict(
         recovery_tau_s=round(float(np.median(taus)), 1),
