@@ -1,0 +1,46 @@
+{
+  "id": null,
+  "uid": "live-workout",
+  "title": "Live Workout",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1s",
+  "time": { "from": "now-2m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Live Heart Rate",
+      "type": "stat",
+      "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "bpm" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
+          "query": "SELECT last(\"HeartRate\") FROM \"HeartRateLive\" WHERE $timeFilter",
+          "rawQuery": true,
+          "resultFormat": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Heart Rate (last 5 minutes, live)",
+      "type": "timeseries",
+      "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "bpm" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
+          "query": "SELECT \"HeartRate\" FROM \"HeartRateLive\" WHERE $timeFilter",
+          "rawQuery": true,
+          "resultFormat": "time_series"
+        }
+      ]
+    }
+  ]
+}
