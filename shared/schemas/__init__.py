@@ -208,12 +208,27 @@ class NarrationContext(Contract):
     plan: DailyPlan | None = None
     prediction: RecoveryPrediction | None = None
     facts: tuple[str, ...] = ()
+    provenance: Provenance | None = None
+    quality: dict[str, MetricQuality] = Field(default_factory=dict)
 
 
 class NarrationResponse(Contract):
     answer: str
     mode: Literal["template", "language_service", "guard_fallback"]
     grounded: bool = True
+    notice: str | None = None
+    model: str | None = None
+
+
+class Conversation(Contract):
+    id: str
+    question: str
+    answer: str | None = None
+    created_at: AwareDatetime
+    completed_at: AwareDatetime | None = None
+    mode: str
+    notice: str | None = None
+    model: str | None = None
 
 
 class DayOutlook(Contract):
