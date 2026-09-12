@@ -210,22 +210,38 @@ function Body({
   onMotion: (s: string) => void;
 }) {
   const { scene } = useGLTF("/assets/model.glb");
+  const { gl: renderer } = useThree();
   const model = useMemo(() => {
     const clone = cloneSkeleton(scene) as THREE.Group;
+    // Textures default to anisotropy 1 (blurry at a grazing angle, exactly
+    // what close-up/orbit zoom produces) -- the GPU's real max is usually
+    // 8-16 and costs nothing noticeable on hardware that can already run
+    // this scene, so just ask for it instead of leaving the default.
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (mesh.isMesh) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((material) => material.clone());
-        } else {
-          mesh.material = mesh.material.clone();
-        }
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const cloned = materials.map((material) => {
+          const next = material.clone() as THREE.MeshStandardMaterial;
+          (
+            [next.map, next.normalMap, next.roughnessMap, next.metalnessMap, next.emissiveMap] as (
+              | THREE.Texture
+              | null
+              | undefined
+            )[]
+          ).forEach((tex) => {
+            if (tex) tex.anisotropy = maxAnisotropy;
+          });
+          return next;
+        });
+        mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
       }
     });
     return clone;
-  }, [scene]);
+  }, [scene, renderer]);
   const nodes = useMemo(() => createNodes(model), [model]);
   const base = useMemo(() => baseTransforms(nodes), [nodes]);
   const morphMeshes = useMemo(() => {
@@ -524,7 +540,13 @@ export default function Avatar({
         : "idle";
 
   useEffect(() => {
-    setDpr(quality === "Low" ? 1 : quality === "High" ? 2 : 1.5);
+    // "High" targets the screen's real pixel density instead of a flat 2 --
+    // a flat cap undershoots any display denser than that (common on
+    // phones/newer laptops), which matters most exactly when zoomed in
+    // close, where every screen pixel is showing you more of the texture.
+    // Capped at 3: native retina density with a sane ceiling, not uncapped.
+    const native = Math.min(window.devicePixelRatio || 1, 3);
+    setDpr(quality === "Low" ? 1 : quality === "High" ? native : 1.5);
   }, [quality]);
   useEffect(() => {
     semantic.current = mergeSemantic(semantic.current, {
@@ -702,7 +724,8 @@ export default function Avatar({
             ref={controls}
             enablePan={false}
             enableZoom
-            minDistance={2.3}
+            zoomSpeed={0.6}
+            minDistance={1.05}
             maxDistance={6}
             target={[0, 0.1, 0]}
             minPolarAngle={0.78}
