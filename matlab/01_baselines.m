@@ -30,15 +30,29 @@
 
 clear; clc;
 
-DATA      = fullfile('processed_data', 'garmin_5min_training.csv');
-OUTDIR    = fullfile('matlab', 'results');
+% Look for the data where the repository keeps it, then beside this script --
+% MATLAB Online uploads tend to land flat in one folder.
+here = fileparts(mfilename('fullpath'));
+CANDIDATES = { ...
+    fullfile('processed_data', 'garmin_5min_training.csv'), ...
+    fullfile(here, 'garmin_5min_training.csv'), ...
+    fullfile(here, '..', 'processed_data', 'garmin_5min_training.csv'), ...
+    'garmin_5min_training.csv'};
+DATA = '';
+for c = 1:numel(CANDIDATES)
+    if isfile(CANDIDATES{c}); DATA = CANDIDATES{c}; break; end
+end
+assert(~isempty(DATA), ['Cannot find garmin_5min_training.csv. Put it in ' ...
+    'processed_data/ or in the same folder as this script.']);
+fprintf('data: %s\n', DATA);
+
+if isfolder('matlab'); OUTDIR = fullfile('matlab', 'results'); else; OUTDIR = 'results'; end
 HORIZONS  = {'30m', 30; '1h', 60; '3h', 180; '6h', 360};
 EVAL_SPLIT = "validation";     % deliberately not "test"
 BB_MIN    = 0;                 % Body Battery is reported on 0-100
 BB_MAX    = 100;
 
 if ~isfolder(OUTDIR); mkdir(OUTDIR); end
-assert(isfile(DATA), 'Cannot find %s -- run this from the repository root.', DATA);
 
 T = readtable(DATA, 'TextType', 'string', 'VariableNamingRule', 'preserve');
 fprintf('%d rows, %d columns\n', height(T), width(T));
@@ -171,7 +185,12 @@ xticks(1:numel(horizonOrder)); xticklabels(horizonOrder);
 xlabel('forecast horizon'); ylabel('R^2 of trend extrapolation');
 title('Where trend-following stops working');
 
-exportgraphics(gcf, fullfile(OUTDIR, '01_baselines.png'), 'Resolution', 150);
+pngPath = fullfile(OUTDIR, '01_baselines.png');
+if exist('exportgraphics', 'file')
+    exportgraphics(gcf, pngPath, 'Resolution', 150);
+else
+    print(gcf, pngPath, '-dpng', '-r150');   % releases before R2020a
+end
 fprintf('wrote %s\n', fullfile(OUTDIR, '01_baselines.png'));
 
 %% ---------- local functions ----------
