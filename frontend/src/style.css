@@ -1705,13 +1705,15 @@ h1 {
 .chat-header > .icon-btn {
   margin-left: auto;
 }
-.chat-messages {
-  padding: 25px;
+.chat-scroll {
   flex: 1;
   overflow-y: auto;
 }
+.chat-messages {
+  padding: 0 25px;
+}
 .chat-welcome {
-  padding: 13px 0 25px;
+  padding: 13px 25px 25px;
 }
 .chat-welcome > svg {
   color: #9bae83;
@@ -1771,23 +1773,90 @@ h1 {
   color: #8a967f;
   font-size: 11px;
 }
-.listen-button {
-  border: 0;
-  background: none;
+.voice-stage {
+  padding: 30px 25px 10px;
   display: flex;
-  gap: 6px;
+  flex-direction: column;
   align-items: center;
-  font-size: 8px;
-  color: #97a881;
-  padding: 10px 0 0;
+  gap: 10px;
+  text-align: center;
 }
-.thinking {
-  font-size: 10px;
-  color: #98a78b;
+.mic-primary {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: #507043;
+  color: #fff;
+  box-shadow: 0 14px 34px #4d6f4030;
+}
+.mic-primary:disabled {
+  opacity: 0.55;
+}
+.mic-rings {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #6a8f5b70;
+}
+.mic-primary.is-listening {
+  background: #b4562f;
+}
+.mic-primary.is-listening .mic-rings {
+  border-color: #e3925f;
+  animation: mic-rings 1.4s ease-out infinite;
+}
+.mic-primary.is-speaking {
+  background: #3a6d5e;
+}
+.mic-primary.is-thinking {
+  background: #6b7f8f;
+}
+@keyframes mic-rings {
+  0% {
+    box-shadow: 0 0 0 0 #e3925f55;
+  }
+  100% {
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+.voice-caption {
+  font-size: 12px;
+  color: #5a724b;
+  font-weight: 500;
+}
+.chat-transcript {
+  margin: 4px 25px 0;
+  border-top: 1px solid var(--border);
+}
+.chat-transcript summary {
+  list-style: none;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 20px 0;
+  justify-content: space-between;
+  padding: 16px 0;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: #8a9a78;
+  text-transform: uppercase;
+}
+.chat-transcript summary::-webkit-details-marker {
+  display: none;
+}
+.chat-transcript summary svg {
+  transition: transform 0.15s ease;
+}
+.chat-transcript[open] summary svg {
+  transform: rotate(180deg);
+}
+.chat-transcript .chat-messages {
+  padding: 0 0 20px;
+  max-height: 320px;
+  overflow-y: auto;
 }
 .chat-input-area {
   padding: 20px;
@@ -1829,8 +1898,8 @@ h1 {
   text-align: center;
   margin-top: 11px;
 }
-.chat-input-area > .text-button {
-  margin-bottom: 8px;
+.voice-stage > .text-button {
+  margin-top: 4px;
 }
 .toast {
   position: fixed;
@@ -2572,8 +2641,14 @@ h1 {
   .chat-input-area {
     padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
-  .chat-messages {
-    padding: 22px;
+  .voice-stage {
+    padding: 22px 22px 8px;
+  }
+  .chat-welcome {
+    padding: 13px 22px 22px;
+  }
+  .chat-transcript {
+    margin: 4px 22px 0;
   }
   .toast {
     bottom: 80px;
