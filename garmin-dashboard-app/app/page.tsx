@@ -14,6 +14,7 @@ import {
   Wind,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   getHeartRateHistory,
   getStepsHistory,
@@ -66,8 +67,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export default async function Home() {
   const [summary, hrPoints, stepsPoints] = await Promise.all([
     getSummary(),
-    getHeartRateHistory(3),
-    getStepsHistory(7),
+    getHeartRateHistory("day"),
+    getStepsHistory("week"),
   ]);
 
   const insight =
@@ -98,10 +99,11 @@ export default async function Home() {
             <MetricCard
               icon={HeartPulse}
               color="coral"
-              title="Heart rate (3h)"
+              title="Heart rate (24h)"
               value={summary.latestHr ?? "--"}
               unit="bpm"
               points={hrPoints}
+              href="/metric/heart-rate"
             />
           </CarouselItem>
           <CarouselItem>
@@ -111,6 +113,7 @@ export default async function Home() {
               title="Resting"
               value={summary.restingHr ?? "--"}
               unit="bpm"
+              href="/metric/heart-rate"
             />
           </CarouselItem>
           <CarouselItem>
@@ -124,6 +127,7 @@ export default async function Home() {
                   : "--"
               }
               unit="bpm"
+              href="/metric/heart-rate"
             />
           </CarouselItem>
         </Carousel>
@@ -138,6 +142,7 @@ export default async function Home() {
               title="Steps today"
               value={summary.steps?.toLocaleString() ?? "--"}
               points={stepsPoints}
+              href="/metric/activity"
             />
           </CarouselItem>
           <CarouselItem>
@@ -147,6 +152,7 @@ export default async function Home() {
               title="Distance"
               value={formatDistance(summary.distanceMeters)}
               unit="km"
+              href="/metric/activity"
             />
           </CarouselItem>
           <CarouselItem>
@@ -155,6 +161,7 @@ export default async function Home() {
               color="amber"
               title="Floors climbed"
               value={summary.floorsAscended ?? "--"}
+              href="/metric/activity"
             />
           </CarouselItem>
           <CarouselItem>
@@ -164,6 +171,7 @@ export default async function Home() {
               title="Active calories"
               value={summary.calories?.toLocaleString() ?? "--"}
               unit="kcal"
+              href="/metric/activity"
             />
           </CarouselItem>
         </Carousel>
@@ -178,6 +186,7 @@ export default async function Home() {
               title="Body battery"
               value={summary.bodyBattery ?? "--"}
               unit="/ 100"
+              href="/metric/body-battery"
             />
           </CarouselItem>
           <CarouselItem>
@@ -187,6 +196,7 @@ export default async function Home() {
               title="Stress"
               value={stressLabel(summary.stressLevel)}
               unit={summary.stressLevel != null && summary.stressLevel >= 0 ? `(${summary.stressLevel})` : undefined}
+              href="/metric/stress"
             />
           </CarouselItem>
           <CarouselItem>
@@ -216,6 +226,7 @@ export default async function Home() {
             color="teal"
             title="Duration"
             value={formatDuration(summary.sleepSeconds)}
+            href="/metric/sleep"
           />
           <MetricCard
             icon={Droplet}
@@ -223,6 +234,7 @@ export default async function Home() {
             title="Blood oxygen"
             value={summary.sleepSpO2 ?? "--"}
             unit="%"
+            href="/metric/sleep"
           />
           <MetricCard
             icon={Wind}
@@ -230,8 +242,12 @@ export default async function Home() {
             title="Breathing rate"
             value={summary.breathingRate ?? "--"}
             unit="brpm"
+            href="/metric/sleep"
           />
-          <div className="flex flex-col justify-center gap-2 rounded-3xl border border-border bg-card p-5">
+          <Link
+            href="/metric/sleep"
+            className="flex flex-col justify-center gap-2 rounded-3xl border border-border bg-card p-5 hover:opacity-90"
+          >
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Sleep stages
             </span>
@@ -241,7 +257,7 @@ export default async function Home() {
               rem={summary.remSleepSeconds}
               awake={summary.awakeSleepSeconds}
             />
-          </div>
+          </Link>
         </div>
       </Section>
 

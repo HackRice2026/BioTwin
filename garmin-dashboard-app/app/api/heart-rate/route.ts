@@ -1,6 +1,8 @@
-import { getHeartRateHistory } from "@/lib/health-data";
+import { getHeartRateHistory, type Range } from "@/lib/health-data";
 
 export async function GET(request: Request) {
-  const hours = Number(new URL(request.url).searchParams.get("hours") ?? "3");
-  return Response.json({ points: await getHeartRateHistory(hours) });
+  const range = new URL(request.url).searchParams.get("range");
+  return Response.json({
+    points: await getHeartRateHistory(range === "week" ? "week" : ("day" as Range)),
+  });
 }

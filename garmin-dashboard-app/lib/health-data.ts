@@ -29,6 +29,11 @@ export type Summary = {
 };
 
 export type SeriesPoint = { t: string; v: number };
+/** "day" and "week" only -- real data only goes back ~7 days right now, so a
+ * "month" option would mostly render empty space. Add it once there's
+ * actually a month of history; every query below already takes an arbitrary
+ * day count, so it's a one-line change, not a redesign. */
+export type Range = "day" | "week";
 
 export async function getSummary(): Promise<Summary> {
   const [
@@ -92,30 +97,80 @@ export async function getSummary(): Promise<Summary> {
   };
 }
 
-export async function getHeartRateHistory(hours: number): Promise<SeriesPoint[]> {
-  const series = await influxQuery(
-    `SELECT "HeartRate" FROM "HeartRateIntraday" WHERE time > now() - ${hours}h ORDER BY time ASC`,
-  );
-  return rows(series).map((r) => ({ t: r.time as string, v: r.HeartRate as number }));
+function toPoints(series: Awaited<ReturnType<typeof influxQuery>>, field: string): SeriesPoint[] {
+  // InfluxDB's mean() (used for the "week" range's hourly aggregation)
+  // returns floats -- round here, once, so every consumer (chart tooltip,
+  // summary stat tiles) gets clean numbers instead of each needing to
+  // remember to round separately.
+  return rows(series)
+    .map((r) => ({ t: r.time as string, v: r[field] as number }))
+    .filter((p) => p.v != null)
+    .map((p) => ({ ...p, v: Math.round(p.v) }));
 }
 
-export async function getStepsHistory(days: number): Promise<SeriesPoint[]> {
-  const series = await influxQuery(
-    `SELECT "totalSteps" FROM "DailyStats" WHERE time > now() - ${days}d ORDER BY time ASC`,
-  );
-  return rows(series).map((r) => ({ t: r.time as string, v: r.totalSteps as number }));
+export async function getHeartRateHistory(range: Range): Promise<SeriesPoint[]> {
+  const q =
+    range === "day"
+      ? `SELECT "HeartRate" FROM "HeartRateIntraday" WHERE time > now() - 24h ORDER BY time ASC`
+      : `SELECT mean("HeartRate") AS "HeartRate" FROM "HeartRateIntraday" WHERE time > now() - 7d GROUP BY time(1h) fill(none)`;
+  return toPoints(await influxQuery(q), "HeartRate");
 }
 
-export async function getStressHistory(hours: number): Promise<SeriesPoint[]> {
-  const series = await influxQuery(
-    `SELECT "stressLevel" FROM "StressIntraday" WHERE time > now() - ${hours}h AND "stressLevel" >= 0 ORDER BY time ASC`,
-  );
-  return rows(series).map((r) => ({ t: r.time as string, v: r.stressLevel as number }));
+export async function getStepsHistory(range: Range): Promise<SeriesPoint[]> {
+  const q =
+    range === "day"
+      ? `SELECT sum("StepsCount") AS "totalSteps" FROM "StepsIntraday" WHERE time > now() - 24h GROUP BY time(30m) fill(0)`
+      : `SELECT "totalSteps" FROM "DailyStats" WHERE time > now() - 7d ORDER BY time ASC`;
+  return toPoints(await influxQuery(q), "totalSteps");
 }
 
-export async function getBodyBatteryHistory(hours: number): Promise<SeriesPoint[]> {
+export async function getStressHistory(range: Range): Promise<SeriesPoint[]> {
+  const q =
+    range === "day"
+      ? `SELECT "stressLevel" FROM "StressIntraday" WHERE time > now() - 24h AND "stressLevel" >= 0 ORDER BY time ASC`
+      : `SELECT mean("stressLevel") AS "stressLevel" FROM "StressIntraday" WHERE time > now() - 7d AND "stressLevel" >= 0 GROUP BY time(1h) fill(none)`;
+  return toPoints(await influxQuery(q), "stressLevel");
+}
+
+export async function getBodyBatteryHistory(range: Range): Promise<SeriesPoint[]> {
+  const q =
+    range === "day"
+      ? `SELECT "BodyBatteryLevel" FROM "BodyBatteryIntraday" WHERE time > now() - 24h ORDER BY time ASC`
+      : `SELECT mean("BodyBatteryLevel") AS "BodyBatteryLevel" FROM "BodyBatteryIntraday" WHERE time > now() - 7d GROUP BY time(2h) fill(none)`;
+  return toPoints(await influxQuery(q), "BodyBatteryLevel");
+}
+
+export async function getDistanceHistory(range: Range): Promise<SeriesPoint[]> {
+  const q =
+    range === "day"
+      ? `SELECT "totalDistanceMeters" FROM "DailyStats" WHERE time > now() - 24h ORDER BY time ASC`
+      : `SELECT "totalDistanceMeters" FROM "DailyStats" WHERE time > now() - 7d ORDER BY time ASC`;
+  return toPoints(await influxQuery(q), "totalDistanceMeters");
+}
+
+export type NightSummary = {
+  t: string;
+  sleepSeconds: number;
+  sleepScore: number | null;
+  deep: number;
+  light: number;
+  rem: number;
+  awake: number;
+  spo2: number | null;
+};
+
+export async function getSleepNights(nights: number): Promise<NightSummary[]> {
   const series = await influxQuery(
-    `SELECT "BodyBatteryLevel" FROM "BodyBatteryIntraday" WHERE time > now() - ${hours}h ORDER BY time ASC`,
+    `SELECT "sleepTimeSeconds", "sleepScore", "deepSleepSeconds", "lightSleepSeconds", "remSleepSeconds", "awakeSleepSeconds", "averageSpO2Value" FROM "SleepSummary" WHERE time > now() - ${nights}d ORDER BY time ASC`,
   );
-  return rows(series).map((r) => ({ t: r.time as string, v: r.BodyBatteryLevel as number }));
+  return rows(series).map((r) => ({
+    t: r.time as string,
+    sleepSeconds: (r.sleepTimeSeconds as number) ?? 0,
+    sleepScore: (r.sleepScore as number) ?? null,
+    deep: (r.deepSleepSeconds as number) ?? 0,
+    light: (r.lightSleepSeconds as number) ?? 0,
+    rem: (r.remSleepSeconds as number) ?? 0,
+    awake: (r.awakeSleepSeconds as number) ?? 0,
+    spo2: (r.averageSpO2Value as number) ?? null,
+  }));
 }
