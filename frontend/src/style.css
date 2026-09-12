@@ -89,19 +89,6 @@ p {
 .app-shell {
   min-height: 100vh;
 }
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 226px;
-  padding: 32px 20px 18px;
-  background: #fff;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  z-index: 20;
-}
 .brand {
   display: flex;
   align-items: center;
@@ -119,19 +106,12 @@ p {
   height: 34px;
   border-radius: 11px;
 }
-.sidebar-label {
-  font-size: 8px;
-  letter-spacing: 1.45px;
-  color: #99a398;
-  margin: 39px 0 18px 13px;
-  font-weight: 650;
-}
-.sidebar nav {
+.topbar nav {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
-.sidebar nav button {
+.topbar nav button {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -146,14 +126,14 @@ p {
   font-weight: 500;
   white-space: nowrap;
 }
-.sidebar nav button:hover {
+.topbar nav button:hover {
   background: #f6f8f1;
 }
-.sidebar nav button.active {
+.topbar nav button.active {
   background: #eaf0df;
   color: #3e6547;
 }
-.sidebar nav button.active svg {
+.topbar nav button.active svg {
   stroke-width: 2;
 }
 .nav-new {
@@ -164,58 +144,9 @@ p {
   padding: 3px 5px;
   border-radius: 3px;
 }
-.sidebar-twin {
-  margin: 44px 5px 20px;
-  background: linear-gradient(145deg, #f5f7ef, #edf2e4);
-  padding: 19px 16px 15px;
-  border-radius: 12px;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-}
-.sidebar-twin:after {
-  content: "";
-  position: absolute;
-  width: 100px;
-  height: 100px;
-  border: 1px solid #e0e7d7;
-  border-radius: 50%;
-  right: -60px;
-  top: -35px;
-  box-shadow:
-    0 0 0 15px #e8eddf,
-    0 0 0 16px #dfe6d6;
-  pointer-events: none;
-}
 .twin-orbit {
   color: #6d8c59;
   margin-bottom: 15px;
-}
-.sidebar-twin h4 {
-  font-size: 13px;
-  line-height: 1.6;
-  position: relative;
-}
-.sidebar-twin p {
-  font-size: 10px;
-  line-height: 1.8;
-  margin: 9px 0 16px;
-  color: #97a18d;
-}
-.sidebar-twin button {
-  background: none;
-  border: 0;
-  border-top: 1px solid #dde5d4;
-  padding: 12px 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  font-size: 10px;
-  font-weight: 600;
-}
-.sidebar-bottom {
-  margin-top: auto;
 }
 .sidebar-secondary {
   background: none;
@@ -228,8 +159,7 @@ p {
 }
 .account {
   border: 0;
-  border-top: 1px solid var(--border);
-  padding: 18px 4px 0;
+  padding: 5px 9px;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -264,9 +194,6 @@ p {
 .account > svg {
   color: #8f9988;
   width: 14px;
-}
-.main-shell {
-  margin-left: 226px;
 }
 .topbar {
   height: 72px;
@@ -1863,23 +1790,11 @@ h1 {
   }
 }
 @media (max-width: 1200px) {
-  .sidebar {
-    width: 196px;
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-  .main-shell {
-    margin-left: 196px;
-  }
   .main-shell main {
     padding: 27px 24px 0;
   }
   .topbar {
     padding: 0 24px;
-  }
-  .sidebar-label {
-    font-size: 7px;
-    letter-spacing: 1px;
   }
   .metric-card {
     padding: 15px 12px 9px;
@@ -1950,9 +1865,6 @@ h1 {
   .privacy-card > div {
     flex-basis: 100%;
   }
-  .sidebar-twin {
-    margin-top: 30px;
-  }
   .date-pill {
     display: none;
   }
@@ -1967,42 +1879,27 @@ h1 {
   }
 }
 @media (max-width: 960px) {
-  .sidebar {
-    width: 76px;
-    padding: 25px 12px 16px;
-    align-items: center;
-  }
   .brand {
     padding: 0;
   }
   .brand > span,
-  .sidebar-label,
-  .sidebar-twin,
-  .sidebar nav button > span,
-  .sidebar-secondary,
+  .topbar nav button > span,
   .account > span:nth-child(2),
   .account > svg {
     display: none;
   }
-  .sidebar nav {
+  .topbar nav {
     margin-top: 40px;
     gap: 12px;
     width: 100%;
   }
-  .sidebar nav button {
+  .topbar nav button {
     justify-content: center;
     padding: 13px;
-  }
-  .sidebar-bottom {
-    margin-top: auto;
-    width: 100%;
   }
   .account {
     padding-top: 16px;
     justify-content: center;
-  }
-  .main-shell {
-    margin-left: 76px;
   }
   .topbar {
     height: 65px;
@@ -2066,31 +1963,14 @@ h1 {
   }
 }
 @media (max-width: 720px) {
-  .sidebar {
-    top: auto;
-    right: 0;
-    width: 100%;
-    height: 64px;
-    padding: 0 8px;
-    flex-direction: row;
-    background: #fffefcf5;
-    border-right: 0;
-    border-top: 1px solid #dde5d4;
-    backdrop-filter: blur(12px);
-    z-index: 40;
-    align-items: stretch;
-  }
   .brand,
-  .sidebar-bottom {
-    display: none;
-  }
-  .sidebar nav {
+  .topbar nav {
     margin: 0;
     flex-direction: row;
     gap: 0;
     justify-content: space-around;
   }
-  .sidebar nav button {
+  .topbar nav button {
     padding: 10px 7px 7px;
     flex-direction: column;
     gap: 6px;
@@ -2098,17 +1978,17 @@ h1 {
     flex: 1;
     width: auto;
   }
-  .sidebar nav button > span:not(.nav-new) {
+  .topbar nav button > span:not(.nav-new) {
     display: block;
     font-size: 8px;
     white-space: nowrap;
   }
-  .sidebar nav button.active {
+  .topbar nav button.active {
     background: none;
     color: #527844;
     position: relative;
   }
-  .sidebar nav button.active:before {
+  .topbar nav button.active:before {
     content: "";
     height: 2px;
     background: #749759;
@@ -2116,12 +1996,9 @@ h1 {
     top: 0;
     width: 30px;
   }
-  .sidebar nav button svg {
+  .topbar nav button svg {
     width: 18px;
     height: 18px;
-  }
-  .main-shell {
-    margin-left: 0;
   }
   .topbar {
     height: 58px;
@@ -2580,187 +2457,33 @@ h1 {
   }
 }
 
-/* Vendor summaries sit apart from BioTwin's own measurements so a reader can see
-   which numbers the watch computed and which this app derived. */
-.vendor-row {
-  margin-bottom: 22px;
-}
-.vendor-label {
-  margin: 0 0 10px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--muted, #6b7c76);
-  max-width: 68ch;
-}
-
-/* ---------------------------------------------------------------------------
-   Overview stage: recent measurements on the left, the twin centre and large,
-   predictions and model fit on the right. The twin is the subject of the page,
-   so it takes the widest column and sets the row height; the side columns
-   scroll within it rather than stretching it.
-   --------------------------------------------------------------------------- */
-.stage {
-  display: grid;
-  grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 340px);
-  gap: 18px;
-  align-items: stretch;
-  margin-bottom: 22px;
-}
-.stage-left,
-.stage-right {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-.stage-center {
-  display: flex;
-  min-width: 0;
-  /* The twin drives the height of the whole row. */
-  min-height: 620px;
-}
-.stage-center .avatar-card {
-  flex: 1;
-  min-width: 0;
-}
-.stage-label {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: var(--muted, #6b7c76);
-}
-/* Inside the narrow columns the tiles stack instead of sitting four across. */
-.stage-left .metrics-grid,
-.stage-right .metrics-grid {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  margin-bottom: 0;
-}
-.stage-left .vendor-row {
-  margin-bottom: 0;
-}
-.stage-left .vendor-label {
-  display: none; /* the column already carries a heading */
-}
-.stage-left .vitals-strip {
-  grid-template-columns: minmax(0, 1fr);
-  margin: 0;
-}
-.stage-left .vitals-strip > div {
-  border-right: 0;
-  border-bottom: 1px solid var(--border);
-}
-.stage-left .vitals-strip > div:last-child {
-  border-bottom: 0;
-}
-.stage-right .hero-panels {
-  gap: 14px;
-}
-
-/* Reserved for the fitted model: populated from the baseline today, and the
-   place MATLAB-identified parameters will report into. */
-.model-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.model-card .pill {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.1px;
-  padding: 3px 7px;
-  border-radius: 4px;
-  background: #eaf1e6;
-  color: #3c5f46;
-}
-.model-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 14px;
-  margin: 0;
-}
-.model-stats dt {
-  font-size: 10px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--muted, #6b7c76);
-  margin-bottom: 3px;
-}
-.model-stats dd {
-  margin: 0;
-  font-size: 21px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-.model-stats dd small {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted, #6b7c76);
-  margin-left: 3px;
-}
-.model-note {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--muted, #6b7c76);
-}
-
-@media (max-width: 1360px) {
-  .stage {
-    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
-  }
-  .stage-right {
-    grid-column: 1 / -1;
-  }
-  .stage-right .hero-panels,
-  .stage-right {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-  .stage-right .stage-label {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 900px) {
-  .stage {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .stage-center {
-    min-height: 460px;
-  }
-  .stage-right,
-  .stage-right .hero-panels {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Single top bar. The sidebar cost 226 px of width and forced the three stage
-   columns to scroll; brand, page navigation and account now share one row so
-   the whole overview fits on screen.
-   --------------------------------------------------------------------------- */
-.main-shell {
-  margin-left: 0;
-}
+/* ===========================================================================
+   Top bar
+   Brand, page navigation and the account control share one row. The navigation
+   rules above are scoped to .topbar because these buttons used to live in a
+   fixed sidebar; the markup moved and the styling moved with it.
+   =========================================================================== */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 30;
-  height: 60px;
-  gap: 22px;
-  padding: 0 24px;
+  height: 54px;
+  gap: 18px;
+  padding: 0 22px;
   justify-content: flex-start;
 }
 .topbar .brand {
-  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.7px;
+  padding: 0;
   flex: none;
 }
+.topbar .brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
 .topbar nav {
-  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2px;
@@ -2774,75 +2497,83 @@ h1 {
 .topbar nav button {
   width: auto;
   flex: none;
-  padding: 8px 13px;
-  gap: 8px;
+  padding: 7px 11px;
+  gap: 7px;
+  font-size: 12.5px;
   white-space: nowrap;
-  font-size: 13px;
+}
+.topbar .nav-new {
+  margin-left: 2px;
 }
 .topbar .topbar-actions {
   margin-left: auto;
   flex: none;
+  gap: 12px;
 }
-/* Compact forms of the two controls that used to sit at the foot of the sidebar. */
 .topbar .sidebar-secondary {
-  margin: 0;
-  padding: 7px 10px;
-  font-size: 12px;
+  padding: 6px 8px;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 .topbar .account {
-  margin: 0;
-  padding: 5px 9px;
-  gap: 8px;
   width: auto;
   border-radius: 8px;
+  gap: 8px;
 }
-.topbar .account small {
-  display: none; /* the workspace subtitle does not survive one row */
+.topbar .account small,
+.topbar .account > svg {
+  display: none;
 }
 .topbar .account b {
-  font-size: 12.5px;
+  font-size: 12px;
   white-space: nowrap;
 }
+.topbar .user-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+.main-shell {
+  margin-left: 0;
+}
 .main-shell main {
-  padding: 24px 24px 0;
+  padding: 18px 22px 0;
   max-width: 1760px;
 }
-/* With the full width back, the twin can take more of it. */
-.stage {
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr) minmax(0, 360px);
-}
 
-@media (max-width: 1180px) {
-  .topbar {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 10px 18px;
-    gap: 10px 16px;
-  }
-  .topbar nav {
-    order: 3;
-    width: 100%;
-  }
-  .topbar .account b,
-  .topbar .sidebar-secondary span {
-    display: none;
-  }
+/* ---------------------------------------------------------------------------
+   Overview stage: recent measurements left, the twin centre, interpretation
+   right. Sized to the window rather than to its contents so the twin is never
+   cropped -- it is one object, while the side columns are lists and scroll in
+   their own track.
+   --------------------------------------------------------------------------- */
+.page-heading {
+  margin-bottom: 12px;
 }
-
-/* The stage is sized to the window rather than to its contents, so the twin is
-   always fully visible without scrolling. The side columns are lists and scroll
-   inside their own track; the twin is a single object and must not be cropped. */
+.page-heading h1 {
+  margin: 1px 0 2px;
+}
+.metrics-grid {
+  margin-bottom: 12px;
+}
 .stage {
-  height: min(calc(100vh - 300px), 860px);
-  min-height: 500px;
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 336px);
+  gap: 14px;
   align-items: stretch;
+  height: min(calc(100vh - 340px), 900px);
+  min-height: 420px;
+  margin-bottom: 18px;
 }
 .stage-left,
 .stage-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 5px;
+  padding-right: 4px;
   scrollbar-width: thin;
 }
 .stage-left::-webkit-scrollbar,
@@ -2855,38 +2586,184 @@ h1 {
   border-radius: 3px;
 }
 .stage-center {
+  display: flex;
+  min-width: 0;
   min-height: 0;
+}
+.stage-center .avatar-card {
+  flex: 1;
+  min-width: 0;
 }
 .stage-label {
   position: sticky;
   top: 0;
+  margin: 0;
+  padding-bottom: 5px;
   background: var(--page, #f7f9f4);
-  padding-bottom: 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: #99a398;
   z-index: 1;
 }
-/* Denser tiles, so more of the column is readable before it scrolls. */
+
+/* Compact tiles: more of each column is readable before it scrolls. */
+.stage-left .metrics-grid,
+.stage-right .metrics-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 0;
+}
+.stage-left .vendor-row,
+.stage-left .vitals-strip {
+  margin: 0;
+}
+.stage-left .vendor-label {
+  display: none;
+}
 .stage-left .metric-card {
-  padding: 13px 15px;
+  padding: 11px 13px 9px;
 }
 .stage-left .metric-value {
-  font-size: 27px;
+  font-size: 23px;
+}
+.stage-left .metric-footer {
+  margin-top: 4px;
+}
+.stage-left .vitals-strip {
+  grid-template-columns: minmax(0, 1fr);
 }
 .stage-left .vitals-strip > div {
-  padding: 11px 15px;
+  padding: 9px 13px;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+}
+.stage-left .vitals-strip > div:last-child {
+  border-bottom: 0;
+}
+.stage-right .hero-panels {
+  gap: 10px;
 }
 
-/* Fit the stage to what is actually left below the header. The offline banner
-   only appears in the bundled demo, so a real account gains that height back. */
+/* Reserved for the fitted model, and where MATLAB-identified parameters report. */
+.model-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.model-card .pill {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #eaf1e6;
+  color: #3c5f46;
+}
+.model-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+}
+.model-stats dt {
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #99a398;
+  margin-bottom: 2px;
+}
+.model-stats dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.model-stats dd small {
+  font-size: 10px;
+  font-weight: 500;
+  color: #99a398;
+  margin-left: 3px;
+}
+.model-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #99a398;
+}
+
+@media (max-width: 1360px) {
+  .stage {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr) minmax(0, 300px);
+  }
+}
+@media (max-width: 1180px) {
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 9px 16px;
+    gap: 9px 14px;
+  }
+  .topbar nav {
+    order: 3;
+    width: 100%;
+  }
+  .topbar .account b {
+    display: none;
+  }
+  .stage {
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+  .stage-left,
+  .stage-right {
+    overflow: visible;
+  }
+  .stage-center {
+    min-height: 520px;
+  }
+  .stage-right {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .stage-right .stage-label {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 900px) {
+  .stage,
+  .stage-right {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stage-center {
+    min-height: 440px;
+  }
+}
+
+/* Compact the four primary tiles so the stage gets the height instead. */
+.main-shell main > .metrics-grid .metric-card {
+  padding: 12px 14px 9px;
+}
+.main-shell main > .metrics-grid .metric-value {
+  font-size: 27px;
+}
+.main-shell main > .metrics-grid .metric-footer {
+  margin-top: 5px;
+}
+/* Everything above the stage measures 313 px: the bar (54), the page padding
+   (18), the heading (105) and the four primary tiles (136), plus the stage's own
+   bottom margin (18). The stage takes exactly the rest, so the twin is as large
+   as it can be without pushing the page into a scroll. */
 .stage {
-  height: min(calc(100vh - 444px), 820px);
-  min-height: 420px;
+  height: min(calc(100vh - 344px), 900px);
 }
-.main-shell main > .page-heading {
-  margin-bottom: 16px;
-}
-.main-shell main > .page-heading h1 {
-  margin: 2px 0 4px;
-}
-.metrics-grid {
-  margin-bottom: 16px;
+/* The bundled demo adds an offline notice (83 px) that a real account never
+   shows, so that view gets its own budget rather than overflowing. */
+.main-shell main:has(.offline-banner) .stage {
+  height: min(calc(100vh - 427px), 900px);
 }
