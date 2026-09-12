@@ -255,3 +255,49 @@ information. Those need the Statistics and Machine Learning Toolbox and are
 skipped with a message on a base licence. They are **not** reproduced in
 `verify_s03_models.py` — scikit-learn is absent from that environment, and
 guessing their numbers would be worse than leaving them blank.
+
+---
+
+# Stage 3, run in MATLAB: the trees change the answer
+
+`s03_models.m` executed in MATLAB Online with the Statistics and Machine
+Learning Toolbox. The ridge and baseline rows reproduced the Python verifier
+exactly; the three toolbox models had never been run before and they overturn
+the conclusion reached from ridge alone.
+
+| horizon | best rule | ridge + physiology | bagged trees | boosted trees | GPR |
+|---|---:|---:|---:|---:|---:|
+| 1h | extrapolation 2.35 | 1.99 | — | **1.92** | 7.01 |
+| 3h | trend+clock 5.20 | 6.32 | **4.84** | 5.35 | 9.20 |
+| 6h | **time_of_day 7.37** | 9.21 | 8.47 | 8.91 | 11.16 |
+
+**A linear model was not enough.** Ridge with the same predictors lost to the
+rules at three hours (6.32 against 5.20). A bagged tree ensemble on the identical
+predictors reaches **4.84** — so the information was there and the linear form
+could not use it. That is the clearest MathWorks-specific result in this project:
+the model class mattered, not the feature set.
+
+**Boosted trees win at one hour** (1.92 against extrapolation's 2.35 and ridge's
+1.99).
+
+**Nothing beats the clock at six hours.** Bagged trees come closest at 8.47
+against 7.37. The best six-hour predictor of Body Battery remains the train-set
+average for the hour of day, with no knowledge of the current state.
+
+**The Gaussian process fails everywhere** — 7.01, 9.20, 11.16 — despite having
+the same predictors. With an ARD squared-exponential kernel on ~4000 correlated
+rows from 23 days it is almost certainly over-smoothing; it should not be
+presented as a tuned result.
+
+## A limitation in how the verdict was printed
+
+The "physiology vs best rule" line that `s03_models.m` prints compares only the
+**ridge** model to the best rule. It therefore reports "the best rule still wins
+here" at three hours even though bagged trees beat that rule on the same rows.
+The printed verdict is narrower than the table above it, and the table is what
+counts. Worth fixing before this is presented.
+
+## Rows still to capture
+
+The 30-minute block and the bagged-trees row at one hour scrolled out of the
+captured output. `results/s03_models.csv` in MATLAB Drive holds them.

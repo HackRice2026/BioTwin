@@ -1,0 +1,24 @@
+horizon,model,split,mae,rmse,r2,source
+1h,bagged trees,validation,,,,pending-30m-and-1h-rows-cut-off-in-capture
+1h,baseline: time_of_day,validation,8.91,11.56,0.769,matlab
+1h,baseline: trend_plus_clock,validation,4.32,5.52,0.947,matlab
+1h,boosted trees,validation,1.92,2.44,0.990,matlab
+1h,gaussian process,validation,7.01,10.87,0.796,matlab
+1h,ridge: controls + 4 physiology,validation,1.99,2.56,0.989,matlab
+1h,ridge: controls only,validation,2.14,2.65,0.988,matlab
+3h,bagged trees,validation,4.84,6.57,0.924,matlab
+3h,baseline: extrapolation,validation,7.80,11.13,0.783,matlab
+3h,baseline: time_of_day,validation,8.58,10.78,0.796,matlab
+3h,baseline: trend_plus_clock,validation,5.20,6.40,0.928,matlab
+3h,boosted trees,validation,5.35,7.78,0.894,matlab
+3h,gaussian process,validation,9.20,12.01,0.747,matlab
+3h,ridge: controls + 4 physiology,validation,6.32,8.37,0.877,matlab
+3h,ridge: controls only,validation,6.28,7.90,0.890,matlab
+6h,bagged trees,validation,8.47,11.41,0.732,matlab
+6h,baseline: extrapolation,validation,17.34,26.09,-0.402,matlab
+6h,baseline: time_of_day,validation,7.37,9.09,0.830,matlab
+6h,baseline: trend_plus_clock,validation,8.34,12.75,0.665,matlab
+6h,boosted trees,validation,8.91,12.05,0.701,matlab
+6h,gaussian process,validation,11.16,14.46,0.570,matlab
+6h,ridge: controls + 1 physiology,validation,9.21,12.11,0.698,matlab
+6h,ridge: controls only,validation,8.47,11.09,0.747,matlab
