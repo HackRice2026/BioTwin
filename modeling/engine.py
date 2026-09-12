@@ -17,6 +17,14 @@ from shared.schemas import (
 from modeling.recovery import fit_history, decay
 
 PRIOR = {"resting_hr": (65, 6), "hrv_rmssd": (45, 12), "sleep_minutes": (450, 45), "respiration": (15, 2)}
+# Resting HR, HRV, sleep and respiration drift, so they are estimated over a short
+# trailing window. The recovery time constant is a property of the cardiovascular
+# system rather than a daily state, and 28 days of clustered wear frequently holds
+# fewer than the three recovery segments a personal constant requires -- so it is
+# fitted over a longer history. Widening the short window instead would make today's
+# resting heart rate stale.
+BASELINE_WINDOW_DAYS = 28
+RECOVERY_WINDOW_DAYS = 180
 FIELDS = {
     "resting_hr": "resting_hr_bpm",
     "hrv_rmssd": "hrv_rmssd_ms",
@@ -33,7 +41,10 @@ def weighted_quantile(values, weights, p):
 
 
 def baseline(history, user_id, now, timezone="UTC", fit=True):
-    history = [f for f in history if now - timedelta(days=28) <= f.event_time <= now]
+    recovery_history = [
+        f for f in history if now - timedelta(days=RECOVERY_WINDOW_DAYS) <= f.event_time <= now
+    ]
+    history = [f for f in history if now - timedelta(days=BASELINE_WINDOW_DAYS) <= f.event_time <= now]
     stats, days_seen = {}, set()
     for name, metric in FIELDS.items():
         by_day = defaultdict(list)
@@ -85,7 +96,7 @@ def baseline(history, user_id, now, timezone="UTC", fit=True):
             )
         else:
             stats[name] = RobustStat(median=prior, mad=spread, p10=prior - 2 * spread, p90=prior + 2 * spread)
-    recovery = fit_history(history, stats["resting_hr"].median) if fit else {}
+    recovery = fit_history(recovery_history, stats["resting_hr"].median) if fit else {}
     return Baseline(
         user_id=user_id,
         computed_at=now,
