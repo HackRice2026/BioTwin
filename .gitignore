@@ -14,3 +14,6 @@ playwright-report/
 *.pyc
 *.tsbuildinfo
 .DS_Store
+
+# MATLAB Online upload bundles, rebuilt by zipping matlab/ and processed_data/
+*.zip
