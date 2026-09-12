@@ -12,6 +12,13 @@ METRICS = (
     "activity_level",
     "sleep",
     "steps",
+    "max_hr_bpm",
+    "min_hr_bpm",
+    "distance_meters",
+    "floors_ascended",
+    "active_kcal",
+    "body_battery_pct",
+    "stress_level",
 )
 
 

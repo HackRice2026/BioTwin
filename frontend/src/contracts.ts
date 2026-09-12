@@ -41,7 +41,15 @@ export type LightMinutes = number | null;
 export type DeepMinutes = number | null;
 export type RemMinutes = number | null;
 export type EfficiencyPct = number | null;
+export type Score1 = number | null;
 export type Steps = number | null;
+export type MaxHrBpm = number | null;
+export type MinHrBpm = number | null;
+export type DistanceMeters = number | null;
+export type FloorsAscended = number | null;
+export type ActiveKcal = number | null;
+export type BodyBatteryPct = number | null;
+export type StressLevel = number | null;
 export type Confidence1 = number;
 export type UserId2 = string;
 export type ComputedAt1 = string;
@@ -97,7 +105,7 @@ export type Start1 = string;
 export type End1 = string;
 export type Intensity = string;
 export type Reason = string;
-export type Score1 = number;
+export type Score2 = number;
 export type Proposals = Proposal[];
 export type Start2 = string;
 export type End2 = string;
@@ -172,6 +180,13 @@ export interface TwinFrame {
   activity_level?: ActivityLevel;
   sleep?: SleepSummary | null;
   steps?: Steps;
+  max_hr_bpm?: MaxHrBpm;
+  min_hr_bpm?: MinHrBpm;
+  distance_meters?: DistanceMeters;
+  floors_ascended?: FloorsAscended;
+  active_kcal?: ActiveKcal;
+  body_battery_pct?: BodyBatteryPct;
+  stress_level?: StressLevel;
   confidence?: Confidence1;
 }
 export interface SleepSummary {
@@ -183,6 +198,7 @@ export interface SleepSummary {
   deep_minutes?: DeepMinutes;
   rem_minutes?: RemMinutes;
   efficiency_pct?: EfficiencyPct;
+  score?: Score1;
 }
 export interface Baseline {
   user_id: UserId2;
@@ -265,7 +281,7 @@ export interface Proposal {
   end: End1;
   intensity: Intensity;
   reason: Reason;
-  score: Score1;
+  score: Score2;
   terms: Terms;
 }
 export interface Terms {

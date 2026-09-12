@@ -113,11 +113,12 @@ class InfluxSyncAdapter:
                 yield frame
 
         _, rows = await self._query(
-            f'SELECT "restingHeartRate","totalSteps" FROM "DailyStats" '
+            'SELECT "restingHeartRate","totalSteps","maxHeartRate","minHeartRate",'
+            '"totalDistanceMeters","floorsAscended","activeKilocalories" FROM "DailyStats" '
             f"WHERE time > '{since_iso}' ORDER BY time ASC"
         )
-        for t, resting, steps in rows:
-            if resting is None and steps is None:
+        for t, resting, steps, max_hr, min_hr, distance, floors, kcal in rows:
+            if all(v is None for v in (resting, steps, max_hr, min_hr, distance, floors, kcal)):
                 continue
             frame = self._safe_frame(
                 user_id,
@@ -125,6 +126,37 @@ class InfluxSyncAdapter:
                 event_time=_parse_time(t),
                 resting_hr_bpm=resting,
                 steps=steps,
+                max_hr_bpm=max_hr,
+                min_hr_bpm=min_hr,
+                distance_meters=distance,
+                floors_ascended=floors,
+                active_kcal=kcal,
+            )
+            if frame:
+                yield frame
+
+        _, rows = await self._query(
+            'SELECT "stressLevel" FROM "StressIntraday" '
+            f"WHERE time > '{since_iso}' AND \"stressLevel\" >= 0 ORDER BY time ASC"
+        )
+        for t, stress in rows:
+            if stress is None:
+                continue
+            frame = self._safe_frame(
+                user_id, provenance=provenance, event_time=_parse_time(t), stress_level=stress
+            )
+            if frame:
+                yield frame
+
+        _, rows = await self._query(
+            'SELECT "BodyBatteryLevel" FROM "BodyBatteryIntraday" '
+            f"WHERE time > '{since_iso}' ORDER BY time ASC"
+        )
+        for t, battery in rows:
+            if battery is None:
+                continue
+            frame = self._safe_frame(
+                user_id, provenance=provenance, event_time=_parse_time(t), body_battery_pct=battery
             )
             if frame:
                 yield frame
@@ -144,10 +176,11 @@ class InfluxSyncAdapter:
 
         _, rows = await self._query(
             'SELECT "sleepTimeSeconds","deepSleepSeconds","lightSleepSeconds",'
-            '"remSleepSeconds","awakeSleepSeconds","averageSpO2Value" FROM "SleepSummary" '
+            '"remSleepSeconds","awakeSleepSeconds","averageSpO2Value","sleepScore" '
+            'FROM "SleepSummary" '
             f"WHERE time > '{since_iso}' ORDER BY time ASC"
         )
-        for t, total_s, deep_s, light_s, rem_s, awake_s, spo2 in rows:
+        for t, total_s, deep_s, light_s, rem_s, awake_s, spo2, score in rows:
             if total_s is None:
                 continue
             end = _parse_time(t)
@@ -166,6 +199,7 @@ class InfluxSyncAdapter:
                     light_minutes=round(light_s / 60) if light_s is not None else None,
                     rem_minutes=round(rem_s / 60) if rem_s is not None else None,
                     awake_minutes=round(awake_s / 60) if awake_s is not None else None,
+                    score=score,
                 )
             except (ValidationError, ValueError) as exc:
                 log.warning('{"event":"garmin_influx_skip","reason":"%s"}', exc)

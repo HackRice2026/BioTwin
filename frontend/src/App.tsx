@@ -31,6 +31,10 @@ import {
   X,
   Footprints,
   Mic,
+  Gauge,
+  MapPin,
+  Building2,
+  Flame,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
@@ -809,7 +813,11 @@ export default function App() {
                   reading={latest?.sleep?.total_minutes}
                   unit="min"
                   icon={Moon}
-                  detail="Time asleep · latest session"
+                  detail={
+                    latest?.sleep?.score != null
+                      ? `Time asleep · latest session · Score ${latest.sleep.score}`
+                      : "Time asleep · latest session"
+                  }
                   data={sleep.map((s) => ({
                     time: s.time,
                     value: s.value.total_minutes,
@@ -885,6 +893,48 @@ export default function App() {
                     field: "steps",
                     unit: "steps",
                     icon: Footprints,
+                  },
+                  {
+                    name: "Stress level",
+                    field: "stress_level",
+                    unit: "",
+                    icon: Gauge,
+                  },
+                  {
+                    name: "Body battery",
+                    field: "body_battery_pct",
+                    unit: "%",
+                    icon: Battery,
+                  },
+                  {
+                    name: "Distance",
+                    field: "distance_meters",
+                    unit: "m",
+                    icon: MapPin,
+                  },
+                  {
+                    name: "Floors climbed",
+                    field: "floors_ascended",
+                    unit: "",
+                    icon: Building2,
+                  },
+                  {
+                    name: "Active calories",
+                    field: "active_kcal",
+                    unit: "kcal",
+                    icon: Flame,
+                  },
+                  {
+                    name: "Max heart rate",
+                    field: "max_hr_bpm",
+                    unit: "bpm",
+                    icon: Heart,
+                  },
+                  {
+                    name: "Min heart rate",
+                    field: "min_hr_bpm",
+                    unit: "bpm",
+                    icon: Heart,
                   },
                 ].map((m) => (
                   <div key={m.field}>

@@ -44,6 +44,7 @@ class SleepSummary(Contract):
     deep_minutes: int | None = Field(default=None, ge=0)
     rem_minutes: int | None = Field(default=None, ge=0)
     efficiency_pct: float | None = Field(default=None, ge=0, le=100)
+    score: int | None = Field(default=None, ge=0, le=100)
 
     @model_validator(mode="after")
     def interval(self):
@@ -71,6 +72,13 @@ class TwinFrame(Contract):
     activity_level: float | None = Field(default=None, ge=0, le=1)
     sleep: SleepSummary | None = None
     steps: int | None = Field(default=None, ge=0, le=200000)
+    max_hr_bpm: float | None = Field(default=None, ge=25, le=250)
+    min_hr_bpm: float | None = Field(default=None, ge=25, le=250)
+    distance_meters: float | None = Field(default=None, ge=0, le=100000)
+    floors_ascended: float | None = Field(default=None, ge=0, le=2000)
+    active_kcal: float | None = Field(default=None, ge=0, le=20000)
+    body_battery_pct: float | None = Field(default=None, ge=0, le=100)
+    stress_level: float | None = Field(default=None, ge=0, le=100)
     confidence: float = Field(default=1, ge=0, le=1)
 
 
