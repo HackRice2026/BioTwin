@@ -2696,3 +2696,140 @@ h1 {
   height: 170px !important;
   min-height: 0;
 }
+
+.live-schedule-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 32, 26, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  padding: 20px;
+}
+.live-schedule-card {
+  position: relative;
+  background: var(--paper);
+  border-radius: 16px;
+  padding: 26px 28px 24px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 24px 60px rgba(20, 40, 30, 0.28);
+  animation: live-card-in 0.28s ease;
+}
+@keyframes live-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.live-schedule-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+.live-schedule-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--forest);
+  margin-bottom: 20px;
+}
+.live-schedule-heading h3 {
+  font-size: 16px;
+}
+.live-timeline {
+  position: relative;
+  height: 44px;
+  background: #f1f4ec;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.live-timeline-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26%;
+  background: linear-gradient(90deg, transparent, rgba(62, 115, 87, 0.28), transparent);
+  animation: live-sweep 1.9s ease-in-out infinite;
+}
+@keyframes live-sweep {
+  0% {
+    left: -30%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+.live-timeline-busy {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  background: #d7ddcf;
+  border-radius: 4px;
+}
+.live-timeline-proposed {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.live-timeline-proposed.found {
+  background: var(--green);
+  animation: live-pulse 1.1s ease-in-out infinite;
+}
+.live-timeline-proposed.booking {
+  background: #8fa27f;
+}
+.live-timeline-proposed.booked {
+  background: var(--forest);
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(62, 115, 87, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(62, 115, 87, 0);
+  }
+}
+.live-timeline-hours {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.live-schedule-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.live-schedule-proposal b {
+  font-size: 20px;
+  color: var(--forest);
+}
+.live-schedule-proposal span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.live-schedule-actions {
+  display: flex;
+  gap: 10px;
+}
+.live-schedule-actions .button {
+  flex: 1;
+}

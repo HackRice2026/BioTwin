@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
+import LiveSchedule from "./LiveSchedule";
 import { useTwin } from "./transport";
 import { api, post, humanize, value } from "./api";
 import type { Session, MetricPoint, SleepPoint } from "./api";
@@ -69,6 +70,9 @@ const navigation: { name: Page; icon: typeof Activity }[] = [
   { name: "What-if lab", icon: FlaskConical },
   { name: "Connections", icon: Link2 },
 ];
+const WORKOUT_TIMING_INTENT =
+  /when (should|can) i (work ?out|exercise)|best time to (work ?out|exercise)|can i fit (a |my )?work ?out|schedule (a |my )?work ?out|find (a |me )?time to (work ?out|exercise)/i;
+
 const emptySeries: Record<string, MetricPoint[]> = {
   heart_rate_bpm: [],
   hrv_rmssd_ms: [],
@@ -243,7 +247,8 @@ export default function App() {
     [chat, setChat] = useState(false),
     [reminder, setReminder] = useState(10),
     [adding, setAdding] = useState(""),
-    [added, setAdded] = useState<string[]>([]);
+    [added, setAdded] = useState<string[]>([]),
+    [liveSchedule, setLiveSchedule] = useState(false);
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
@@ -1537,6 +1542,11 @@ export default function App() {
                 className="chat-input"
                 onSubmit={(e: FormEvent) => {
                   e.preventDefault();
+                  if (WORKOUT_TIMING_INTENT.test(question)) {
+                    setQuestion("");
+                    setLiveSchedule(true);
+                    return;
+                  }
                   ask(question);
                 }}
               >
@@ -1577,6 +1587,13 @@ export default function App() {
         </div>
       )}
       {auth && <AuthModal onClose={() => setAuth(false)} onDone={changed} />}
+      {liveSchedule && (
+        <LiveSchedule
+          plan={plan}
+          onBook={addEvent}
+          onClose={() => setLiveSchedule(false)}
+        />
+      )}
       {toast && (
         <div className="toast" role="status">
           <span>{toast}</span>
