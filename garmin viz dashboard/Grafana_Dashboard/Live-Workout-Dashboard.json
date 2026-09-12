@@ -5,15 +5,25 @@
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "1s",
+  "refresh": "",
   "time": { "from": "now-2m", "to": "now" },
   "panels": [
     {
+      "id": 3,
+      "title": "Live (pushed via WebSocket, no Grafana query involved)",
+      "type": "text",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "html",
+        "content": "<iframe src=\"http://localhost:8765\" style=\"width:100%; height:100%; border:none;\"></iframe>"
+      }
+    },
+    {
       "id": 1,
-      "title": "Live Heart Rate",
+      "title": "Live Heart Rate (via InfluxDB query -- known stuck/stale on this Grafana instance, kept for reference)",
       "type": "stat",
       "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
       "fieldConfig": { "defaults": { "unit": "bpm" }, "overrides": [] },
       "targets": [
         {
@@ -27,11 +37,25 @@
     },
     {
       "id": 2,
-      "title": "Heart Rate (last 5 minutes, live)",
+      "title": "Heart Rate (last 2 minutes, via InfluxDB query -- known stuck/stale, kept for reference)",
       "type": "timeseries",
       "datasource": { "type": "influxdb", "uid": "garmin_influxdb" },
-      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "bpm" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 14 },
+      "maxDataPoints": 2000,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bpm",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",

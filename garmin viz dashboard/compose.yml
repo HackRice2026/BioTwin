@@ -78,6 +78,7 @@ services:
       - GF_DATE_FORMATS_INTERVAL_MONTH=YYYY-MM
       - GF_DATE_FORMATS_INTERVAL_YEAR=YYYY
       - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1s # default floor is 5s, which would silently clamp the Live Workout dashboard's 1s refresh
+      - GF_PANELS_DISABLE_SANITIZE_HTML=true # required so the Live Workout dashboard's iframe (embedding the WebSocket live view) isn't stripped out; local dev instance only
     volumes:
       - grafana_data:/var/lib/grafana
       - ./Grafana_Datasource:/etc/grafana/provisioning/datasources # (optional) Self provisioning influxdb datasource
