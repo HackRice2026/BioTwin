@@ -120,3 +120,75 @@ it part of development. It is evaluated once, on the final model.
 Body Battery is Garmin's proprietary metric and several of its own inputs
 (stress, heart rate) are predictors here, so the honest framing is *forecasting
 Garmin's Body Battery*, never *predicting energy*.
+
+---
+
+# Stage 2: does physiology add anything beyond trend and a clock?
+
+Produced by `matlab/s02_features.m`. Leave-one-day-out over the 23 **train**
+days only — validation and test are untouched.
+
+Four predictors are forced in and never selected, because together they
+reproduce the `trend_plus_clock` baseline above:
+
+```
+bb_current_measured     where Body Battery is now
+bb_current_change_1h    which way it is moving
+hour_sin, hour_cos      what time it is
+```
+
+Every other predictor is ranked by how much it reduces held-out error when
+**added** to that control model. The verdict is a paired comparison: both models
+score the same held-out days, so the evidence is in the spread of the per-day
+difference, not in either model's own error.
+
+| horizon | control MAE | best MAE | gain (paired) | SE ratio | days improved | verdict |
+|---|---:|---:|---|---:|---:|---|
+| 30m | 1.36 | 1.14 | +0.22 ± 0.05 | 4.2 | 21/23 | **clear** |
+| 1h | 2.65 | 2.22 | +0.44 ± 0.15 | 3.0 | 20/23 | **clear** |
+| 3h | 7.52 | 6.50 | +1.02 ± 0.61 | 1.7 | 17/23 | suggestive |
+| 6h | 10.39 | 9.26 | +1.13 ± 0.77 | 1.5 | 17/23 | suggestive |
+
+**Physiology does add something.** The gain is small in absolute terms — about
+1.1 Body Battery points at six hours, an 11% reduction — but it is consistent:
+better on 17 of 23 days at the long horizons and 21 of 23 at the short ones.
+
+The evidence is **strong at short horizons and only suggestive at long ones**,
+which is the opposite of what the project narrative wanted. At 30 minutes and one
+hour the gain is 3–4 standard errors; at three and six hours it is 1.5–1.7, so
+those cannot be called established on 23 days.
+
+## What each horizon reaches for first
+
+The first predictor chosen at each horizon says what the control model was
+missing:
+
+| horizon | first addition | gain |
+|---|---|---:|
+| 30m | `hr_last` (most recent heart rate) | +0.22 |
+| 1h | `hr_last` | +0.21 |
+| 3h | `hr_mean` | +0.26 |
+| 6h | `has_sleep_context` | +0.30 |
+
+Short horizons reach for the **current heart rate**; six hours reaches for
+**whether a sleep record exists**. That the six-hour model's best single addition
+is a data-availability flag rather than a physiological quantity is worth
+stating plainly — it may be marking "this is a normal day with a recorded night"
+rather than measuring recovery.
+
+## How this differs from the first attempt
+
+The first version ranked predictors by correlation with the target. At six hours
+it chose twelve sleep features, stalled at MAE ≈ 23, and only improved — to
+10.53 — once hour-of-day entered. Since a clock alone reaches 7.37 on validation,
+that model would have lost to the thing it was imitating. Correlation ranking
+cannot separate a physiological signal from a proxy for the time of day, and
+many sleep columns step-change at the sleep boundary, which correlates with the
+clock rather than with the body.
+
+## Caveat on comparing the two tables
+
+Stage 1's figures are on **validation**; Stage 2's are leave-one-day-out on
+**train**. They are not directly comparable — the Stage 2 control MAE of 10.39 at
+six hours cannot be read against Stage 1's clock at 7.37. Stage 3 evaluates on
+validation, where the two become comparable for the first time.
