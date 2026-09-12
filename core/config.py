@@ -39,3 +39,15 @@ class Settings(BaseSettings):
     narration_api_key: str = ""
     narration_model: str = "gemini-3.1-flash-lite"
     allow_external_narration: bool = False
+    # Opt-in alternate narration path: Vertex AI instead of the AI Studio key
+    # above. Genuinely different auth (OAuth2 Application Default Credentials,
+    # refreshed access tokens -- from `gcloud auth application-default login`
+    # on this machine) and a different billing bucket than an AI Studio key's
+    # "prepay credits" -- useful when that prepay balance is the thing
+    # blocked, since Vertex bills through the project's normal Cloud Billing
+    # account instead. Requires vertex_project_id; still needs
+    # allow_external_narration=true.
+    use_vertex_narration: bool = False
+    vertex_project_id: str = ""
+    vertex_region: str = "us-central1"
+    vertex_model: str = "gemini-2.5-flash"

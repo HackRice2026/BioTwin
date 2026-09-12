@@ -1,8 +1,30 @@
+import asyncio
 import json
 import re
 import httpx
 from urllib.parse import urlparse
 from shared.schemas import NarrationResponse
+
+_vertex_credentials = None  # lazy-loaded, module-level so the token is reused/refreshed across requests instead of re-authenticating every call
+
+
+def _vertex_token():
+    """Blocking (google-auth has no native async transport) -- always call
+    via asyncio.to_thread. Loads Application Default Credentials once
+    (from `gcloud auth application-default login`'s local file) and
+    refreshes the cached access token only when it's actually expired.
+    """
+    global _vertex_credentials
+    import google.auth
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+
+    if _vertex_credentials is None:
+        _vertex_credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+    if not _vertex_credentials.valid:
+        _vertex_credentials.refresh(GoogleAuthRequest())
+    return _vertex_credentials.token
 
 FORBIDDEN = re.compile(
     r"\b(diagnos\w*|prescrib\w*|clinically|cure\w*|disease|disorder|diabetes|arrhythmia|"
@@ -112,8 +134,83 @@ def template(question, ctx):
     return " ".join(selected[:4]) or "That measurement is not available in my current context."
 
 
+async def _vertex_narrate(question, ctx, config, http, fallback):
+    try:
+        token = await asyncio.to_thread(_vertex_token)
+    except Exception:
+        # Covers google.auth's own exceptions (no ADC file, expired refresh
+        # token, wrong scopes) without importing its exception module just
+        # for a type list -- any failure here means the same thing: fall
+        # back, same as every other narration failure mode.
+        return NarrationResponse(
+            answer=fallback,
+            mode="guard_fallback",
+            notice="Vertex AI credentials are unavailable. Showing a saved-context explanation instead.",
+        )
+    url = (
+        f"https://{config.vertex_region}-aiplatform.googleapis.com/v1/projects/"
+        f"{config.vertex_project_id}/locations/{config.vertex_region}/publishers/google/"
+        f"models/{config.vertex_model}:generateContent"
+    )
+    try:
+        response = await http.post(
+            url,
+            timeout=httpx.Timeout(25, connect=5),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"text": json.dumps({"question": question, "context": ctx.model_dump(mode="json")})}
+                        ],
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0,
+                    "maxOutputTokens": 1000,
+                    "responseMimeType": "application/json",
+                    "responseSchema": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "answer": {"type": "STRING"},
+                            "evidence": {"type": "ARRAY", "items": {"type": "STRING"}},
+                        },
+                        "required": ["answer", "evidence"],
+                    },
+                },
+            },
+        )
+        response.raise_for_status()
+        candidate = response.json()["candidates"][0]
+        if candidate.get("finishReason") != "STOP":
+            raise ValueError("Incomplete response")
+        result = json.loads(candidate["content"]["parts"][0]["text"])
+        answer, evidence = result["answer"], result["evidence"]
+        if (
+            not isinstance(answer, str)
+            or not isinstance(evidence, list)
+            or len(evidence) > 20
+            or not all(isinstance(p, str) for p in evidence)
+            or not guard(answer, ctx, evidence)
+        ):
+            raise ValueError("Grounding validation failed")
+        return NarrationResponse(
+            answer=answer.strip(), mode="language_service", model=f"vertex:{config.vertex_model}"
+        )
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        return NarrationResponse(
+            answer=fallback,
+            mode="guard_fallback",
+            notice="Vertex AI could not return a verified answer. Showing a saved-context explanation instead.",
+        )
+
+
 async def narrate(question, ctx, config=None, http=None):
     fallback = template(question, ctx)
+    if config and config.use_vertex_narration and config.allow_external_narration and config.vertex_project_id:
+        return await _vertex_narrate(question, ctx, config, http, fallback)
     if not config or not config.allow_external_narration or not config.narration_api_key:
         return NarrationResponse(
             answer=fallback,
