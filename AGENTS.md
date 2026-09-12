@@ -151,6 +151,22 @@ This file is a living document. The agent MUST:
   README lines still link to specific upstream GitHub issues/discussions
   (troubleshooting citations, e.g. issues #20/#27/#77/#96/#119) — left
   in place as functional references, not attribution.
+- 2026-09-12 — Expanded `garmin-dashboard-app` from 4 flat stat cards to 15
+  metrics across Heart/Activity/Body/Sleep sections, plus 5 drill-down
+  detail pages (`/metric/*`) with real full-size trend charts (hover
+  crosshair+tooltip, not just a sparkline) and Day/Week range switching.
+  Two real bugs hit and fixed, worth not re-discovering: (1) a Server
+  Component can't pass a function as a prop into a "use client" component
+  (not serializable) -- `TrendChart` originally took a `formatTime`
+  function, now takes a plain string mode the client component resolves
+  itself; (2) InfluxDB's `mean()` (the "week" range's hourly aggregation)
+  returns floats, which blew the min/max stat tiles into unrounded numbers
+  like `42.333333333333336` that broke the layout -- now rounded once in
+  `lib/health-data.ts`'s `toPoints()` so every consumer gets clean ints.
+  Real data depth found along the way: only ~7 days of history and
+  currently just 1 logged night of sleep -- deliberately shipped Day/Week
+  ranges only (no "Month", which would mostly render empty right now).
+  Pushed to origin as part of `live-garmin` (commit 7a2a92e).
 - 2026-09-12 — Added `BioTwin/garmin-dashboard-app/` (Next.js + shadcn/ui +
   Tailwind), replacing Grafana as the user-facing demo per user decision --
   full details, stack, and how to run it are in `/designdoc.md`'s
