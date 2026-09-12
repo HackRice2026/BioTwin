@@ -386,6 +386,21 @@ This file is a living document. The agent MUST:
 > Facts that are expensive to re-derive. Verify before relying on them;
 > delete when stale.
 
+- `scripts/*.py` import `core`/`shared` as top-level packages, which only
+  resolve if the project root is on `PYTHONPATH` -- `uv run
+  scripts/whatever.py` alone fails with `ModuleNotFoundError: No module
+  named 'core'` (a plain script run puts the script's OWN directory on
+  `sys.path`, not the cwd). Run these as `PYTHONPATH=. uv run
+  scripts/whatever.py` from the repo root instead.
+- `scripts/onboard_teammate.py` gives a teammate their own login seeded
+  with a replay copy of another account's history (default source:
+  `demo`) via the existing `runtime.ingest(..., broadcast=False)` +
+  `Provenance.REPLAY` path -- the same mechanism `/api/ingest/file` already
+  uses for FIT/JSON imports, not a new one. Real teammate accounts stay
+  fully isolated (their own `user_id`, their own rows); this only copies
+  data in, once per run, it does not link/alias accounts or give live
+  shared read access. Re-run per teammate any time to refresh their copy.
+
 - Central team repo: `BioTwin/` (git, remote `HackRice2026/BioTwin`, private)
   — this is the repo every team member works in, and the only `.git` in the
   tree.
