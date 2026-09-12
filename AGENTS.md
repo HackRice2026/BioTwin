@@ -151,6 +151,18 @@ This file is a living document. The agent MUST:
   README lines still link to specific upstream GitHub issues/discussions
   (troubleshooting citations, e.g. issues #20/#27/#77/#96/#119) — left
   in place as functional references, not attribution.
+- 2026-09-12 — Added `BioTwin/garmin-dashboard-app/` (Next.js + shadcn/ui +
+  Tailwind), replacing Grafana as the user-facing demo per user decision --
+  full details, stack, and how to run it are in `/designdoc.md`'s
+  "Implementation" section, not duplicated here. Grafana/InfluxDB/
+  `garmin-fetch-data` keep running in the background to feed the pipeline;
+  nobody looks at the Grafana UI directly anymore. Real bug found: InfluxDB
+  `DeviceSync` measurement has a tag AND a field both named `Device` --
+  querying `"Device"` silently returns empty, use `Device_Name` instead
+  (see designdoc.md for detail). VERIFIED end-to-end: `npm run build` clean,
+  screenshotted at 390px and 1280px via a scratch Playwright script (no
+  `chromium-cli` in this environment), zero console errors, live BPM
+  confirmed actually changing between two screenshots seconds apart.
 - 2026-09-11 — AGENTS.md created. `global context.md` does not exist yet;
   user will add the central plan later. Until it exists, non-trivial work
   requires explicit user direction (Prime Directive).
@@ -197,6 +209,42 @@ This file is a living document. The agent MUST:
   last-2-minutes window (down from 2s / 5min) so the UI itself isn't adding
   visible lag on top of the data path. Requires `docker compose up -d
   grafana` (recreate, not just restart) to pick up the new env var.
+- 2026-09-12 — Added a real WebSocket push path, since Grafana is
+  fundamentally a polling tool (query-on-a-timer) and was never going to be
+  truly "live" no matter how low the refresh interval goes.
+  `ble_hr_live.py` now embeds a tiny `aiohttp` HTTP+WebSocket server
+  (`--ws-port`, default 8765, `--no-ws` to disable): every BLE notification
+  broadcasts straight to any connected browser tab the instant it's parsed,
+  fully independent of the InfluxDB write (two fan-outs off one event, one
+  via `loop.run_in_executor` for Influx, one via `loop.create_task` for the
+  WS broadcast -- neither blocks the other). VERIFIED working, described by
+  the user as "running perfection" at `http://localhost:8765`.
+- 2026-09-12 — **VERIFIED, root-caused, real bug**: the InfluxDB-backed
+  panels on the Live Workout dashboard get stuck showing a frozen value/line
+  after some time, independent of refresh interval, dashboard time-range
+  URL overrides, or browser cache (reproduced even in a fresh Incognito
+  window, ruling out client-side state entirely). Diagnosis process, so it
+  isn't redone: (1) confirmed InfluxDB itself has fresh, changing data via
+  `docker exec influxdb influx ...` queries; (2) confirmed the `grafana`
+  container actually has the intended env vars via `docker exec grafana
+  printenv`; (3) confirmed raw HTTP queries straight to InfluxDB's own API
+  (`curl http://localhost:8086/query`, bypassing Grafana entirely) return
+  genuinely new timestamps/values seconds apart. That isolates the bug to
+  Grafana's own query/refresh pipeline on this instance/version -- NOT the
+  data, NOT the browser. Root cause inside Grafana was not tracked down
+  further (would need the dashboard's raw `/api/ds/query` network responses
+  from browser DevTools, which requires a human at the browser). **Workaround
+  shipped instead of chasing it further**: the Live Workout dashboard's main
+  panel is now a `text` panel (`mode: "html"`) with an `<iframe
+  src="http://localhost:8765">` embedding the already-working WebSocket
+  view directly -- sidesteps Grafana's InfluxDB query path for the live
+  view entirely. Requires `GF_PANELS_DISABLE_SANITIZE_HTML=true` in
+  `compose.yml` (Grafana strips iframes from text panels by default as an
+  XSS guard; acceptable tradeoff on a local single-user dev instance, NOT
+  something to carry into any shared/public deployment). The original
+  InfluxDB-query stat/timeseries panels are kept lower on the dashboard,
+  clearly labeled as known-stale, in case a future Grafana upgrade fixes
+  the underlying bug.
 - 2026-09-12 — Stack is live on the user's machine (Docker Desktop installed
   via `brew install --cask docker` since it wasn't present). `compose.yml`
   switched from hardcoded/commented Garmin creds to `${GARMINCONNECT_EMAIL}`
