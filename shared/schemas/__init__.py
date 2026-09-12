@@ -82,6 +82,10 @@ class TwinFrame(Contract):
     # Vendor daily summaries. These are proprietary composites, not sensor
     # measurements: they are shown with their provenance and deliberately kept out
     # of the readiness score, whose weights are a documented engineering spec.
+    # The intraday level, distinct from the daily charged/drained totals beside
+    # it: this is Body Battery at a moment, and it is both what the forecast
+    # predicts and its strongest input.
+    body_battery_level: int | None = Field(default=None, ge=0, le=100)
     body_battery_charged: int | None = Field(default=None, ge=0, le=100)
     body_battery_drained: int | None = Field(default=None, ge=0, le=100)
     stress_avg: int | None = Field(default=None, ge=0, le=100)

@@ -1080,6 +1080,20 @@
           "default": null,
           "title": "Acceleration Mg"
         },
+        "body_battery_level": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Level"
+        },
         "body_battery_charged": {
           "anyOf": [
             {

@@ -60,6 +60,18 @@ export type SleepPoint = {
   };
   provenance: string;
 };
+export type Forecast =
+  | { available: false; reason: string; missing: string[] }
+  | {
+      available: true;
+      horizon_minutes: number;
+      current: number;
+      forecast: number;
+      validation_mae: number;
+      measured_age_minutes: number;
+      imputed_inputs: string[];
+      model: string;
+    };
 export type Session = {
   user: { id: string; name: string; email: string; profile: Profile };
   demo: boolean;

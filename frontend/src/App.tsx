@@ -41,7 +41,7 @@ import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
 import { useTwin } from "./transport";
 import { api, post, humanize, value } from "./api";
-import type { Session, MetricPoint, SleepPoint } from "./api";
+import type { Session, MetricPoint, SleepPoint, Forecast } from "./api";
 import type {
   DailyPlan,
   Readiness,
@@ -251,6 +251,7 @@ export default function App() {
     [sleep, setSleep] = useState<SleepPoint[]>([]),
     [history, setHistory] = useState<Readiness[]>([]),
     [predictions, setPredictions] = useState<RecoveryPrediction[]>([]),
+    [forecast, setForecast] = useState<Forecast | null>(null),
     [plan, setPlan] = useState<DailyPlan | null>(null),
     [outlook, setOutlook] = useState<DayOutlook | null>(null);
   const [days, setDays] = useState(7),
@@ -341,6 +342,7 @@ export default function App() {
         api<RecoveryPrediction[]>("/api/predictions"),
         api<DailyPlan>("/api/plan/today"),
         api<DayOutlook>("/api/outlook"),
+        api<Forecast>("/api/forecast"),
       ]);
       if (cancelled) return;
       const next = { ...emptySeries };
@@ -350,7 +352,9 @@ export default function App() {
           next[m] = (result.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(Object.keys(emptySeries).length);
+      const [s, h, p, pl, out, fc] = results.slice(
+        Object.keys(emptySeries).length,
+      );
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -358,6 +362,7 @@ export default function App() {
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (fc.status === "fulfilled") setForecast(fc.value as Forecast);
       const failure = results.find((r) => r.status === "rejected");
       if (failure?.status === "rejected") notify(failure.reason.message);
     };
@@ -817,7 +822,11 @@ export default function App() {
           )}
           {state && page === "Overview" && (
             <>
-              <WatchConnection key={session?.user.id} personal={!!session && !session.demo} state={state} />
+              <WatchConnection
+                key={session?.user.id}
+                personal={!!session && !session.demo}
+                state={state}
+              />
               <div className="metrics-grid">
                 <MetricCard
                   name="Heart rate"
@@ -987,6 +996,36 @@ export default function App() {
                       <h3>Model fit</h3>
                       <span className="pill">MATLAB</span>
                     </div>
+                    {forecast?.available ? (
+                      <div className="forecast">
+                        <div className="forecast-now">
+                          <span>Body Battery now</span>
+                          <b>{value(forecast.current)}</b>
+                        </div>
+                        <ArrowRight size={15} className="forecast-arrow" />
+                        <div className="forecast-next">
+                          <span>In {forecast.horizon_minutes} minutes</span>
+                          <b>
+                            {value(forecast.forecast)}
+                            <small>± {value(forecast.validation_mae, 1)}</small>
+                          </b>
+                        </div>
+                      </div>
+                    ) : (
+                      forecast && (
+                        <p className="forecast-unavailable">
+                          {forecast.reason}
+                        </p>
+                      )
+                    )}
+                    {forecast?.available &&
+                      forecast.imputed_inputs.length > 0 && (
+                        <p className="forecast-note">
+                          {forecast.imputed_inputs.length} of 8 inputs
+                          unavailable, filled with their training average:{" "}
+                          {forecast.imputed_inputs.join(", ")}
+                        </p>
+                      )}
                     <dl className="model-stats">
                       <div>
                         <dt>Recovery constant</dt>

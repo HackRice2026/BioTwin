@@ -47,6 +47,7 @@ export type StressLevel = number | null;
 export type TotalCalories = number | null;
 export type DistanceM = number | null;
 export type AccelerationMg = number | null;
+export type BodyBatteryLevel = number | null;
 export type BodyBatteryCharged = number | null;
 export type BodyBatteryDrained = number | null;
 export type StressAvg = number | null;
@@ -190,6 +191,7 @@ export interface TwinFrame {
   total_calories?: TotalCalories;
   distance_m?: DistanceM;
   acceleration_mg?: AccelerationMg;
+  body_battery_level?: BodyBatteryLevel;
   body_battery_charged?: BodyBatteryCharged;
   body_battery_drained?: BodyBatteryDrained;
   stress_avg?: StressAvg;

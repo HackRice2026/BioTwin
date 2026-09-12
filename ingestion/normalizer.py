@@ -19,6 +19,7 @@ METRICS = (
     "acceleration_mg",
     # Vendor daily composites. Carried so they can be displayed with provenance;
     # they are not sensor measurements and do not feed readiness.
+    "body_battery_level",
     "body_battery_charged",
     "body_battery_drained",
     "stress_avg",

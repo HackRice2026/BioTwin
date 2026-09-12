@@ -136,6 +136,22 @@ def wellness_frames(root, uid):
                 frame["body_battery_drained"] = int(min(100, drained))
             out.append(TwinFrame(**frame))
 
+    # Intraday Body Battery. The daily charged/drained totals are summaries; this
+    # is the level at a moment, which is what a forecast predicts and its
+    # strongest input. Only samples Garmin marks MEASURED are taken -- MODELED and
+    # UNKNOWN are its own interpolation, and importing them would make a forecast
+    # partly a prediction of Garmin's guesswork.
+    for row in load("stress.json"):
+        for sample in (row.get("data") or {}).get("bodyBatteryValuesArray") or []:
+            if not isinstance(sample, list) or len(sample) < 3 or sample[1] != "MEASURED":
+                continue
+            level = num(sample[2], 0, 100)
+            if level is None:
+                continue
+            out.append(TwinFrame(user_id=uid, event_time=stamp(sample[0]),
+                                 provenance=Provenance.GARMIN_FIT_REPLAY,
+                                 body_battery_level=int(level)))
+
     for row in load("stress.json"):
         data = row.get("data") or {}
         avg, mx = num(data.get("avgStressLevel"), 0, 100), num(data.get("maxStressLevel"), 0, 100)

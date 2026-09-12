@@ -232,3 +232,39 @@ def test_rr_rmssd_needs_enough_beats_and_rejects_dropped_ones():
 
     rt.rr_buffers.clear()
     assert rt.rr_rmssd("u", [50] * 30) is None, "implausible intervals were accepted"
+
+
+def test_forecast_refuses_a_stale_body_battery_reading():
+    """The level carries a standardised coefficient of +19.97 against +4.56 for
+    the next largest input, so a stale reading would produce a confidently wrong
+    number. Refusing is the correct behaviour, and absent secondary inputs fall
+    back to their training mean rather than blocking the forecast."""
+    from datetime import datetime, timedelta, timezone
+    from modeling.forecast import predict, load_params
+    from shared.schemas import TwinFrame, Provenance
+
+    params = load_params()
+    now = datetime(2026, 9, 12, 15, 0, tzinfo=timezone.utc)
+
+    def level(minutes_ago, value):
+        return TwinFrame(user_id="u", event_time=now - timedelta(minutes=minutes_ago),
+                         provenance=Provenance.GARMIN_FIT_REPLAY, body_battery_level=value)
+
+    stale = predict([level(45, 60)], now, "UTC", params)
+    assert stale["available"] is False
+    assert "stale" in stale["reason"]
+
+    fresh = predict([level(2, 60), level(62, 70)], now, "UTC", params)
+    assert fresh["available"] is True
+    assert 0 <= fresh["forecast"] <= 100
+    assert fresh["current"] == 60
+    # the hour-old reading was found, so the trend is real rather than assumed
+    assert "bb_current_change_1h" not in fresh["imputed_inputs"]
+    # heart rate, REM and stress were absent and are reported as filled in
+    for absent in ("hr_last", "rem_sleep_min", "stress_max"):
+        assert absent in fresh["imputed_inputs"]
+
+    # A falling battery must forecast lower than a rising one from the same level.
+    falling = predict([level(2, 60), level(62, 80)], now, "UTC", params)
+    rising = predict([level(2, 60), level(62, 40)], now, "UTC", params)
+    assert falling["forecast"] < rising["forecast"]

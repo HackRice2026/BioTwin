@@ -305,6 +305,23 @@ def create_app(config=None):
             ]
         return {"metric": metric, "series": rows}
 
+    @app.get("/api/forecast")
+    async def forecast(request: Request):
+        """One-hour Body Battery forecast from the exported ridge coefficients.
+
+        Returns availability rather than a number when the current Body Battery
+        reading is stale: the model leans on that level heavily enough that
+        extrapolating from an old one would be confidently wrong.
+        """
+        u = user(request)
+        from modeling.forecast import predict
+
+        return predict(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+        )
+
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
         return (await state(request)).baseline_summary
