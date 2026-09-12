@@ -18,6 +18,7 @@ class Provenance(StrEnum):
     FITBIT_LIVE = "fitbit_live"
     FITBIT_BACKFILL = "fitbit_backfill"
     GARMIN_BLE_LIVE = "garmin_ble_live"
+    GARMIN_CIQ_LIVE = "garmin_ciq_live"
     GARMIN_LIVE = "garmin_live"
     GARMIN_FIT_REPLAY = "garmin_fit_replay"
     REPLAY = "replay"
@@ -72,6 +73,12 @@ class TwinFrame(Contract):
     activity_level: float | None = Field(default=None, ge=0, le=1)
     sleep: SleepSummary | None = None
     steps: int | None = Field(default=None, ge=0, le=200000)
+    # Current watch values, distinct from daily averages, charge/drain and active calories.
+    body_battery: int | None = Field(default=None, ge=0, le=100)
+    stress_level: int | None = Field(default=None, ge=0, le=100)
+    total_calories: int | None = Field(default=None, ge=0, le=30000)
+    distance_m: float | None = Field(default=None, ge=0, le=500000)
+    acceleration_mg: float | None = Field(default=None, ge=0, le=32000)
     # Vendor daily summaries. These are proprietary composites, not sensor
     # measurements: they are shown with their provenance and deliberately kept out
     # of the readiness score, whose weights are a documented engineering spec.

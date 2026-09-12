@@ -3062,3 +3062,8 @@ h1 {
   color: #33623c;
   font-variant-numeric: tabular-nums;
 }
+.watch-connection { margin-bottom: 20px; }
+.watch-readings { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 18px; }
+.watch-readings dd { margin: 4px 0; font-size: 1.4rem; }
+.watch-readings dt, .watch-readings small { font-size: .8rem; opacity: .75; }
+.watch-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }

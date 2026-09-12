@@ -517,6 +517,7 @@
         "fitbit_live",
         "fitbit_backfill",
         "garmin_ble_live",
+        "garmin_ciq_live",
         "garmin_live",
         "garmin_fit_replay",
         "replay",
@@ -1008,6 +1009,76 @@
           ],
           "default": null,
           "title": "Steps"
+        },
+        "body_battery": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery"
+        },
+        "stress_level": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Level"
+        },
+        "total_calories": {
+          "anyOf": [
+            {
+              "maximum": 30000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Calories"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "maximum": 500000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance M"
+        },
+        "acceleration_mg": {
+          "anyOf": [
+            {
+              "maximum": 32000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acceleration Mg"
         },
         "body_battery_charged": {
           "anyOf": [

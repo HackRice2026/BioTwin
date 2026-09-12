@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import WatchConnection from "./WatchConnection";
 import type { FormEvent, ReactNode } from "react";
 import {
   Activity,
@@ -816,6 +817,7 @@ export default function App() {
           )}
           {state && page === "Overview" && (
             <>
+              <WatchConnection key={session?.user.id} personal={!!session && !session.demo} state={state} />
               <div className="metrics-grid">
                 <MetricCard
                   name="Heart rate"

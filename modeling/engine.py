@@ -108,8 +108,12 @@ def baseline(history, user_id, now, timezone="UTC", fit=True):
     )
 
 
+# A Connect IQ app reads the watch's own sensors and reports within a minute,
+# so it outranks a cloud sync of the same sensor, while a direct Bluetooth
+# broadcast -- no phone or app in the path -- still outranks both.
 SOURCE_PRECEDENCE = {
-    "garmin_ble_live": 5,
+    "garmin_ble_live": 6,
+    "garmin_ciq_live": 5,
     "garmin_live": 4,
     "fitbit_live": 3,
     "fitbit_backfill": 3,

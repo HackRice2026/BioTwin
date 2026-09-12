@@ -51,6 +51,10 @@ External services were verified with protocol tests and mocked HTTP responses. *
 
 ## Verification
 
+For the foreground Venu 2 app, device pairing, five-second delivery target,
+measurement limits and hardware verification status, see the
+[watch app setup guide](watch-app/README.md).
+
 ```sh
 uv run pytest -q
 npm run test --prefix frontend

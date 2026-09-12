@@ -28,6 +28,8 @@ from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPre
 from core.config import Settings
 from core.runtime import Runtime
 from core.security import hash_password, verify_password
+from core.watch import issue_token, authenticate as authenticate_watch
+from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
@@ -500,6 +502,70 @@ def create_app(config=None):
         rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
         rt().wakeup.set()
         return {"status": "queued"}
+
+    @app.post("/api/watch/token")
+    async def watch_token(request: Request):
+        return issue_token(rt().store, user(request, True)["id"])
+
+    @app.delete("/api/watch/token")
+    async def revoke_watch(request: Request):
+        rt().store.remove_doc(user(request, True)["id"], "watch_device")
+        return {"status": "revoked"}
+
+    @app.get("/api/watch")
+    async def watch_status(request: Request):
+        uid = user(request, True)["id"]
+        device = rt().store.get(uid, "watch_device")
+        if uid not in rt().latest_index:
+            rt().compute(uid)
+        readings = {}
+        for metric in WATCH_METRICS:
+            frame = rt().latest_index[uid].get((metric, Provenance.GARMIN_CIQ_LIVE))
+            if frame is not None:
+                readings[metric] = {"value": getattr(frame, metric), "event_time": frame.event_time}
+        return {
+            "paired": bool(device and device["expires"] > utcnow().timestamp()),
+            "expires_at": device["expires_at"] if device else None,
+            "sync": rt().store.get(uid, "watch_sync"),
+            "readings": readings,
+        }
+
+    @app.post("/api/ingest/watch")
+    async def watch_ingest(data: WatchBatch, request: Request):
+        uid = authenticate_watch(rt().store, request.headers.get("x-api-key"))
+        if uid is None:
+            raise HTTPException(401, "Invalid or expired watch token. Pair the watch in Connections.")
+        # Bound load per credential; normal operation makes twelve requests/minute.
+        q = limits[(uid, "watch")]
+        now = time.monotonic()
+        while q and q[0] < now - 60:
+            q.popleft()
+        if len(q) >= 30:
+            raise HTTPException(429, "Watch request limit exceeded", headers={"Retry-After": "5"})
+        q.append(now)
+        # Validate every row before the first write. Retries of partially committed
+        # batches (e.g. after a storage outage) are safe through normal deduplication.
+        records = watch_frames(data, uid, config.retention_days)
+        added = 0
+        for frame in records:
+            added += bool(await rt().ingest(frame, broadcast=False))
+        if added:
+            rt().publish(uid, rt().compute(uid))
+        rt().store.put(
+            uid,
+            "watch_sync",
+            {
+                "received_at": utcnow().isoformat(),
+                "last_event_time": records[-1].event_time.isoformat(),
+                "accepted": added,
+                "duplicates": len(records) - added,
+            },
+        )
+        return {
+            "accepted": added,
+            "duplicates": len(records) - added,
+            "sequence": rt().store.user(uid)["sequence"],
+        }
 
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):

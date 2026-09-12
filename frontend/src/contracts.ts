@@ -15,7 +15,14 @@ export type UserId1 = string;
 export type EventTime = string;
 export type IngestTime = string;
 export type Provenance =
-  "fitbit_live" | "fitbit_backfill" | "garmin_ble_live" | "garmin_live" | "garmin_fit_replay" | "replay" | "synthetic";
+  | "fitbit_live"
+  | "fitbit_backfill"
+  | "garmin_ble_live"
+  | "garmin_ciq_live"
+  | "garmin_live"
+  | "garmin_fit_replay"
+  | "replay"
+  | "synthetic";
 export type DedupeKey = string;
 export type Sequence1 = number;
 export type SourceRecordId = string | null;
@@ -35,6 +42,11 @@ export type RemMinutes = number | null;
 export type EfficiencyPct = number | null;
 export type Score1 = number | null;
 export type Steps = number | null;
+export type BodyBattery = number | null;
+export type StressLevel = number | null;
+export type TotalCalories = number | null;
+export type DistanceM = number | null;
+export type AccelerationMg = number | null;
 export type BodyBatteryCharged = number | null;
 export type BodyBatteryDrained = number | null;
 export type StressAvg = number | null;
@@ -173,6 +185,11 @@ export interface TwinFrame {
   activity_level?: ActivityLevel;
   sleep?: SleepSummary | null;
   steps?: Steps;
+  body_battery?: BodyBattery;
+  stress_level?: StressLevel;
+  total_calories?: TotalCalories;
+  distance_m?: DistanceM;
+  acceleration_mg?: AccelerationMg;
   body_battery_charged?: BodyBatteryCharged;
   body_battery_drained?: BodyBatteryDrained;
   stress_avg?: StressAvg;

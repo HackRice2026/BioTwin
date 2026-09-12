@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { api, post } from "./api";
 import { useHeartRateBroadcast } from "./ble";
+import WatchConnection from "./WatchConnection";
 import type { Session, Profile } from "./api";
 
 type Sources = {
@@ -358,6 +359,7 @@ export default function Connections({
           </small>
         </section>
       </div>
+      <WatchConnection key={session?.user.id} personal={!!session && !session.demo} setup onAuth={onAuth} />
       <div className="two-col">
         <section className="card import-card">
           <span className="eyebrow">START WITH YOUR WATCH</span>
