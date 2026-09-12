@@ -15,7 +15,14 @@ export type UserId1 = string;
 export type EventTime = string;
 export type IngestTime = string;
 export type Provenance =
-  "fitbit_live" | "fitbit_backfill" | "garmin_ble_live" | "garmin_live" | "garmin_fit_replay" | "replay" | "synthetic";
+  | "fitbit_live"
+  | "fitbit_backfill"
+  | "garmin_ble_live"
+  | "garmin_live"
+  | "garmin_fit_replay"
+  | "garmin_influx_backfill"
+  | "replay"
+  | "synthetic";
 export type DedupeKey = string;
 export type Sequence1 = number;
 export type SourceRecordId = string | null;

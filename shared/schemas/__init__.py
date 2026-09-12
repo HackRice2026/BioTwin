@@ -20,6 +20,7 @@ class Provenance(StrEnum):
     GARMIN_BLE_LIVE = "garmin_ble_live"
     GARMIN_LIVE = "garmin_live"
     GARMIN_FIT_REPLAY = "garmin_fit_replay"
+    GARMIN_INFLUX_BACKFILL = "garmin_influx_backfill"
     REPLAY = "replay"
     SYNTHETIC = "synthetic"
 

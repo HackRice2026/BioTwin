@@ -494,6 +494,35 @@ def create_app(config=None):
         rt().wakeup.set()
         return {"status": "queued"}
 
+    @app.post("/api/connect/garmin-influx/sync")
+    async def sync_garmin_influx(request: Request):
+        # A local database pull, not an OAuth provider -- runs inline
+        # (like /api/ingest/file) rather than through the OAuth-oriented
+        # outbox queue sync_source() above, which requires a vendor token
+        # this source doesn't have.
+        uid = user(request, True)["id"]
+        await rt().sync(uid, "garmin_influx")
+        return rt().store.get(uid, "sync", "garmin_influx")
+
+    @app.get("/api/connect/garmin-influx/health")
+    async def garmin_influx_health():
+        return await rt().adapters["garmin_influx"].health()
+
+    @app.post("/api/connect/garmin-ble-bridge/start")
+    async def start_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_ble_bridge(uid)
+
+    @app.post("/api/connect/garmin-ble-bridge/stop")
+    async def stop_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_ble_bridge(uid)
+
+    @app.get("/api/connect/garmin-ble-bridge/status")
+    async def garmin_ble_bridge_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().ble_bridge_status.get(uid, {"status": "stopped"})
+
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):
         uid = user(request, True)["id"]

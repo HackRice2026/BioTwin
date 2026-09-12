@@ -1,11 +1,14 @@
 import asyncio
+import json
 import logging
+import os
 import time
 from bisect import bisect_left, bisect_right, insort_right
 from collections import defaultdict, deque, Counter
 from datetime import timedelta, datetime
 from zoneinfo import ZoneInfo
 import httpx
+import websockets
 from shared.schemas import utcnow, TwinState, TwinFrame, Baseline, RecoveryPrediction, Provenance
 from core.store import Store
 from core.oauth import OAuth
@@ -13,6 +16,7 @@ from core.calendar import CalendarService
 from ingestion.adapters.synthetic import SyntheticAdapter
 from ingestion.adapters.fitbit import FitbitAdapter
 from ingestion.adapters.garmin import GarminAdapter, parse_summary
+from ingestion.adapters.influx_sync import InfluxSyncAdapter
 from ingestion.normalizer import normalize, METRICS
 from ingestion.webhooks import GoogleSignatureVerifier
 from modeling.engine import baseline, readiness, reconcile, drivers
@@ -33,7 +37,10 @@ class Runtime:
         self.adapters = {
             "fitbit": FitbitAdapter(self.oauth, self.http),
             "garmin": GarminAdapter(self.oauth, self.http),
+            "garmin_influx": InfluxSyncAdapter(self.http),
         }
+        self.ble_bridge_tasks = {}
+        self.ble_bridge_status = {}
         self.synthetic = SyntheticAdapter()
         self.history_cache = {}
         self.latest_index = {}
@@ -315,6 +322,62 @@ class Runtime:
                 count += 1
         self.publish(uid, self.compute(uid, refit=True))
         self.store.put(uid, "sync", {"at": utcnow().isoformat(), "count": count, "status": "ok"}, provider)
+
+    async def start_ble_bridge(self, uid, ws_url=None):
+        """Bridge live BLE heart-rate readings from the local
+        `ble_hr_live.py` script's WebSocket into this user's live twin,
+        the same way /api/ingest/bluetooth does for a browser's own Web
+        Bluetooth connection -- just sourced from that terminal script
+        instead of this tab's browser APIs, so it keeps running headless
+        without needing the page to stay open or Web Bluetooth support.
+        """
+        existing = self.ble_bridge_tasks.get(uid)
+        if existing and not existing.done():
+            return {"status": "already_running"}
+        ws_url = ws_url or os.environ.get("GARMIN_BLE_WS_URL", "ws://localhost:8765/ws")
+
+        async def run():
+            while True:
+                try:
+                    async with websockets.connect(ws_url, open_timeout=5) as ws:
+                        self.ble_bridge_status[uid] = {"status": "connected", "url": ws_url}
+                        async for message in ws:
+                            data = json.loads(message)
+                            hr = data.get("hr")
+                            if hr is None:
+                                continue
+                            ts = data.get("ts")
+                            event_time = datetime.fromisoformat(ts) if ts else utcnow()
+                            await self.ingest(
+                                TwinFrame(
+                                    user_id=uid,
+                                    event_time=event_time,
+                                    provenance=Provenance.GARMIN_BLE_LIVE,
+                                    heart_rate_bpm=hr,
+                                )
+                            )
+                except asyncio.CancelledError:
+                    self.ble_bridge_status[uid] = {"status": "stopped"}
+                    raise
+                except Exception as exc:
+                    self.ble_bridge_status[uid] = {
+                        "status": "error",
+                        "detail": f"Could not reach {ws_url}: {exc}. Is ble_hr_live.py running?",
+                    }
+                    await asyncio.sleep(5)
+
+        task = asyncio.create_task(run())
+        self.ble_bridge_tasks[uid] = task
+        self.tasks.append(task)
+        self.ble_bridge_status[uid] = {"status": "connecting", "url": ws_url}
+        return {"status": "starting"}
+
+    async def stop_ble_bridge(self, uid):
+        task = self.ble_bridge_tasks.pop(uid, None)
+        if task:
+            task.cancel()
+        self.ble_bridge_status[uid] = {"status": "stopped"}
+        return {"status": "stopped"}
 
     def lookup_identity(self, provider, vendor_id):
         return next(

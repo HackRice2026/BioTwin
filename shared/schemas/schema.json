@@ -519,6 +519,7 @@
         "garmin_ble_live",
         "garmin_live",
         "garmin_fit_replay",
+        "garmin_influx_backfill",
         "replay",
         "synthetic"
       ],
