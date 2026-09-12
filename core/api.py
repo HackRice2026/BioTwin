@@ -432,7 +432,7 @@ def create_app(config=None):
     async def sources(request: Request):
         u = user(request)
         result = []
-        for provider in ["garmin", "fitbit", "google-calendar"]:
+        for provider in ["garmin", "fitbit", "google-calendar", "microsoft-calendar"]:
             connection = rt().store.get(u["id"], "connection", provider)
             cid, secret = rt().oauth.credentials(provider)
             history = [f for f in rt().history(u["id"]) if f.provenance.value.startswith(provider)]
@@ -467,8 +467,10 @@ def create_app(config=None):
         if provider in rt().adapters:
             rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
             rt().wakeup.set()
-        else:
-            # Fetch the primary calendar timezone after consent.
+        elif provider == "google-calendar":
+            # Fetch the primary calendar timezone after consent. Google's
+            # calendar timeZone is a real IANA name, the same shape stored
+            # in profile.timezone and fed straight into ZoneInfo() elsewhere.
             r = await rt().http.get(
                 "https://www.googleapis.com/calendar/v3/calendars/primary",
                 headers={"Authorization": f"Bearer {rt().oauth.token(uid, provider)}"},
@@ -477,6 +479,11 @@ def create_app(config=None):
             profile = rt().store.user(uid)["profile"]
             if r.json().get("timeZone"):
                 rt().store.save_profile(uid, {**profile, "timezone": r.json()["timeZone"]})
+        # microsoft-calendar: deliberately not auto-detected. Graph's own
+        # mailboxSettings.timeZone comes back as a Windows timezone name
+        # ("Pacific Standard Time"), not IANA -- saving that into
+        # profile.timezone would break every ZoneInfo(...) call downstream
+        # instead of just leaving the existing/default zone in place.
         return RedirectResponse(config.frontend_origin + "/?connected=" + provider)
 
     @app.delete("/auth/{provider}")

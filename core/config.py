@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_project_number: str = ""
     google_webhook_secret: str = ""
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
     garmin_client_id: str = ""
     garmin_client_secret: str = ""
     garmin_webhook_secret: str = ""

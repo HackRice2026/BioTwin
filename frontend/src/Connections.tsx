@@ -407,6 +407,12 @@ export default function Connections({
             text: "Find free time and add your chosen recovery or workout session, with a calendar reminder.",
           },
           {
+            id: "microsoft-calendar",
+            name: "Outlook Calendar",
+            icon: CalendarDays,
+            text: "The same free-time check and event creation, for Outlook/Microsoft 365 calendars. Connect either this or Google -- both at once works too, and busy time from both is checked.",
+          },
+          {
             id: "fitbit",
             name: "Fitbit / Google Health",
             icon: Watch,
