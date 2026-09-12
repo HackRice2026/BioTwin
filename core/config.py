@@ -6,6 +6,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/biotwin.db"
     public_url: str = "http://localhost:8000"
     frontend_origin: str = "http://localhost:5173"
+    # Optional third allowed origin, additive to public_url/frontend_origin --
+    # for reaching this server from another device on the same LAN (e.g. a
+    # phone) without changing public_url itself, which stays the registered
+    # Google/Microsoft OAuth redirect_uri host. Empty means "not enabled".
+    lan_origin: str = ""
     demo_enabled: bool = True
     # Opt-in only -- the project's own default is an explicitly synthetic
     # demo workspace (see README). When true, the unauthenticated "demo"

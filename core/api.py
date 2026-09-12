@@ -105,7 +105,10 @@ def create_app(config=None):
     async def protections(request, call_next):
         if request.method in ["POST", "PUT", "DELETE"] and not request.url.path.startswith("/webhooks/"):
             origin = request.headers.get("origin")
-            if origin and origin not in [config.frontend_origin, config.public_url]:
+            allowed = [config.frontend_origin, config.public_url]
+            if config.lan_origin:
+                allowed.append(config.lan_origin)
+            if origin and origin not in allowed:
                 return Response("Origin not allowed", 403)
         if request.url.path.startswith(("/auth/session", "/api/twin/", "/api/voice")):
             key = (request.client.host if request.client else "unknown", request.url.path)
