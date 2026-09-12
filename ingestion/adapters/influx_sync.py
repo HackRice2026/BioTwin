@@ -2,10 +2,19 @@
 fills via Garmin Connect's unofficial API. This is a *local pull*, not an
 OAuth provider: no vendor token, no approved developer credentials -- it
 reads a database already running on this machine. Distinct provenance
-(GARMIN_INFLUX_BACKFILL) rather than reusing GARMIN_LIVE, since that value is
-reserved for the approved Garmin Wellness API path GarminAdapter implements;
-conflating the two would misrepresent which pipeline actually produced a
-measurement.
+(GARMIN_INFLUX_BACKFILL/GARMIN_INFLUX_LIVE) rather than reusing GARMIN_LIVE,
+since that value is reserved for the approved Garmin Wellness API path
+GarminAdapter implements; conflating the two would misrepresent which
+pipeline actually produced a measurement.
+
+Two provenance values, not one, mirroring the FITBIT_LIVE/FITBIT_BACKFILL
+split FitbitAdapter already uses: `backfill()` (the one-shot historical
+catch-up `Runtime.sync()` calls) tags GARMIN_INFLUX_BACKFILL, while
+`stream()`'s ongoing poll tags GARMIN_INFLUX_LIVE for the frames it yields
+going forward. Both walk the exact same query code -- only the label
+differs -- so the UI's ProvenanceChip (which reads "backfill" as a stale
+one-time import) doesn't call a point ingested seconds ago by the live
+poller "BACKFILL".
 """
 
 import asyncio
@@ -71,7 +80,9 @@ class InfluxSyncAdapter:
             return [], []
         return series[0]["columns"], series[0]["values"]
 
-    def _safe_frame(self, user_id: str, **kwargs) -> TwinFrame | None:
+    def _safe_frame(
+        self, user_id: str, provenance: Provenance | None = None, **kwargs
+    ) -> TwinFrame | None:
         """Garmin's own API uses sentinel values (observed: -2 on
         BreathingRate) for "not measurable" rather than omitting the field,
         which the schema's physiological bounds correctly reject. One bad
@@ -80,12 +91,13 @@ class InfluxSyncAdapter:
         the whole `backfill` generator and lose every frame after it.
         """
         try:
-            return TwinFrame(user_id=user_id, provenance=self.provenance, **kwargs)
+            return TwinFrame(user_id=user_id, provenance=provenance or self.provenance, **kwargs)
         except (ValidationError, ValueError) as exc:
             log.warning('{"event":"garmin_influx_skip","reason":"%s"}', exc)
             return None
 
-    async def backfill(self, user_id: str, since: datetime):
+    async def backfill(self, user_id: str, since: datetime, provenance: Provenance | None = None):
+        provenance = provenance or self.provenance
         since_iso = since.astimezone(timezone.utc).isoformat()
 
         _, rows = await self._query(
@@ -94,7 +106,9 @@ class InfluxSyncAdapter:
         for t, hr in rows:
             if hr is None:
                 continue
-            frame = self._safe_frame(user_id, event_time=_parse_time(t), heart_rate_bpm=hr)
+            frame = self._safe_frame(
+                user_id, provenance=provenance, event_time=_parse_time(t), heart_rate_bpm=hr
+            )
             if frame:
                 yield frame
 
@@ -106,7 +120,11 @@ class InfluxSyncAdapter:
             if resting is None and steps is None:
                 continue
             frame = self._safe_frame(
-                user_id, event_time=_parse_time(t), resting_hr_bpm=resting, steps=steps
+                user_id,
+                provenance=provenance,
+                event_time=_parse_time(t),
+                resting_hr_bpm=resting,
+                steps=steps,
             )
             if frame:
                 yield frame
@@ -118,7 +136,9 @@ class InfluxSyncAdapter:
         for t, br in rows:
             if br is None:
                 continue
-            frame = self._safe_frame(user_id, event_time=_parse_time(t), respiration_brpm=br)
+            frame = self._safe_frame(
+                user_id, provenance=provenance, event_time=_parse_time(t), respiration_brpm=br
+            )
             if frame:
                 yield frame
 
@@ -152,6 +172,7 @@ class InfluxSyncAdapter:
                 continue
             frame = self._safe_frame(
                 user_id,
+                provenance=provenance,
                 event_time=end,
                 sleep=sleep,
                 spo2_pct=spo2 if spo2 is not None and spo2 >= 50 else None,
@@ -175,7 +196,9 @@ class InfluxSyncAdapter:
         cursor = utcnow() - timedelta(minutes=10)
         while True:
             latest = cursor
-            async for frame in self.backfill(user_id, cursor):
+            async for frame in self.backfill(
+                user_id, cursor, provenance=Provenance.GARMIN_INFLUX_LIVE
+            ):
                 if frame.event_time > latest:
                     latest = frame.event_time
                 yield frame

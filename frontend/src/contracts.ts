@@ -21,6 +21,7 @@ export type Provenance =
   | "garmin_live"
   | "garmin_fit_replay"
   | "garmin_influx_backfill"
+  | "garmin_influx_live"
   | "replay"
   | "synthetic";
 export type DedupeKey = string;
