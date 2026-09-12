@@ -1,17 +1,66 @@
-import { Activity, Bed, Flame, HeartPulse } from "lucide-react";
-import { getHeartRateHistory, getStepsHistory, getSummary } from "@/lib/health-data";
+import {
+  BatteryMedium,
+  Bed,
+  Droplet,
+  Flame,
+  Footprints,
+  Gauge,
+  HeartPulse,
+  Mountain,
+  Route,
+  Scale,
+  Sparkles,
+  Waves,
+  Wind,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  getHeartRateHistory,
+  getStepsHistory,
+  getSummary,
+} from "@/lib/health-data";
 import { LiveHeartCard } from "@/components/health/live-heart-card";
 import { MetricCard } from "@/components/health/metric-card";
 import { Carousel, CarouselItem } from "@/components/health/carousel";
 import { InsightCard } from "@/components/health/insight-card";
+import { SleepStagesBar } from "@/components/health/sleep-stages-bar";
 
 export const dynamic = "force-dynamic";
 
-function formatSleep(totalSeconds: number | null): string {
+function formatDuration(totalSeconds: number | null): string {
   if (totalSeconds == null) return "--";
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.round((totalSeconds % 3600) / 60);
   return `${h}h ${m}m`;
+}
+
+function formatDistance(meters: number | null): string {
+  if (meters == null) return "--";
+  return (meters / 1000).toFixed(2);
+}
+
+function formatWeight(grams: number | null): string {
+  if (grams == null) return "--";
+  return (grams / 1000).toFixed(1);
+}
+
+function stressLabel(level: number | null): string {
+  if (level == null || level < 0) return "--";
+  if (level < 25) return "Resting";
+  if (level < 50) return "Low";
+  if (level < 75) return "Medium";
+  return "High";
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
 }
 
 export default async function Home() {
@@ -41,20 +90,10 @@ export default async function Home() {
 
       <LiveHeartCard fallbackBpm={summary.latestHr} />
 
-      <section className="flex flex-col gap-2">
-        <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Overview
-        </h2>
+      <InsightCard body={insight} />
+
+      <Section title="Heart">
         <Carousel>
-          <CarouselItem>
-            <MetricCard
-              icon={Activity}
-              color="amber"
-              title="Steps today"
-              value={summary.steps?.toLocaleString() ?? "--"}
-              points={stepsPoints}
-            />
-          </CarouselItem>
           <CarouselItem>
             <MetricCard
               icon={HeartPulse}
@@ -67,25 +106,144 @@ export default async function Home() {
           </CarouselItem>
           <CarouselItem>
             <MetricCard
-              icon={Bed}
-              color="violet"
-              title="Sleep last night"
-              value={formatSleep(summary.sleepSeconds)}
+              icon={HeartPulse}
+              color="coral"
+              title="Resting"
+              value={summary.restingHr ?? "--"}
+              unit="bpm"
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Gauge}
+              color="coral"
+              title="Range today"
+              value={
+                summary.minHr != null && summary.maxHr != null
+                  ? `${summary.minHr}–${summary.maxHr}`
+                  : "--"
+              }
+              unit="bpm"
+            />
+          </CarouselItem>
+        </Carousel>
+      </Section>
+
+      <Section title="Activity">
+        <Carousel>
+          <CarouselItem>
+            <MetricCard
+              icon={Footprints}
+              color="amber"
+              title="Steps today"
+              value={summary.steps?.toLocaleString() ?? "--"}
+              points={stepsPoints}
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Route}
+              color="amber"
+              title="Distance"
+              value={formatDistance(summary.distanceMeters)}
+              unit="km"
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Mountain}
+              color="amber"
+              title="Floors climbed"
+              value={summary.floorsAscended ?? "--"}
             />
           </CarouselItem>
           <CarouselItem>
             <MetricCard
               icon={Flame}
-              color="teal"
+              color="amber"
               title="Active calories"
               value={summary.calories?.toLocaleString() ?? "--"}
               unit="kcal"
             />
           </CarouselItem>
         </Carousel>
-      </section>
+      </Section>
 
-      <InsightCard body={insight} />
+      <Section title="Body">
+        <Carousel>
+          <CarouselItem>
+            <MetricCard
+              icon={BatteryMedium}
+              color="violet"
+              title="Body battery"
+              value={summary.bodyBattery ?? "--"}
+              unit="/ 100"
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Waves}
+              color="violet"
+              title="Stress"
+              value={stressLabel(summary.stressLevel)}
+              unit={summary.stressLevel != null && summary.stressLevel >= 0 ? `(${summary.stressLevel})` : undefined}
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Sparkles}
+              color="violet"
+              title="Fitness age"
+              value={summary.fitnessAge ?? "--"}
+            />
+          </CarouselItem>
+          <CarouselItem>
+            <MetricCard
+              icon={Scale}
+              color="violet"
+              title="Weight"
+              value={formatWeight(summary.weightGrams)}
+              unit="kg"
+            />
+          </CarouselItem>
+        </Carousel>
+      </Section>
+
+      <Section title="Sleep">
+        <div className="grid gap-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_2fr]">
+          <MetricCard
+            icon={Bed}
+            color="teal"
+            title="Duration"
+            value={formatDuration(summary.sleepSeconds)}
+          />
+          <MetricCard
+            icon={Droplet}
+            color="teal"
+            title="Blood oxygen"
+            value={summary.sleepSpO2 ?? "--"}
+            unit="%"
+          />
+          <MetricCard
+            icon={Wind}
+            color="teal"
+            title="Breathing rate"
+            value={summary.breathingRate ?? "--"}
+            unit="brpm"
+          />
+          <div className="flex flex-col justify-center gap-2 rounded-3xl border border-border bg-card p-5">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Sleep stages
+            </span>
+            <SleepStagesBar
+              deep={summary.deepSleepSeconds}
+              light={summary.lightSleepSeconds}
+              rem={summary.remSleepSeconds}
+              awake={summary.awakeSleepSeconds}
+            />
+          </div>
+        </div>
+      </Section>
 
       <footer className="mt-auto pt-4 text-center text-xs text-muted-foreground">
         Synced from {summary.device}
