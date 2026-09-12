@@ -29,7 +29,7 @@ Create an adult account from “Connect your own story.” In Connections, impor
 - Original locally stored 3D human: articulated arms, hands, fingers, legs, feet and head; breathing/pulse from fresh measurements; continuously blended posture; exercise and recovery state machine. Auto/Low/Medium/High graphics and reduced motion.
 - Heart rate, RMSSD, sleep stages, respiration, resting HR, oxygen saturation, steps, readiness history, and recovery graphs with provenance.
 - Calendar-feasible nap/workout suggestions, a clearly marked experimental day outlook, calendar event creation and popup reminders. Availability is rechecked before each write; repeat submissions do not duplicate an event.
-- Grounded typed conversation and microphone transcription when the browser supports it; ElevenLabs streaming speech from validated answers. Optional language-service fact selection cannot author physiological claims.
+- Typed or spoken questions answered by Gemini from the computed NarrationContext, with evidence and numerical validation. ElevenLabs speech plays automatically with avatar gestures; saved transcripts survive reloads and support replay. Explicit text fallbacks handle either provider failing.
 - Rest / light activity / exercise simulation on the same avatar and charts.
 - Installable PWA with a production-generated synthetic offline bundle. Service workers cache the app and public demo only, never personal API responses.
 - Adult accounts, password hashing, opaque HttpOnly sessions, per-user envelope-encrypted provider tokens, export and deletion, configurable measurement retention, diagnostics, Docker deployment, and CI.
@@ -45,9 +45,10 @@ Fill in the ignored `.env` file using [the integration guide](docs/INTEGRATIONS.
 | Garmin cloud | Approved Connect Developer access, client ID/secret, configured webhook | FIT/JSON imports and supported Bluetooth broadcast remain available |
 | Fitbit / Google Health | OAuth client, enabled API, test users/approval, webhook setup | Clear setup error; no invented live data |
 | Google Calendar | Google OAuth client and Calendar API enabled | Calendar proposals remain unavailable for real accounts |
+| Gemini | API key, narration endpoint/model, and external narration enabled | Clearly labeled deterministic context explanation |
 | ElevenLabs | API key and accessible voice ID | Grounded text works; speech reports setup required |
 
-External services were verified with protocol tests and mocked HTTP responses. **Live Garmin cloud sync, live Google account consent/calendar writes, and actual ElevenLabs audio have not been exercised with your accounts.**
+Gemini and ElevenLabs were exercised together in Chrome using a temporary account with generated test measurements: an answer was saved, spoken, and restored after reload. The current local voice is **George**, selected with user approval after the original library voice required a paid plan. **Live Garmin cloud sync and real Google Calendar consent/writes still require verification.**
 
 ## Verification
 
@@ -59,6 +60,9 @@ npm run build --prefix frontend
 # With the app running and Chrome installed on macOS:
 node scripts/browser-check.mjs
 node scripts/account-check.mjs
+node scripts/voice-check.mjs
+# Optional live provider test using the configured local keys:
+BIOTWIN_LIVE_VOICE=true node scripts/voice-check.mjs
 node scripts/performance-check.mjs
 ```
 
