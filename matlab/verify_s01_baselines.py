@@ -18,6 +18,7 @@ CSV and asserts the figures match those measured directly from the data.
 """
 import collections
 import csv
+import datetime as dt
 import os
 import math
 import statistics as st
@@ -87,11 +88,28 @@ def main():
         slope = [(0.0 if c != c else c) / 60 for c in change]
         train_mean = sum(number(r, target) for r in train) / len(train)
 
+        # Time-of-day climatology, keyed on the hour the target instant falls in
+        # and fitted on train only. Body Battery has a strong daily cycle, so far
+        # enough ahead a clock outperforms following the current trend -- which
+        # means a model handed hour-of-day can look good without using physiology.
+        delta = dt.timedelta(minutes=minutes)
+        by_hour = collections.defaultdict(list)
+        for r in train:
+            by_hour[(dt.datetime.fromisoformat(r["local_timestamp"].strip()) + delta).hour].append(
+                number(r, target))
+        clock = []
+        for r in evaluate:
+            h = (dt.datetime.fromisoformat(r["local_timestamp"].strip()) + delta).hour
+            clock.append(st.mean(by_hour[h]) if by_hour[h] else train_mean)
+
+        extrap = [min(BB_MAX, max(BB_MIN, c + s * minutes)) for c, s in zip(current, slope)]
         predictions = {
             "daily_mean": [train_mean] * len(actual),
             "persistence": current,
-            "extrapolation": [
-                min(BB_MAX, max(BB_MIN, c + s * minutes)) for c, s in zip(current, slope)
+            "extrapolation": extrap,
+            "time_of_day": clock,
+            "trend_plus_clock": [
+                min(BB_MAX, max(BB_MIN, (e + c) / 2)) for e, c in zip(extrap, clock)
             ],
         }
 

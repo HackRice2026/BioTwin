@@ -9,15 +9,25 @@
 %
 % Three baselines, at four horizons:
 %
-%   daily-mean      the train-set target mean. The "no information" floor.
-%   persistence     future Body Battery = current Body Battery.
-%   extrapolation   current + recent slope * horizon, clamped to [0 100].
+%   daily-mean       the train-set target mean. The "no information" floor.
+%   persistence      future Body Battery = current Body Battery.
+%   extrapolation    current + recent slope * horizon, clamped to [0 100].
+%   time-of-day      the train-set average for the hour the target lands in.
+%                    A clock, with no knowledge of the current state at all.
+%   trend+clock      the mean of extrapolation and time-of-day.
 %
 % Persistence is the baseline usually quoted for a slow-moving signal, and it
 % flatters a model badly: Body Battery drifts, so simply following the current
 % slope is roughly twice as accurate. A model that beats persistence may have
-% learned nothing except that slope. Extrapolation is therefore the bar, and it
-% uses only information available at prediction time.
+% learned nothing except that slope.
+%
+% Time-of-day matters for the same reason and more sharply. Body Battery follows
+% a strong daily cycle -- it charges overnight and drains through the day -- so
+% far enough ahead, the hour is a better predictor than the current value. At six
+% hours a clock alone reaches MAE 7.4 against extrapolation's 17.3. Any model
+% given hour-of-day can reproduce that without using physiology at all, so the
+% bar a model has to clear is the BEST of these rules at each horizon, and the
+% real question is whether sleep and load add anything beyond trend and clock.
 %
 % VALIDATION ONLY. The test split stays sealed until a model is final; scoring it
 % now would make it part of model development.
@@ -87,7 +97,7 @@ perDayAll = table();
 
 for h = 1:size(HORIZONS, 1)
     name    = HORIZONS{h, 1};
-    minutes = HORIZONS{h, 2};
+    horizonMin = HORIZONS{h, 2};
 
     targetCol   = "target_bb_" + name;
     eligibleCol = "eligible_" + name;
@@ -118,10 +128,25 @@ for h = 1:size(HORIZONS, 1)
 
     trainMean = mean(T.(targetCol)(trainRows));   % fitted on train only
 
+    % Time-of-day climatology: the train-set mean target for the hour the target
+    % instant falls in. Fitted on train only; hours absent from train fall back
+    % to the overall train mean rather than being dropped.
+    targetHour = hour(T.local_timestamp + minutes(horizonMin));
+    climate = repmat(trainMean, 24, 1);
+    for hh = 0:23
+        sel = trainRows & targetHour == hh;
+        if any(sel); climate(hh + 1) = mean(T.(targetCol)(sel)); end
+    end
+    clockPred = climate(targetHour(evalRows) + 1);
+
+    extrapPred = min(BB_MAX, max(BB_MIN, current + slope * horizonMin));
+
     predictions = struct( ...
-        'daily_mean',    repmat(trainMean, size(y)), ...
-        'persistence',   current, ...
-        'extrapolation', min(BB_MAX, max(BB_MIN, current + slope * minutes)));
+        'daily_mean',       repmat(trainMean, size(y)), ...
+        'persistence',      current, ...
+        'extrapolation',    extrapPred, ...
+        'time_of_day',      clockPred, ...
+        'trend_plus_clock', min(BB_MAX, max(BB_MIN, (extrapPred + clockPred) / 2)));
 
     fprintf('\n=== %s horizon | %s | n = %d | target sd = %.1f ===\n', ...
         name, EVAL_SPLIT, numel(y), std(y));
@@ -136,7 +161,7 @@ for h = 1:size(HORIZONS, 1)
         fprintf('  %-15s %8.2f %8.2f %8.3f %8.2f   %5.2f +/- %.2f\n', ...
             f, m.mae, m.rmse, m.r2, m.bias, mean(dayMae), std(dayMae));
 
-        summary = [summary; table(string(name), minutes, f, numel(y), std(y), ...
+        summary = [summary; table(string(name), horizonMin, f, numel(y), std(y), ...
             m.mae, m.rmse, m.r2, m.bias, mean(dayMae), std(dayMae), ...
             'VariableNames', {'horizon', 'minutes', 'baseline', 'n', 'target_sd', ...
                               'mae', 'rmse', 'r2', 'bias', 'per_day_mae', 'per_day_sd'})]; %#ok<AGROW>
@@ -152,15 +177,17 @@ fprintf('\n=== how much does the best baseline already explain? ===\n');
 fprintf('  A negative R2 means the baseline is worse than predicting the mean.\n');
 for h = 1:size(HORIZONS, 1)
     name = string(HORIZONS{h, 1});
-    rows = summary.horizon == name & summary.baseline == "extrapolation";
-    if ~any(rows); continue; end
-    fprintf('  %-4s extrapolation MAE %6.2f   R2 %7.3f   target sd %5.1f\n', ...
-        name, summary.mae(rows), summary.r2(rows), summary.target_sd(rows));
+    rows = find(summary.horizon == name);
+    if isempty(rows); continue; end
+    [bestMae, which] = min(summary.mae(rows));
+    best = rows(which);
+    fprintf('  %-4s best rule: %-17s MAE %6.2f   R2 %7.3f\n', ...
+        name, summary.baseline(best), bestMae, summary.r2(best));
 end
-fprintf(['\n  A horizon where extrapolation already has a high R2 leaves little\n' ...
-         '  for a model to add. A horizon where its R2 is near or below zero is\n' ...
-         '  where following the current trend fails, and where sleep, accumulated\n' ...
-         '  load and time awake should carry the prediction instead.\n']);
+fprintf(['\n  A model must beat the BEST rule at its horizon, not the weakest.\n' ...
+         '  Because a clock alone is strong far ahead, a model handed hour-of-day\n' ...
+         '  can match that without using physiology, so the question worth asking\n' ...
+         '  of Stage 3 is whether sleep and load add anything beyond trend+clock.\n']);
 
 writetable(summary, fullfile(OUTDIR, 's01_baselines.csv'));
 writetable(perDayAll, fullfile(OUTDIR, 's01_baselines_per_day.csv'));

@@ -13,7 +13,7 @@ run('matlab/s01_baselines.m')                        % MATLAB
 
 The two agree on all 54 reported values.
 
-## The three baselines
+## The five baselines
 
 No model is involved. Each is a rule using only information available at the
 moment of prediction.
@@ -22,7 +22,9 @@ moment of prediction.
 |---|---|
 | `daily_mean` | predict the train-set average, always |
 | `persistence` | predict that Body Battery stays where it is now |
-| `extrapolation` | predict current value + recent slope × horizon, clamped to 0–100 |
+| `extrapolation` | current value + recent slope × horizon, clamped to 0–100 |
+| `time_of_day` | the train-set average for the hour the target lands in — a clock, with no knowledge of the current state |
+| `trend_plus_clock` | the mean of `extrapolation` and `time_of_day` |
 
 ## Validation results
 
@@ -34,36 +36,66 @@ mean**.
 |---|---|---:|---:|---:|---:|---|
 | 30m | daily_mean | 812 | 20.28 | 24.23 | −0.015 | 21.71 ± 10.81 |
 | 30m | persistence | 812 | 2.76 | 3.54 | 0.978 | 2.51 ± 1.12 |
-| 30m | **extrapolation** | 812 | **1.21** | 1.61 | **0.996** | 1.15 ± 0.29 |
+| 30m | **extrapolation** | 812 | **1.21** | 1.61 | **0.996** | 1.15 ± 0.30 |
+| 30m | time_of_day | 812 | 8.88 | 11.53 | 0.770 | 9.13 ± 1.81 |
+| 30m | trend_plus_clock | 812 | 4.38 | 5.63 | 0.945 | 4.56 ± 0.99 |
 | 1h | daily_mean | 791 | 20.29 | 24.23 | −0.016 | 22.02 ± 11.68 |
 | 1h | persistence | 791 | 5.33 | 6.79 | 0.920 | 4.83 ± 2.16 |
 | 1h | **extrapolation** | 791 | **2.35** | 3.09 | **0.983** | 2.22 ± 0.62 |
+| 1h | time_of_day | 791 | 8.91 | 11.56 | 0.769 | 9.37 ± 2.12 |
+| 1h | trend_plus_clock | 791 | 4.32 | 5.52 | 0.947 | 4.66 ± 1.25 |
 | 3h | daily_mean | 716 | 20.20 | 24.01 | −0.011 | 22.30 ± 12.32 |
 | 3h | persistence | 716 | 15.05 | 18.61 | 0.392 | 13.42 ± 6.05 |
-| 3h | **extrapolation** | 716 | **7.80** | 11.13 | **0.783** | 7.90 ± 3.08 |
+| 3h | extrapolation | 716 | 7.80 | 11.13 | 0.783 | 7.90 ± 3.08 |
+| 3h | time_of_day | 716 | 8.58 | 10.78 | 0.796 | 10.07 ± 4.89 |
+| 3h | **trend_plus_clock** | 716 | **5.20** | 6.40 | **0.928** | 5.52 ± 1.30 |
 | 6h | daily_mean | 601 | 18.76 | 22.14 | −0.009 | 18.53 ± 4.73 |
 | 6h | persistence | 601 | 27.84 | 32.78 | −1.212 | 26.21 ± 9.23 |
 | 6h | extrapolation | 601 | 17.34 | 26.09 | −0.402 | 19.49 ± 15.34 |
+| 6h | **time_of_day** | 601 | **7.37** | 9.09 | **0.830** | 8.72 ± 4.40 |
+| 6h | trend_plus_clock | 601 | 8.34 | 12.75 | 0.665 | 9.21 ± 7.14 |
 
 ## What this settles
 
+**The bar changes with the horizon, and a model must beat the best rule at its
+own horizon — not the weakest one.**
+
+| horizon | best rule | MAE to beat |
+|---|---|---:|
+| 30m | extrapolation | 1.21 |
+| 1h | extrapolation | 2.35 |
+| 3h | trend_plus_clock | 5.20 |
+| 6h | time_of_day | 7.37 |
+
 **Persistence is not a fair bar.** Following the current slope is about twice as
-accurate at every horizon. A model that beats persistence may have learned
-nothing except that slope, so `extrapolation` is the number to beat.
+accurate at every horizon, so a model that beats persistence may have learned
+nothing except that slope.
+
+**A clock is a much harder bar, and it wins outright far ahead.** Body Battery
+charges overnight and drains through the day, so the hour is enormously
+informative. At six hours a clock with no knowledge of the current state reaches
+MAE 7.37 (R² 0.830) while extrapolation manages 17.34 (R² −0.402) — the clock is
+2.4× better. **Any model handed `hour_sin`/`hour_cos` can reproduce that without
+using physiology at all.**
+
+This was found the hard way. A first feature-selection pass at six hours picked
+twelve sleep predictors and stalled at MAE ≈ 23; error only fell, to 10.53, when
+the two hour-of-day terms entered. That candidate model would have been beaten
+by the clock it was unknowingly imitating.
 
 **30 minutes and 1 hour are already solved.** Extrapolation reaches R² 0.996 and
-0.983. There is no useful headroom, so a model targeted there cannot demonstrate
-much even if it trains well.
+0.983, so a model targeted there cannot demonstrate much even if it trains well.
 
-**Six hours is where the simple rules fail.** Both persistence (R² −1.212) and
-extrapolation (R² −0.402) are worse than predicting the mean, and
-extrapolation's per-day error swings 19.49 ± 15.34 — unreliable as well as
-inaccurate. Whatever governs Body Battery six hours out is not the current
-trend, which is where sleep, accumulated load and time awake have to carry the
-forecast.
+**Three hours is the one horizon where combining beats either part**:
+trend+clock reaches 5.20 where trend alone gets 7.80 and the clock 8.58. That is
+evidence the two carry different information, and it is the most promising place
+for a model to add a third source.
 
-**Three hours is the middle case**: extrapolation is respectable at R² 0.783 but
-leaves 7.8 points of error to attack.
+**The question Stage 3 must answer** is therefore not "does the model beat
+persistence" but: *does adding sleep, load and time-awake improve on trend+clock
+at all?* A model given hour-of-day and current Body Battery already has most of
+what is predictable here. Anything claimed beyond that has to be demonstrated
+against these numbers.
 
 ## Reading the error bars
 
