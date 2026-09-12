@@ -789,13 +789,17 @@ export default function App() {
                   source={source("heart_rate_bpm")}
                 />
                 <MetricCard
-                  name="Heart-rate variability"
-                  reading={latest?.hrv_rmssd_ms}
-                  unit="ms"
-                  icon={Activity}
-                  detail="RMSSD · latest recorded"
-                  data={metrics.hrv_rmssd_ms ?? []}
-                  source={source("hrv_rmssd_ms")}
+                  name="Steps"
+                  reading={latest?.steps}
+                  unit=""
+                  icon={Footprints}
+                  detail={
+                    quality.steps
+                      ? `Recorded ${new Date(quality.steps.event_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                      : "Awaiting a measurement"
+                  }
+                  data={metrics.steps ?? []}
+                  source={source("steps")}
                 />
                 <MetricCard
                   name={
@@ -832,12 +836,28 @@ export default function App() {
               <div className="stage">
                 <div className="stage-left">
                   <p className="stage-label">Your recent measurements</p>
+                  <div className="metrics-grid">
+                    <MetricCard
+                      name="Respiration"
+                      reading={latest?.respiration_brpm}
+                      unit="br/min"
+                      icon={Wind}
+                      detail="Breaths per minute · measured"
+                      data={metrics.respiration_brpm ?? []}
+                      source={source("respiration_brpm")}
+                    />
+                    <MetricCard
+                      name="Blood oxygen"
+                      reading={latest?.spo2_pct}
+                      unit="%"
+                      icon={Activity}
+                      detail="Pulse oximetry · overnight"
+                      data={metrics.spo2_pct ?? []}
+                      source={source("spo2_pct")}
+                    />
+                  </div>
                   <div className="vendor-row">
-                    <p className="vendor-label">
-                      Straight from your watch · Garmin's own summaries, shown
-                      as measured and deliberately not folded into your
-                      readiness score
-                    </p>
+                    <p className="vendor-label">Garmin&rsquo;s own summaries</p>
                     <div className="metrics-grid">
                       <MetricCard
                         name="Body Battery drained"
@@ -893,7 +913,7 @@ export default function App() {
                         reading={latest?.sleep?.score}
                         unit="/100"
                         icon={Moon}
-                        detail="Garmin's own score · not used in your readiness"
+                        detail="Garmin's own score · not used in readiness"
                         data={sleep
                           .filter((x) => x.value.score != null)
                           .map((x) => ({
@@ -905,56 +925,6 @@ export default function App() {
                         source={source("sleep")}
                       />
                     </div>
-                  </div>
-                  <div className="vitals-strip">
-                    {[
-                      {
-                        name: "Respiration",
-                        field: "respiration_brpm",
-                        unit: "br/min",
-                        icon: Wind,
-                      },
-                      {
-                        name: "Blood oxygen",
-                        field: "spo2_pct",
-                        unit: "%",
-                        icon: Activity,
-                      },
-                      {
-                        name: "Recorded steps",
-                        field: "steps",
-                        unit: "steps",
-                        icon: Footprints,
-                      },
-                    ].map((m) => (
-                      <div key={m.field}>
-                        <m.icon size={18} />
-                        <span>
-                          {m.name}
-                          <small>
-                            {quality[m.field]
-                              ? new Date(
-                                  quality[m.field].event_time,
-                                ).toLocaleString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "No measurement"}
-                          </small>
-                        </span>
-                        <b>
-                          {value(
-                            latest?.[m.field as keyof typeof latest] as
-                              number | null,
-                            1,
-                          )}
-                          <small>{m.unit}</small>
-                        </b>
-                        <ProvenanceChip source={source(m.field)} />
-                      </div>
-                    ))}
                   </div>
                 </div>
                 <div className="stage-center">

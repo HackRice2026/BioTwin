@@ -2620,7 +2620,12 @@ h1 {
   margin: 0;
 }
 .stage-left .vendor-label {
-  display: none;
+  margin: 4px 0 0;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: #99a398;
 }
 .stage-left .metric-card {
   padding: 11px 13px 9px;
