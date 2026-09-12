@@ -79,6 +79,17 @@ class TwinFrame(Contract):
     active_kcal: float | None = Field(default=None, ge=0, le=20000)
     body_battery_pct: float | None = Field(default=None, ge=0, le=100)
     stress_level: float | None = Field(default=None, ge=0, le=100)
+    stress_high_min: float | None = Field(default=None, ge=0, le=1440)
+    stress_medium_min: float | None = Field(default=None, ge=0, le=1440)
+    stress_low_min: float | None = Field(default=None, ge=0, le=1440)
+    # Charged/drained are cumulative daily totals (can exceed a single 0-100
+    # reading across multiple charge/drain cycles in a day), not a level --
+    # body_battery_pct is the instantaneous level, this is the day's churn.
+    body_battery_charged: float | None = Field(default=None, ge=0, le=300)
+    body_battery_drained: float | None = Field(default=None, ge=0, le=300)
+    body_battery_at_wake: float | None = Field(default=None, ge=0, le=100)
+    moderate_intensity_min: float | None = Field(default=None, ge=0, le=1440)
+    vigorous_intensity_min: float | None = Field(default=None, ge=0, le=1440)
     confidence: float = Field(default=1, ge=0, le=1)
 
 

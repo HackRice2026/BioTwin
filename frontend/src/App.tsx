@@ -1052,12 +1052,58 @@ export default function App() {
                     unit: "br/min",
                   },
                   { field: "spo2_pct", title: "Blood oxygen", unit: "%" },
-                  { field: "steps", title: "Recorded steps", unit: "steps" },
-                  { field: "stress_level", title: "Stress level", unit: "" },
+                  {
+                    field: "steps",
+                    title: "Recorded steps",
+                    unit: "steps",
+                    detail: [
+                      {
+                        label: "Moderate activity",
+                        field: "moderate_intensity_min",
+                        unit: "min",
+                      },
+                      {
+                        label: "Vigorous activity",
+                        field: "vigorous_intensity_min",
+                        unit: "min",
+                      },
+                    ],
+                  },
+                  {
+                    field: "stress_level",
+                    title: "Stress level",
+                    unit: "",
+                    detail: [
+                      { label: "High", field: "stress_high_min", unit: "min" },
+                      {
+                        label: "Medium",
+                        field: "stress_medium_min",
+                        unit: "min",
+                      },
+                      { label: "Low", field: "stress_low_min", unit: "min" },
+                    ],
+                  },
                   {
                     field: "body_battery_pct",
                     title: "Body battery",
                     unit: "%",
+                    detail: [
+                      {
+                        label: "At wake",
+                        field: "body_battery_at_wake",
+                        unit: "%",
+                      },
+                      {
+                        label: "Charged",
+                        field: "body_battery_charged",
+                        unit: "",
+                      },
+                      {
+                        label: "Drained",
+                        field: "body_battery_drained",
+                        unit: "",
+                      },
+                    ],
                   },
                   {
                     field: "distance_meters",
@@ -1102,6 +1148,27 @@ export default function App() {
                           ?.map((a: any) => `${humanize(a.source)}: ${a.value}`)
                           .join(" · ")}
                       </p>
+                    )}
+                    {"detail" in m && m.detail && (
+                      <details className="signal-detail">
+                        <summary>Breakdown</summary>
+                        <div className="signal-detail-stats">
+                          {m.detail.map((d) => (
+                            <div key={d.field}>
+                              <span>{d.label}</span>
+                              <b>
+                                {value(
+                                  latest?.[d.field as keyof typeof latest] as
+                                    | number
+                                    | null,
+                                  0,
+                                )}
+                                <small>{d.unit}</small>
+                              </b>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     )}
                   </Card>
                 ))}

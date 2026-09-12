@@ -114,11 +114,50 @@ class InfluxSyncAdapter:
 
         _, rows = await self._query(
             'SELECT "restingHeartRate","totalSteps","maxHeartRate","minHeartRate",'
-            '"totalDistanceMeters","floorsAscended","activeKilocalories" FROM "DailyStats" '
+            '"totalDistanceMeters","floorsAscended","activeKilocalories",'
+            '"highStressDuration","mediumStressDuration","lowStressDuration",'
+            '"bodyBatteryChargedValue","bodyBatteryDrainedValue","bodyBatteryAtWakeTime",'
+            '"moderateIntensityMinutes","vigorousIntensityMinutes" FROM "DailyStats" '
             f"WHERE time > '{since_iso}' ORDER BY time ASC"
         )
-        for t, resting, steps, max_hr, min_hr, distance, floors, kcal in rows:
-            if all(v is None for v in (resting, steps, max_hr, min_hr, distance, floors, kcal)):
+        for (
+            t,
+            resting,
+            steps,
+            max_hr,
+            min_hr,
+            distance,
+            floors,
+            kcal,
+            stress_hi_s,
+            stress_med_s,
+            stress_lo_s,
+            batt_charged,
+            batt_drained,
+            batt_wake,
+            mod_min,
+            vig_min,
+        ) in rows:
+            if all(
+                v is None
+                for v in (
+                    resting,
+                    steps,
+                    max_hr,
+                    min_hr,
+                    distance,
+                    floors,
+                    kcal,
+                    stress_hi_s,
+                    stress_med_s,
+                    stress_lo_s,
+                    batt_charged,
+                    batt_drained,
+                    batt_wake,
+                    mod_min,
+                    vig_min,
+                )
+            ):
                 continue
             frame = self._safe_frame(
                 user_id,
@@ -131,6 +170,14 @@ class InfluxSyncAdapter:
                 distance_meters=distance,
                 floors_ascended=floors,
                 active_kcal=kcal,
+                stress_high_min=stress_hi_s / 60 if stress_hi_s is not None else None,
+                stress_medium_min=stress_med_s / 60 if stress_med_s is not None else None,
+                stress_low_min=stress_lo_s / 60 if stress_lo_s is not None else None,
+                body_battery_charged=batt_charged,
+                body_battery_drained=batt_drained,
+                body_battery_at_wake=batt_wake,
+                moderate_intensity_min=mod_min,
+                vigorous_intensity_min=vig_min,
             )
             if frame:
                 yield frame

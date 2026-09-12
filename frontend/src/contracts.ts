@@ -50,6 +50,14 @@ export type FloorsAscended = number | null;
 export type ActiveKcal = number | null;
 export type BodyBatteryPct = number | null;
 export type StressLevel = number | null;
+export type StressHighMin = number | null;
+export type StressMediumMin = number | null;
+export type StressLowMin = number | null;
+export type BodyBatteryCharged = number | null;
+export type BodyBatteryDrained = number | null;
+export type BodyBatteryAtWake = number | null;
+export type ModerateIntensityMin = number | null;
+export type VigorousIntensityMin = number | null;
 export type Confidence1 = number;
 export type UserId2 = string;
 export type ComputedAt1 = string;
@@ -187,6 +195,14 @@ export interface TwinFrame {
   active_kcal?: ActiveKcal;
   body_battery_pct?: BodyBatteryPct;
   stress_level?: StressLevel;
+  stress_high_min?: StressHighMin;
+  stress_medium_min?: StressMediumMin;
+  stress_low_min?: StressLowMin;
+  body_battery_charged?: BodyBatteryCharged;
+  body_battery_drained?: BodyBatteryDrained;
+  body_battery_at_wake?: BodyBatteryAtWake;
+  moderate_intensity_min?: ModerateIntensityMin;
+  vigorous_intensity_min?: VigorousIntensityMin;
   confidence?: Confidence1;
 }
 export interface SleepSummary {

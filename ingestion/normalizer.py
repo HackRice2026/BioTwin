@@ -19,6 +19,14 @@ METRICS = (
     "active_kcal",
     "body_battery_pct",
     "stress_level",
+    "stress_high_min",
+    "stress_medium_min",
+    "stress_low_min",
+    "body_battery_charged",
+    "body_battery_drained",
+    "body_battery_at_wake",
+    "moderate_intensity_min",
+    "vigorous_intensity_min",
 )
 
 
