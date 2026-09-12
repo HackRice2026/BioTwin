@@ -1,2 +1,10 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.34,<1
+numpy>=1.26,<3
+torch>=2.4
+transformers>=4.44
+
+# System packages this service also needs (not pip-installable):
+#   ffmpeg (decodes the client's MP3 audio chunks to PCM before inference)
+# torch's exact build (index URL, CUDA version) depends on the host --
+# see AGENTS.md for the command actually used on the SCC GPU box.
