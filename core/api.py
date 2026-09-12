@@ -92,9 +92,12 @@ def create_app(config=None):
             await runtime.close()
 
     app = FastAPI(title="BioTwin", version="1.0.0", lifespan=lifespan)
+    cors_origins = [config.frontend_origin, config.public_url]
+    if config.lan_origin:
+        cors_origins.append(config.lan_origin)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[config.frontend_origin, config.public_url],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type"],
@@ -825,7 +828,10 @@ def create_app(config=None):
 
     @app.websocket("/ws/live")
     async def websocket(ws: WebSocket):
-        if ws.headers.get("origin") not in [config.frontend_origin, config.public_url]:
+        allowed = [config.frontend_origin, config.public_url]
+        if config.lan_origin:
+            allowed.append(config.lan_origin)
+        if ws.headers.get("origin") not in allowed:
             await ws.close(code=1008)
             return
         u = rt().store.session_user(ws.cookies.get("biotwin_session"))
