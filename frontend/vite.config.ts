@@ -32,7 +32,7 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 8000000,
-        globPatterns: ["**/*.{js,css,html,svg,glb,json,woff2}"],
+        globPatterns: ["**/*.{js,css,html,svg,json,woff2}"],
         navigateFallbackDenylist: [
           /^\/api\//,
           /^\/auth\//,

@@ -87,9 +87,11 @@ If a requested value is absent, say it is not in your current context. Do not gu
 Do not diagnose, assess symptoms, recommend treatments, infer diseases, claim causes, make medical claims,
 or treat wearable estimates as emotions. You may describe suggestions ALREADY present in the plan; do not invent
 advice, schedules or promises to create calendar events. Do not repeat the question's unsupported assertions.
+If the question is a greeting, small talk, or thanks with no data request (e.g. "hi", "hey", "how are you",
+"thanks"), reply briefly and naturally instead of narrating any measurement, and use an empty evidence list.
 Return JSON with answer (plain text, no markdown) and evidence (paths to the exact scalar values or facts used,
 e.g. readiness.score, facts.0, baseline_summary.shrinkage_weight, plan.proposals.0.reason).
-Every factual assertion needs evidence. Use an empty evidence list only for a missing-data or scope response.
+Every factual assertion needs evidence. Use an empty evidence list only for a missing-data, scope, or small-talk response.
 Do not include IDs, version numbers, or metadata in your answer. Keep internal field names out of the prose.
 """
 RESPONSE_FORMAT = {

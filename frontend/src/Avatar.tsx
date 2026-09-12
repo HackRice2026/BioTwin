@@ -7,14 +7,44 @@ import {
   Component,
 } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, useGLTF } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { RotateCcw, Move, Volume2, Mic, LoaderCircle } from "lucide-react";
+import {
+  Dumbbell,
+  LoaderCircle,
+  Mic,
+  Move,
+  RotateCcw,
+  Volume2,
+} from "lucide-react";
 import type { TwinState, SimulationOverlay } from "./contracts";
-import { AvatarFSM } from "./fsm";
 import { humanize } from "./api";
+import {
+  emitAvatarSemantic,
+  listenAvatarAudio,
+  listenAvatarSemantic,
+  parseFaceFrame,
+} from "./avatar/avatarBus";
+import {
+  audio2FaceMorphMap,
+  emotionMorphs,
+  mouthFallback,
+} from "./avatar/config/morphMappings";
+import type {
+  AvatarAction,
+  AvatarSemanticState,
+  FaceFrame,
+  FaceServiceState,
+} from "./avatar/state/AvatarState";
+import {
+  blendEmotion,
+  clamp01,
+  defaultAvatarState,
+  defaultEmotion,
+} from "./avatar/state/AvatarState";
 
 class CanvasBoundary extends Component<
   { children: ReactNode },
@@ -36,11 +66,134 @@ class CanvasBoundary extends Component<
   }
 }
 
+const faceHttp =
+  import.meta.env.VITE_FACE_SERVICE_HTTP || "http://localhost:8765";
+const faceWs =
+  import.meta.env.VITE_FACE_SERVICE_WS || "ws://localhost:8765/ws/face";
+
+const demoStates: Record<string, Partial<AvatarSemanticState>> = {
+  "1": {
+    emotion: defaultEmotion,
+    action: "idle",
+    gaze: "user",
+    camera: "conversation",
+  },
+  "2": {
+    emotion: {
+      energy: 0.28,
+      happiness: 0.22,
+      fatigue: 0.72,
+      stress: 0.14,
+      confidence: 0.78,
+      excitement: 0.08,
+      concern: 0.62,
+    },
+    action: "listen",
+    gaze: "user",
+  },
+  "3": {
+    emotion: {
+      energy: 0.42,
+      happiness: 0.18,
+      fatigue: 0.28,
+      stress: 0.7,
+      confidence: 0.76,
+      excitement: 0.12,
+      concern: 0.58,
+    },
+    action: "think",
+    gaze: "away",
+  },
+  "4": {
+    emotion: {
+      energy: 0.9,
+      happiness: 0.78,
+      fatigue: 0.02,
+      stress: 0.04,
+      confidence: 0.96,
+      excitement: 0.86,
+      concern: 0.03,
+    },
+    action: "celebrate",
+    gaze: "user",
+  },
+  "5": { action: "point", gaze: "panel" },
+  "6": { action: "walk", camera: "full_body" },
+  "7": { action: "squat", gaze: "workout", camera: "exercise" },
+  "8": { action: "celebrate", gaze: "user" },
+};
+
+function readinessEmotion(state: TwinState): typeof defaultEmotion {
+  const d = state.drivers;
+  const score = (state.readiness.score ?? 55) / 100;
+  return {
+    energy: clamp01(score * 0.8 + d.recovery_progress * 0.18),
+    happiness: clamp01(0.28 + score * 0.38),
+    fatigue: clamp01(d.fatigue),
+    stress: clamp01((state.latest?.stress_level ?? 20) / 100),
+    confidence: clamp01(0.72 + score * 0.24),
+    excitement: clamp01(d.exertion * 0.35 + Math.max(0, score - 0.55)),
+    concern: clamp01((1 - score) * 0.45 + d.fatigue * 0.25),
+  };
+}
+
+function mergeSemantic(
+  current: AvatarSemanticState,
+  next: Partial<AvatarSemanticState>,
+): AvatarSemanticState {
+  return {
+    emotion: next.emotion ?? current.emotion,
+    action: next.action ?? current.action,
+    gaze: next.gaze ?? current.gaze,
+    camera: next.camera ?? current.camera,
+  };
+}
+
+function createNodes(root: THREE.Object3D) {
+  const nodes: Record<string, THREE.Object3D> = {};
+  root.traverse((object) => {
+    if (object.name) nodes[object.name] = object;
+  });
+  return nodes;
+}
+
+function baseTransforms(nodes: Record<string, THREE.Object3D>) {
+  const base: Record<
+    string,
+    { rotation: THREE.Euler; position: THREE.Vector3 }
+  > = {};
+  for (const [name, node] of Object.entries(nodes)) {
+    base[name] = {
+      rotation: node.rotation.clone(),
+      position: node.position.clone(),
+    };
+  }
+  return base;
+}
+
+function actionLabel(
+  semantic: AvatarSemanticState,
+  speaking: boolean,
+  listening: boolean,
+  thinking: boolean,
+) {
+  if (semantic.action !== "idle") return semantic.action.toUpperCase();
+  if (speaking) return "TALK";
+  if (listening) return "LISTEN";
+  if (thinking) return "THINK";
+  return "IDLE";
+}
+
 function Body({
   live,
   overlay,
   reduced,
   speaking,
+  listening,
+  thinking,
+  semantic,
+  faceFrames,
+  audioEnergy,
   onPerf,
   onMotion,
 }: {
@@ -48,134 +201,278 @@ function Body({
   overlay: RefObject<SimulationOverlay | null>;
   reduced: boolean;
   speaking: boolean;
+  listening: boolean;
+  thinking: boolean;
+  semantic: RefObject<AvatarSemanticState>;
+  faceFrames: RefObject<FaceFrame[]>;
+  audioEnergy: RefObject<number>;
   onPerf: (n: number) => void;
   onMotion: (s: string) => void;
 }) {
-  const { scene } = useGLTF("/assets/twin.glb");
+  const { scene } = useGLTF("/assets/model.glb");
+  const { gl: renderer } = useThree();
   const model = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((o) => {
-      if (o instanceof THREE.Mesh)
-        o.material = (o.material as THREE.Material).clone();
+    const clone = cloneSkeleton(scene) as THREE.Group;
+    // Textures default to anisotropy 1 (blurry at a grazing angle, exactly
+    // what close-up/orbit zoom produces) -- the GPU's real max is usually
+    // 8-16 and costs nothing noticeable on hardware that can already run
+    // this scene, so just ask for it instead of leaving the default.
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    clone.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const cloned = materials.map((material) => {
+          const next = material.clone() as THREE.MeshStandardMaterial;
+          (
+            [next.map, next.normalMap, next.roughnessMap, next.metalnessMap, next.emissiveMap] as (
+              | THREE.Texture
+              | null
+              | undefined
+            )[]
+          ).forEach((tex) => {
+            if (tex) tex.anisotropy = maxAnisotropy;
+          });
+          // The GLB ships corneas at roughness 1 (fully matte), so eyes carry
+          // no catchlight at any zoom -- the one thing a face-zoom draws the
+          // eye to first. A wet, glossy cornea is standard for believable
+          // eyes; the iris/pupil underneath is untouched.
+          if (next.name.includes("Cornea")) {
+            next.roughness = 0.05;
+          }
+          return next;
+        });
+        mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
+      }
     });
     return clone;
-  }, [scene]);
-  const nodes = useMemo(() => {
-    const m: Record<string, THREE.Object3D> = {};
-    model.traverse((o) => {
-      m[o.name] = o;
+  }, [scene, renderer]);
+  const nodes = useMemo(() => createNodes(model), [model]);
+  const base = useMemo(() => baseTransforms(nodes), [nodes]);
+  const morphMeshes = useMemo(() => {
+    const targets: THREE.Mesh[] = [];
+    const names = new Set<string>();
+    model.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
+        targets.push(mesh);
+        Object.keys(mesh.morphTargetDictionary).forEach((name) =>
+          names.add(name),
+        );
+      }
     });
-    return m;
+    console.info("[avatar] GLB morph targets", [...names].sort());
+    return targets;
   }, [model]);
-  const fsm = useRef(new AvatarFSM());
-  const phase = useRef({ pulse: 0, breath: 0, step: 0 });
+  const emotion = useRef(defaultEmotion);
+  const phase = useRef({ breath: 0, gait: 0, blinkAt: 1.5, blinkStart: -10 });
   const performance = useRef<number[]>([]);
   const reported = useRef(0);
-  const label = useRef("IDLE");
-  useFrame((_, rawDt) => {
+  const lastMotion = useRef("IDLE");
+  const { camera } = useThree();
+
+  useFrame((three, rawDt) => {
     if (!live.current) return;
-    const dt = Math.min(rawDt, 0.1),
-      state = live.current,
-      simulation = overlay.current;
-    const d = simulation?.drivers ?? state.drivers;
-    const clock = _.clock.elapsedTime;
-    const motion = fsm.current.update(d, clock);
-    if (motion !== label.current) {
-      label.current = motion;
+    const dt = Math.min(rawDt, 0.1);
+    const state = live.current;
+    const d = overlay.current?.drivers ?? state.drivers;
+    const clock = three.clock.elapsedTime;
+    const semanticState = semantic.current;
+    const targetEmotion = {
+      ...readinessEmotion(state),
+      ...semanticState.emotion,
+    };
+    emotion.current = blendEmotion(
+      emotion.current,
+      targetEmotion,
+      1 - Math.exp(-dt * 2.8),
+    );
+    const motion = actionLabel(semanticState, speaking, listening, thinking);
+    if (motion !== lastMotion.current) {
+      lastMotion.current = motion;
       onMotion(motion);
     }
-    const stepActive = [
-      "EXERTION_RISING",
-      "EXERCISING",
-      "EXERTION_FALLING",
-    ].includes(motion);
-    phase.current.step += dt * (2 + d.exertion * 5);
-    phase.current.breath += dt * (d.breath_hz ?? 0) * Math.PI * 2;
-    phase.current.pulse += dt * (d.pulse_hz ?? 0) * Math.PI * 2;
-    const damp = (current: number, target: number) =>
-      THREE.MathUtils.damp(current, target, 4 / fsm.current.crossfade, dt);
-    const gesture = [
-      "very_drained",
-      "drained",
-      "below_average",
-      "balanced",
-      "strong",
-      "peak",
-    ].indexOf(state.readiness.state);
-    const fatigue = d.fatigue;
-    const gait =
-      !reduced && stepActive ? Math.sin(phase.current.step) * d.exertion : 0;
-    const breath =
-      !reduced && d.breath_hz != null
-        ? Math.sin(phase.current.breath) * 0.018
+
+    const action = semanticState.action;
+    const fatigue = clamp01(Math.max(d.fatigue, emotion.current.fatigue));
+    const energy = clamp01(emotion.current.energy);
+    const breathRate = reduced ? 0 : 1.1 + fatigue * 0.35 + energy * 0.25;
+    phase.current.breath += dt * breathRate * Math.PI * 2;
+    phase.current.gait += dt * (action === "run" ? 7 : 3.2 + energy * 2.2);
+    audioEnergy.current *= 0.9;
+
+    const damp = (name: string, x?: number, y?: number, z?: number, k = 7) => {
+      const node = nodes[name];
+      const origin = base[name];
+      if (!node || !origin) return;
+      if (x != null)
+        node.rotation.x = THREE.MathUtils.damp(
+          node.rotation.x,
+          origin.rotation.x + x,
+          k,
+          dt,
+        );
+      if (y != null)
+        node.rotation.y = THREE.MathUtils.damp(
+          node.rotation.y,
+          origin.rotation.y + y,
+          k,
+          dt,
+        );
+      if (z != null)
+        node.rotation.z = THREE.MathUtils.damp(
+          node.rotation.z,
+          origin.rotation.z + z,
+          k,
+          dt,
+        );
+    };
+    const dampPos = (name: string, x = 0, y = 0, z = 0, k = 7) => {
+      const node = nodes[name];
+      const origin = base[name];
+      if (!node || !origin) return;
+      node.position.x = THREE.MathUtils.damp(
+        node.position.x,
+        origin.position.x + x,
+        k,
+        dt,
+      );
+      node.position.y = THREE.MathUtils.damp(
+        node.position.y,
+        origin.position.y + y,
+        k,
+        dt,
+      );
+      node.position.z = THREE.MathUtils.damp(
+        node.position.z,
+        origin.position.z + z,
+        k,
+        dt,
+      );
+    };
+
+    const breath = Math.sin(phase.current.breath);
+    const headNoise = reduced ? 0 : Math.sin(clock * 0.73) * 0.025;
+    const eyeBreak =
+      semanticState.gaze === "away"
+        ? -0.22
+        : semanticState.gaze === "panel"
+          ? 0.28
+          : semanticState.gaze === "workout"
+            ? 0.08
+            : Math.sin(clock * 0.21) * 0.04;
+    const walk =
+      action === "walk" || action === "run" || action === "squat"
+        ? Math.sin(phase.current.gait)
         : 0;
-    nodes.Torso.rotation.x = damp(nodes.Torso.rotation.x, fatigue * 0.18);
-    nodes.Torso.scale.z = damp(nodes.Torso.scale.z, 1 + breath);
-    nodes.Head.rotation.x = damp(
-      nodes.Head.rotation.x,
-      fatigue * 0.35 - (gesture === 5 ? 0.12 : 0),
+    const squat =
+      action === "squat"
+        ? (1 - Math.cos(((clock % 2.7) * Math.PI * 2) / 2.7)) / 2
+        : 0;
+    const point = action === "point";
+    const celebrate = action === "celebrate";
+    const nod = action === "nod";
+
+    dampPos("Hips", 0, -squat * 0.18 + Math.abs(walk) * 0.015, 0);
+    damp("Spine", fatigue * 0.08 - squat * 0.16, 0, breath * 0.015);
+    damp("Spine1", fatigue * 0.1 - squat * 0.2, 0, breath * 0.018);
+    damp("Spine2", fatigue * 0.08 - squat * 0.14, 0, breath * 0.02);
+    damp(
+      "Head",
+      -0.02 + fatigue * 0.1 + (nod ? Math.sin(clock * 9) * 0.14 : 0),
+      eyeBreak * 0.45 + headNoise,
+      emotion.current.concern * 0.08,
     );
-    nodes.Hips.position.y = damp(
-      nodes.Hips.position.y,
-      1.04 -
-        fatigue * 0.055 +
-        (!reduced && stepActive ? Math.abs(gait) * 0.035 : 0),
-    );
-    for (const [side, sign] of [
-      ["Left", 1],
-      ["Right", -1],
-    ] as const) {
-      const arm = nodes[side + "Arm"],
-        forearm = nodes[side + "Forearm"];
-      const peak = gesture === 5 && !stepActive;
-      const openness = [0.01, 0.05, 0.1, 0.16, 0.34, 1.32][
-        Math.max(0, gesture)
-      ];
-      arm.rotation.z = damp(arm.rotation.z, sign * (peak ? 1.32 : openness));
-      arm.rotation.x = damp(
-        arm.rotation.x,
-        -gait * sign * 0.65 +
-          (speaking && !reduced ? Math.sin(clock * 2 + sign) * 0.13 - 0.25 : 0),
+    damp("LeftEye", 0, eyeBreak, 0, 12);
+    damp("RightEye", 0, eyeBreak, 0, 12);
+
+    for (const side of ["Left", "Right"] as const) {
+      const sign = side === "Left" ? 1 : -1;
+      const armSwing = walk * sign * (action === "run" ? 0.92 : 0.55);
+      const isPointing = point && side === "Right";
+      damp(
+        `${side}Arm`,
+        isPointing
+          ? -1.15
+          : celebrate
+            ? -1.55
+            : speaking
+              ? -0.3 + Math.sin(clock * 2 + sign) * 0.16
+              : -0.04 + armSwing,
+        isPointing ? -0.42 : 0,
+        isPointing ? -0.48 : sign * (0.15 + emotion.current.energy * 0.13),
       );
-      forearm.rotation.z = damp(forearm.rotation.z, peak ? sign * 1.9 : 0);
-      forearm.rotation.x = damp(
-        forearm.rotation.x,
-        stepActive ? -0.7 : fatigue * -0.12 + (speaking ? -0.25 : 0),
+      damp(
+        `${side}ForeArm`,
+        isPointing
+          ? -0.24
+          : celebrate
+            ? -1.1
+            : -0.22 - Math.abs(armSwing) * 0.45,
+        0,
+        isPointing ? -0.32 : sign * 0.04,
       );
-      nodes[side + "Hand"].rotation.x = damp(
-        nodes[side + "Hand"].rotation.x,
-        -fatigue * 0.2,
+      damp(`${side}Hand`, isPointing ? -0.28 : -fatigue * 0.12, 0, 0);
+      damp(
+        `${side}UpLeg`,
+        walk * sign * 0.32 - squat * 0.85,
+        sign * squat * 0.08,
+        0,
       );
-      nodes[side + "Thigh"].rotation.x = damp(
-        nodes[side + "Thigh"].rotation.x,
-        gait * sign * 0.5 + fatigue * 0.08,
-      );
-      nodes[side + "Shin"].rotation.x = damp(
-        nodes[side + "Shin"].rotation.x,
-        Math.max(0, -gait * sign) * 0.6 - fatigue * 0.1,
-      );
-      nodes[side + "Foot"].rotation.x = damp(
-        nodes[side + "Foot"].rotation.x,
-        -gait * sign * 0.12,
-      );
-      for (let i = 0; i < 4; i++) {
-        const finger = nodes[`Finger${sign}_${i}`];
-        if (finger)
-          finger.rotation.x = damp(
-            finger.rotation.x,
-            peak ? -1.1 : -0.15 - fatigue * 0.3,
-          );
+      damp(`${side}Leg`, Math.max(0, -walk * sign) * 0.55 + squat * 1.16);
+      damp(`${side}Foot`, -squat * 0.28 - walk * sign * 0.08);
+    }
+
+    const frame = faceFrames.current.at(-1);
+    const speech =
+      frame && window.performance.now() - frame.timestampMs < 220
+        ? frame.weights
+        : mouthFallback(clock, speaking, audioEnergy.current);
+    const final: Record<string, number> = {};
+    for (const [incoming, value] of Object.entries(speech)) {
+      const mapped = audio2FaceMorphMap[incoming] ?? incoming;
+      final[mapped] = clamp01((final[mapped] ?? 0) + value * 0.95);
+    }
+    for (const [name, value] of Object.entries(emotionMorphs(emotion.current)))
+      final[name] = clamp01((final[name] ?? 0) + value * 0.55);
+    if (clock > phase.current.blinkAt) {
+      phase.current.blinkStart = clock;
+      phase.current.blinkAt =
+        clock + 2 + Math.random() * 4 - emotion.current.stress * 0.8;
+    }
+    const blinkAge = clock - phase.current.blinkStart;
+    const blink =
+      blinkAge >= 0 && blinkAge < 0.18
+        ? Math.sin((blinkAge / 0.18) * Math.PI)
+        : 0;
+    final.eyeBlinkLeft = Math.max(final.eyeBlinkLeft ?? 0, blink);
+    final.eyeBlinkRight = Math.max(final.eyeBlinkRight ?? 0, blink);
+
+    for (const mesh of morphMeshes) {
+      const dict = mesh.morphTargetDictionary;
+      const influences = mesh.morphTargetInfluences;
+      if (!dict || !influences) continue;
+      for (const [name, index] of Object.entries(dict)) {
+        influences[index] = THREE.MathUtils.damp(
+          influences[index],
+          final[name] ?? 0,
+          18,
+          dt,
+        );
       }
     }
-    const heart = nodes.Heart as THREE.Mesh;
-    (heart.material as THREE.MeshStandardMaterial).emissiveIntensity =
-      reduced || d.pulse_hz == null
-        ? 0.5
-        : 0.6 + Math.max(0, Math.sin(phase.current.pulse)) ** 8 * 2;
-    nodes.Mouth.scale.y =
-      speaking && !reduced
-        ? 0.004 + Math.abs(Math.sin(clock * 12)) * 0.013
-        : 0.004;
+
+    const targetCamera =
+      semanticState.camera === "exercise"
+        ? new THREE.Vector3(0, 0.6, 5.2)
+        : semanticState.camera === "full_body"
+          ? new THREE.Vector3(0, 0.35, 4.4)
+          : new THREE.Vector3(0, 0.28, 3.7);
+    camera.position.lerp(targetCamera, 1 - Math.exp(-dt * 1.7));
+    camera.lookAt(0, semanticState.camera === "exercise" ? 0.3 : 0.1, 0);
+
     if (clock > 3 && rawDt < 0.5) performance.current.push(rawDt * 1000);
     if (clock - reported.current > 5 && performance.current.length > 60) {
       const values = performance.current.splice(0).sort((a, b) => a - b);
@@ -184,7 +481,26 @@ function Body({
       reported.current = clock;
     }
   });
-  return <primitive object={model} position={[0, -1.0, 0]} />;
+
+  return (
+    <primitive
+      object={model}
+      position={[0, -1.08, 0]}
+      rotation={[0, 0, 0]}
+      scale={0.95}
+    />
+  );
+}
+
+function WorkoutHud({ active, cue }: { active: boolean; cue: string }) {
+  if (!active) return null;
+  return (
+    <div className="avatar-workout-hud">
+      <span>BARBELL SQUAT</span>
+      <b>{cue}</b>
+      <small>QUADS / GLUTES / CORE</small>
+    </div>
+  );
 }
 
 export default function Avatar({
@@ -207,10 +523,21 @@ export default function Avatar({
   compact?: boolean;
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
+  const semantic = useRef<AvatarSemanticState>({
+    ...defaultAvatarState,
+    emotion: readinessEmotion(state),
+  });
+  const socket = useRef<WebSocket | null>(null);
+  const faceFrames = useRef<FaceFrame[]>([]);
+  const audioEnergy = useRef(0);
   const [quality, setQuality] = useState("Auto");
   const [dpr, setDpr] = useState(1.5);
   const [p95, setP95] = useState<number | null>(null);
   const [motion, setMotion] = useState("IDLE");
+  const [faceState, setFaceState] = useState<FaceServiceState>("checking");
+  const [debug, setDebug] = useState(false);
+  const [workoutCue, setWorkoutCue] = useState("BRACE");
+  const [, refresh] = useState(0);
   const phase = speaking
     ? "speaking"
     : listening
@@ -218,13 +545,123 @@ export default function Avatar({
       : thinking
         ? "thinking"
         : "idle";
+
   useEffect(() => {
-    setDpr(quality === "Low" ? 1 : quality === "High" ? 2 : 1.5);
+    // "High" targets the screen's real pixel density instead of a flat 2 --
+    // a flat cap undershoots any display denser than that (common on
+    // phones/newer laptops), which matters most exactly when zoomed in
+    // close, where every screen pixel is showing you more of the texture.
+    // Capped at 3: native retina density with a sane ceiling, not uncapped.
+    const native = Math.min(window.devicePixelRatio || 1, 3);
+    setDpr(quality === "Low" ? 1 : quality === "High" ? native : 1.5);
   }, [quality]);
+  useEffect(() => {
+    semantic.current = mergeSemantic(semantic.current, {
+      emotion: readinessEmotion(state),
+    });
+  }, [state]);
+  useEffect(
+    () =>
+      listenAvatarSemantic((next) => {
+        semantic.current = mergeSemantic(semantic.current, next);
+        refresh((n) => n + 1);
+      }),
+    [],
+  );
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.shiftKey && event.key.toLowerCase() === "d") {
+        setDebug((value) => !value);
+        return;
+      }
+      const next = demoStates[event.key];
+      if (!next) return;
+      emitAvatarSemantic(next);
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
+  useEffect(() => {
+    if (semantic.current.action !== "squat") return;
+    const cues = ["BRACE", "3", "2", "1", "HOLD", "DRIVE", "CHEST UP"];
+    const started = window.performance.now();
+    const id = window.setInterval(() => {
+      const elapsed = (window.performance.now() - started) / 1000;
+      setWorkoutCue(cues[Math.min(cues.length - 1, Math.floor(elapsed))]);
+      if (elapsed > 9) {
+        emitAvatarSemantic({
+          action: "idle",
+          gaze: "user",
+          camera: "conversation",
+        });
+        window.clearInterval(id);
+      }
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [motion]);
+  useEffect(() => {
+    let stopped = false;
+    let retry = 0;
+    let healthTimer: number | undefined;
+    const connect = () => {
+      if (stopped) return;
+      if (socket.current?.readyState === WebSocket.OPEN) return;
+      const ws = new WebSocket(faceWs);
+      ws.binaryType = "arraybuffer";
+      socket.current = ws;
+      ws.onopen = () => {
+        retry = 0;
+        setFaceState("online");
+      };
+      ws.onmessage = (event) => {
+        const raw =
+          typeof event.data === "string" ? JSON.parse(event.data) : null;
+        const frame = parseFaceFrame(raw);
+        if (!frame) return;
+        frame.timestampMs = window.performance.now();
+        faceFrames.current.push(frame);
+        if (faceFrames.current.length > 16) faceFrames.current.shift();
+      };
+      ws.onerror = () => setFaceState("fallback");
+      ws.onclose = () => {
+        if (socket.current === ws) socket.current = null;
+        setFaceState("fallback");
+        if (!stopped)
+          window.setTimeout(connect, Math.min(5000, 1000 + retry++ * 500));
+      };
+    };
+    const checkHealth = () => {
+      fetch(`${faceHttp}/health`, { mode: "cors" })
+        .then((response) => {
+          if (!response.ok) throw new Error("Face service unavailable");
+          setFaceState("online");
+          connect();
+        })
+        .catch(() => {
+          setFaceState("fallback");
+          if (!stopped)
+            healthTimer = window.setTimeout(checkHealth, 5000);
+        });
+    };
+    checkHealth();
+    const stopAudio = listenAvatarAudio(({ bytes }) => {
+      audioEnergy.current = Math.min(0.75, bytes.byteLength / 18000);
+      const ws = socket.current;
+      if (ws?.readyState === WebSocket.OPEN) ws.send(bytes.slice(0));
+    });
+    return () => {
+      stopped = true;
+      stopAudio();
+      if (healthTimer) window.clearTimeout(healthTimer);
+      socket.current?.close();
+    };
+  }, []);
+
   const perf = (n: number) => {
     setP95(n);
     if (quality === "Auto" && n > 25) setDpr(1);
   };
+  const debugEmotion = semantic.current.emotion;
   return (
     <div
       className={`avatar-card${compact ? " compact" : ""} avatar-phase-${phase}`}
@@ -239,56 +676,58 @@ export default function Avatar({
         </span>
       </div>
       <div className="avatar-coordinates">
-        <span>01 / PHYSIOLOGICAL VIEW</span>
+        <span>01 / 3D COACH</span>
         <span>{overlay.current ? "SIMULATION" : humanize(motion)}</span>
       </div>
       <CanvasBoundary>
         <Canvas
           dpr={compact ? 1 : dpr}
-          camera={{ position: [0, 0.28, 3.7], fov: 37 }}
+          camera={{ position: [0, 0.28, 3.7], fov: compact ? 31 : 35 }}
           gl={{
             antialias: true,
             alpha: true,
             powerPreference: "high-performance",
           }}
+          shadows
           style={{ height: compact ? 170 : 390 }}
         >
-          <ambientLight intensity={1.8} />
+          <ambientLight intensity={1.5} />
           <directionalLight
             position={[3, 5, 4]}
-            intensity={3}
+            intensity={3.2}
             color="#edfff4"
+            castShadow
           />
           <directionalLight
             position={[-4, 2, -3]}
-            intensity={4}
-            color="#51bb9d"
+            intensity={2.4}
+            color="#74c7d9"
           />
           <Suspense fallback={null}>
+            {/* Lighting-only (background stays transparent, alpha canvas) --
+                gives the now-glossy corneas and any specular skin/eye highlight
+                something continuous to reflect instead of just two point lights. */}
+            <Environment preset="apartment" environmentIntensity={0.35} />
             <Body
               live={live}
               overlay={overlay}
               reduced={reduced}
               speaking={speaking}
+              listening={listening}
+              thinking={thinking}
+              semantic={semantic}
+              faceFrames={faceFrames}
+              audioEnergy={audioEnergy}
               onPerf={perf}
               onMotion={setMotion}
             />
           </Suspense>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]}>
-            <ringGeometry args={[0.47, 0.48, 72]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.08, 0]}>
+            <ringGeometry args={[0.64, 0.646, 96]} />
             <meshBasicMaterial
               color="#70b59f"
               transparent
-              opacity={0.4}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.01, 0]}>
-            <ringGeometry args={[0.72, 0.724, 72]} />
-            <meshBasicMaterial
-              color="#70b59f"
-              transparent
-              opacity={0.22}
+              opacity={semantic.current.action === "squat" ? 0.55 : 0.28}
               side={THREE.DoubleSide}
             />
           </mesh>
@@ -296,17 +735,19 @@ export default function Avatar({
             ref={controls}
             enablePan={false}
             enableZoom
-            minDistance={2.5}
-            maxDistance={5}
+            zoomSpeed={0.6}
+            minDistance={1.05}
+            maxDistance={6}
             target={[0, 0.1, 0]}
-            minPolarAngle={0.8}
-            maxPolarAngle={1.8}
+            minPolarAngle={0.78}
+            maxPolarAngle={1.85}
           />
         </Canvas>
       </CanvasBoundary>
+      <WorkoutHud active={semantic.current.action === "squat"} cue={workoutCue} />
       <div className="avatar-caption">
         <Move size={13} />
-        <span>Drag to explore your twin</span>
+        <span>Drag to explore your coach</span>
       </div>
       <div className="avatar-bottom">
         <span>
@@ -355,7 +796,54 @@ export default function Avatar({
         )}
         {phase === "idle" && "Idle"}
       </div>
+      <div className={`avatar-face-link ${faceState}`}>
+        GPU FACE SERVICE: {faceState === "online" ? "ONLINE" : "FALLBACK"}
+      </div>
+      {debug && (
+        <div className="avatar-debug">
+          <div>
+            <b>Face</b>
+            <span>{faceState}</span>
+            <span>{faceFrames.current.length} frames</span>
+          </div>
+          <div>
+            <b>Emotion</b>
+            <span>energy {debugEmotion.energy.toFixed(2)}</span>
+            <span>fatigue {debugEmotion.fatigue.toFixed(2)}</span>
+            <span>stress {debugEmotion.stress.toFixed(2)}</span>
+            <span>concern {debugEmotion.concern.toFixed(2)}</span>
+          </div>
+          <div className="avatar-debug-actions">
+            {[
+              ["point", "Point"],
+              ["walk", "Walk"],
+              ["run", "Run"],
+              ["nod", "Nod"],
+              ["squat", "Squat"],
+              ["celebrate", "Celebrate"],
+            ].map(([action, label]) => (
+              <button
+                key={action}
+                onClick={() =>
+                  emitAvatarSemantic({
+                    action: action as AvatarAction,
+                    gaze: action === "point" ? "panel" : "user",
+                    camera: action === "squat" ? "exercise" : "conversation",
+                  })
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {semantic.current.action === "squat" && (
+        <div className="avatar-workout-icon" aria-hidden="true">
+          <Dumbbell size={16} />
+        </div>
+      )}
     </div>
   );
 }
-useGLTF.preload("/assets/twin.glb");
+useGLTF.preload("/assets/model.glb");
