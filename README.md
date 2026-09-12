@@ -50,6 +50,16 @@ Fill in the ignored `.env` file using [the integration guide](docs/INTEGRATIONS.
 
 Gemini and ElevenLabs were exercised together in Chrome using a temporary account with generated test measurements: an answer was saved, spoken, and restored after reload. The current local voice is **George**, selected with user approval after the original library voice required a paid plan. **Live Garmin cloud sync and real Google Calendar consent/writes still require verification.**
 
+## Team accounts
+
+Not everyone on the team has the paired Garmin watch/account, so a new teammate's login starts empty. `scripts/onboard_teammate.py` gives them their own account seeded with a replay copy of the `demo` account's current history (real, live-synced Garmin/InfluxDB data when `DEMO_USES_REAL_DATA=true`) instead of a blank dashboard:
+
+```bash
+PYTHONPATH=. uv run scripts/onboard_teammate.py --email teammate@example.com --name Teammate
+```
+
+Prints the generated password once (pass `--password` to set your own). Safe to re-run for the same email later to refresh their data with the source account's latest history -- it only ever writes to that one teammate's own rows, tagged `provenance: replay`, never touching anyone else's account.
+
 ## Verification
 
 ```sh
