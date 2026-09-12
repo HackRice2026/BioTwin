@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# personal profile data (name, photo, aim, motivation) -- never committed
+/data/profile.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
