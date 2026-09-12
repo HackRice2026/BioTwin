@@ -1,4 +1,8 @@
-%% 01_baselines.m -- lock the bar before training anything
+%% s01_baselines.m -- lock the bar before training anything
+%
+% Named with a leading letter because MATLAB script names must be valid
+% identifiers: a file called 01_baselines.m cannot be run. Later stages follow
+% the same s02_, s03_ pattern.
 %
 % Every later result is measured against these numbers, so they are computed
 % first and not revisited.
@@ -23,10 +27,10 @@
 % error is reported alongside the pooled figure: the spread across days is the
 % honest measure of how much any difference between models can be trusted.
 %
-% Usage:   run('matlab/01_baselines.m')
-% Outputs: matlab/results/01_baselines.csv
-%          matlab/results/01_baselines_per_day.csv
-%          matlab/results/01_baselines.png
+% Usage:   run('matlab/s01_baselines.m')
+% Outputs: matlab/results/s01_baselines.csv
+%          matlab/results/s01_baselines_per_day.csv
+%          matlab/results/s01_baselines.png
 
 clear; clc;
 
@@ -158,9 +162,9 @@ fprintf(['\n  A horizon where extrapolation already has a high R2 leaves little\
          '  where following the current trend fails, and where sleep, accumulated\n' ...
          '  load and time awake should carry the prediction instead.\n']);
 
-writetable(summary, fullfile(OUTDIR, '01_baselines.csv'));
-writetable(perDayAll, fullfile(OUTDIR, '01_baselines_per_day.csv'));
-fprintf('\nwrote %s\n', fullfile(OUTDIR, '01_baselines.csv'));
+writetable(summary, fullfile(OUTDIR, 's01_baselines.csv'));
+writetable(perDayAll, fullfile(OUTDIR, 's01_baselines_per_day.csv'));
+fprintf('\nwrote %s\n', fullfile(OUTDIR, 's01_baselines.csv'));
 
 %% Figure: MAE by horizon, with per-day spread
 figure('Name', 'Baseline error by horizon', 'Color', 'w', 'Position', [100 100 900 380]);
@@ -196,13 +200,13 @@ xticks(1:numel(horizonOrder)); xticklabels(horizonOrder);
 xlabel('forecast horizon'); ylabel('R^2 of trend extrapolation');
 title('Where trend-following stops working');
 
-pngPath = fullfile(OUTDIR, '01_baselines.png');
+pngPath = fullfile(OUTDIR, 's01_baselines.png');
 if exist('exportgraphics', 'file')
     exportgraphics(gcf, pngPath, 'Resolution', 150);
 else
     print(gcf, pngPath, '-dpng', '-r150');   % releases before R2020a
 end
-fprintf('wrote %s\n', fullfile(OUTDIR, '01_baselines.png'));
+fprintf('wrote %s\n', fullfile(OUTDIR, 's01_baselines.png'));
 
 %% ---------- local functions ----------
 

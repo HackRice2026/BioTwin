@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent port of 01_baselines.m, used to check the MATLAB script's logic.
+"""Independent port of s01_baselines.m, used to check the MATLAB script's logic.
 
 MATLAB is not installed in every environment this repository is worked in, and a
 baseline table that every later result is measured against should not rest on a
@@ -112,7 +112,7 @@ def main():
     if failures:
         print("\nMISMATCH:\n  " + "\n  ".join(failures))
         return 1
-    print("\n01_baselines.m logic verified against the data")
+    print("\ns01_baselines.m logic verified against the data")
     return 0
 
 
