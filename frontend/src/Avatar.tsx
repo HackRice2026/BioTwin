@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -235,6 +235,13 @@ function Body({
           ).forEach((tex) => {
             if (tex) tex.anisotropy = maxAnisotropy;
           });
+          // The GLB ships corneas at roughness 1 (fully matte), so eyes carry
+          // no catchlight at any zoom -- the one thing a face-zoom draws the
+          // eye to first. A wet, glossy cornea is standard for believable
+          // eyes; the iris/pupil underneath is untouched.
+          if (next.name.includes("Cornea")) {
+            next.roughness = 0.05;
+          }
           return next;
         });
         mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0];
@@ -697,6 +704,10 @@ export default function Avatar({
             color="#74c7d9"
           />
           <Suspense fallback={null}>
+            {/* Lighting-only (background stays transparent, alpha canvas) --
+                gives the now-glossy corneas and any specular skin/eye highlight
+                something continuous to reflect instead of just two point lights. */}
+            <Environment preset="apartment" environmentIntensity={0.35} />
             <Body
               live={live}
               overlay={overlay}
