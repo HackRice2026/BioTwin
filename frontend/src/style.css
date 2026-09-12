@@ -867,9 +867,14 @@ h1 {
   gap: 11px;
   padding: 15px 20px;
   border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.vitals-strip > div:nth-child(3n) {
+  border-right: 0;
 }
 .vitals-strip > div:last-child {
-  border: 0;
+  border-right: 0;
+  border-bottom: 0;
 }
 .vitals-strip svg {
   color: #99a489;

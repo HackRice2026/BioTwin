@@ -72,6 +72,25 @@ The server supports multiple calendar IDs through profile settings (`calendar_id
 
 References: [Create events](https://developers.google.com/workspace/calendar/api/guides/create-events), [Reminders and notifications](https://developers.google.com/workspace/calendar/api/concepts/reminders), [Incremental synchronization](https://developers.google.com/workspace/calendar/api/guides/sync).
 
+## Outlook Calendar, events and reminders
+
+`TODO(blocked): Azure app registration, enabled Microsoft Graph calendar permissions and user consent -- configure client credentials and redirect URI.`
+
+Register an app in the [Azure Portal App registrations](https://portal.azure.com) blade (any Microsoft account, personal or work/school, can register one), add `${PUBLIC_URL}/auth/microsoft-calendar/callback` as a web redirect URI, and create a client secret under Certificates & secrets. Configure:
+
+```dotenv
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+```
+
+Connect from BioTwin. Scopes are `Calendars.ReadWrite` and `offline_access` (Microsoft's identity platform issues a refresh token because of the scope, not a separate `access_type=offline` parameter the way Google needs). Busy time is read via `/me/calendarView`, filtered to events with `showAs` of `busy` or `oof`; free/tentative/working-elsewhere entries on the calendar do not block a slot. If both Google and Outlook are connected, availability merges busy time from both -- a meeting on either calendar counts. New events are still written to Google when both are connected; Outlook is the target only when Google isn't.
+
+Unlike Google, Graph does not accept a client-chosen event ID for idempotent creation; a local id-to-event mapping (`calendar_event_ref`) plays that role instead so a retried request cannot double-book. Unlike Google, Graph's event `start`/`end` want a local, offset-free clock time paired with an explicit IANA `timeZone` field, not an offset-inclusive timestamp -- the request is built accordingly. The primary calendar's timezone is deliberately not auto-detected after connecting the way it is for Google: Graph's `mailboxSettings.timeZone` comes back as a Windows timezone name ("Pacific Standard Time"), not IANA, and saving that into the profile would break every other `ZoneInfo(...)` call in the app rather than just leaving the existing zone alone. Set the profile timezone directly, or connect Google Calendar too, if that auto-detection matters.
+
+Disconnecting removes the locally stored token only. Microsoft's identity platform has no per-app token-revoke endpoint the way Google's `/revoke` is -- `/me/revokeSignInSessions` revokes every session for every app, the wrong scope for "disconnect this one integration" -- so the token is simply forgotten and left to expire.
+
+References: [Get calendarView](https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview), [Create event](https://learn.microsoft.com/en-us/graph/api/calendar-post-events), [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app).
+
 ## ElevenLabs
 
 `TODO(blocked): ElevenLabs API key with text-to-speech access and available credits — add the key and an accessible voice, then verify speech in the UI.`

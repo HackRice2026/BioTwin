@@ -432,7 +432,7 @@ def create_app(config=None):
     async def sources(request: Request):
         u = user(request)
         result = []
-        for provider in ["garmin", "fitbit", "google-calendar"]:
+        for provider in ["garmin", "fitbit", "google-calendar", "microsoft-calendar"]:
             connection = rt().store.get(u["id"], "connection", provider)
             cid, secret = rt().oauth.credentials(provider)
             history = [f for f in rt().history(u["id"]) if f.provenance.value.startswith(provider)]
@@ -467,8 +467,10 @@ def create_app(config=None):
         if provider in rt().adapters:
             rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
             rt().wakeup.set()
-        else:
-            # Fetch the primary calendar timezone after consent.
+        elif provider == "google-calendar":
+            # Fetch the primary calendar timezone after consent. Google's
+            # calendar timeZone is a real IANA name, the same shape stored
+            # in profile.timezone and fed straight into ZoneInfo() elsewhere.
             r = await rt().http.get(
                 "https://www.googleapis.com/calendar/v3/calendars/primary",
                 headers={"Authorization": f"Bearer {rt().oauth.token(uid, provider)}"},
@@ -477,6 +479,11 @@ def create_app(config=None):
             profile = rt().store.user(uid)["profile"]
             if r.json().get("timeZone"):
                 rt().store.save_profile(uid, {**profile, "timezone": r.json()["timeZone"]})
+        # microsoft-calendar: deliberately not auto-detected. Graph's own
+        # mailboxSettings.timeZone comes back as a Windows timezone name
+        # ("Pacific Standard Time"), not IANA -- saving that into
+        # profile.timezone would break every ZoneInfo(...) call downstream
+        # instead of just leaving the existing/default zone in place.
         return RedirectResponse(config.frontend_origin + "/?connected=" + provider)
 
     @app.delete("/auth/{provider}")
@@ -493,6 +500,50 @@ def create_app(config=None):
         rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
         rt().wakeup.set()
         return {"status": "queued"}
+
+    @app.post("/api/connect/garmin-influx/sync")
+    async def sync_garmin_influx(request: Request):
+        # A local database pull, not an OAuth provider -- runs inline
+        # (like /api/ingest/file) rather than through the OAuth-oriented
+        # outbox queue sync_source() above, which requires a vendor token
+        # this source doesn't have.
+        uid = user(request, True)["id"]
+        await rt().sync(uid, "garmin_influx")
+        return rt().store.get(uid, "sync", "garmin_influx")
+
+    @app.get("/api/connect/garmin-influx/health")
+    async def garmin_influx_health():
+        return await rt().adapters["garmin_influx"].health()
+
+    @app.post("/api/connect/garmin-influx/live/start")
+    async def start_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_influx_live_sync(uid)
+
+    @app.post("/api/connect/garmin-influx/live/stop")
+    async def stop_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_influx_live_sync(uid)
+
+    @app.get("/api/connect/garmin-influx/live/status")
+    async def garmin_influx_live_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().influx_sync_status.get(uid, {"status": "stopped"})
+
+    @app.post("/api/connect/garmin-ble-bridge/start")
+    async def start_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_ble_bridge(uid)
+
+    @app.post("/api/connect/garmin-ble-bridge/stop")
+    async def stop_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_ble_bridge(uid)
+
+    @app.get("/api/connect/garmin-ble-bridge/status")
+    async def garmin_ble_bridge_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().ble_bridge_status.get(uid, {"status": "stopped"})
 
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):
