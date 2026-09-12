@@ -193,12 +193,14 @@ export default function Avatar({
   state,
   reduced,
   speaking = false,
+  compact = false,
 }: {
   live: RefObject<TwinState | null>;
   overlay: RefObject<SimulationOverlay | null>;
   state: TwinState;
   reduced: boolean;
   speaking?: boolean;
+  compact?: boolean;
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const [quality, setQuality] = useState("Auto");
@@ -213,7 +215,7 @@ export default function Avatar({
     if (quality === "Auto" && n > 25) setDpr(1);
   };
   return (
-    <div className="avatar-card">
+    <div className={`avatar-card${compact ? " compact" : ""}`}>
       <div className="avatar-top">
         <span className="eyebrow">YOUR DIGITAL TWIN</span>
         <span className="avatar-state">
@@ -229,14 +231,14 @@ export default function Avatar({
       </div>
       <CanvasBoundary>
         <Canvas
-          dpr={dpr}
+          dpr={compact ? 1 : dpr}
           camera={{ position: [0, 0.28, 3.7], fov: 37 }}
           gl={{
             antialias: true,
             alpha: true,
             powerPreference: "high-performance",
           }}
-          style={{ height: 390 }}
+          style={{ height: compact ? 170 : 390 }}
         >
           <ambientLight intensity={1.8} />
           <directionalLight

@@ -179,6 +179,85 @@
       "title": "BusyInterval",
       "type": "object"
     },
+    "Conversation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "mode": {
+          "title": "Mode",
+          "type": "string"
+        },
+        "notice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notice"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "created_at",
+        "mode"
+      ],
+      "title": "Conversation",
+      "type": "object"
+    },
     "CurvePoint": {
       "additionalProperties": false,
       "properties": {
@@ -411,6 +490,24 @@
           },
           "title": "Facts",
           "type": "array"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quality": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MetricQuality"
+          },
+          "title": "Quality",
+          "type": "object"
         }
       },
       "required": [
@@ -440,6 +537,30 @@
           "default": true,
           "title": "Grounded",
           "type": "boolean"
+        },
+        "notice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notice"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         }
       },
       "required": [
@@ -519,6 +640,8 @@
         "garmin_ble_live",
         "garmin_live",
         "garmin_fit_replay",
+        "garmin_influx_backfill",
+        "garmin_influx_live",
         "replay",
         "synthetic"
       ],
@@ -834,6 +957,20 @@
           ],
           "default": null,
           "title": "Efficiency Pct"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
         }
       },
       "required": [
@@ -995,6 +1132,216 @@
           "default": null,
           "title": "Steps"
         },
+        "max_hr_bpm": {
+          "anyOf": [
+            {
+              "maximum": 250,
+              "minimum": 25,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Hr Bpm"
+        },
+        "min_hr_bpm": {
+          "anyOf": [
+            {
+              "maximum": 250,
+              "minimum": 25,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Hr Bpm"
+        },
+        "distance_meters": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance Meters"
+        },
+        "floors_ascended": {
+          "anyOf": [
+            {
+              "maximum": 2000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Floors Ascended"
+        },
+        "active_kcal": {
+          "anyOf": [
+            {
+              "maximum": 20000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Kcal"
+        },
+        "body_battery_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Pct"
+        },
+        "stress_level": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Level"
+        },
+        "stress_high_min": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress High Min"
+        },
+        "stress_medium_min": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Medium Min"
+        },
+        "stress_low_min": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Low Min"
+        },
+        "body_battery_charged": {
+          "anyOf": [
+            {
+              "maximum": 300,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Charged"
+        },
+        "body_battery_drained": {
+          "anyOf": [
+            {
+              "maximum": 300,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Drained"
+        },
+        "body_battery_at_wake": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery At Wake"
+        },
+        "moderate_intensity_min": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Moderate Intensity Min"
+        },
+        "vigorous_intensity_min": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vigorous Intensity Min"
+        },
         "confidence": {
           "default": 1,
           "maximum": 1,
@@ -1123,6 +1470,9 @@
     "NarrationResponse": {
       "$ref": "#/$defs/NarrationResponse"
     },
+    "Conversation": {
+      "$ref": "#/$defs/Conversation"
+    },
     "SimulationOverlay": {
       "$ref": "#/$defs/SimulationOverlay"
     },
@@ -1139,6 +1489,7 @@
     "DailyPlan",
     "NarrationContext",
     "NarrationResponse",
+    "Conversation",
     "SimulationOverlay",
     "DayOutlook"
   ],

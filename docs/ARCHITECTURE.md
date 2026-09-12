@@ -12,9 +12,11 @@ flowchart LR
     R --> T[3D human and gesture state machine]
     M --> H[REST history, predictions and plans]
     H --> C[Charts and dashboard]
-    M --> F[Closed computed narration facts]
-    F --> G[Deterministic answer or guarded fact selection]
-    G --> E[Optional ElevenLabs streaming speech]
+    M --> F[Computed NarrationContext]
+    F --> G[Gemini answer with evidence validation]
+    G --> X[(Account-scoped conversations)]
+    X --> E[ElevenLabs streaming speech]
+    E --> T
     P[Google Calendar freeBusy] --> M
     M --> Q[User-selected proposal]
     Q --> V[Recheck constraints and availability]
@@ -51,7 +53,7 @@ SQLite is an explicit supported storage mode. A running personal database is **n
 
 Unavailable calendars produce no purportedly conflict-free recommendations. The user changed the initial read-only requirement: selected proposals can now create real Google Calendar events with reminders. Before each insertion, the backend validates the stored proposal against current constraints, checks current availability, and uses an idempotent event ID.
 
-Narration selects only precomputed facts; the optional language service returns fact indexes, not free-form physiological explanations. The default offline-safe template path requires no language key. ElevenLabs reads the resulting answer and cannot access wearable credentials or raw history.
+Gemini receives the current question and the complete computed NarrationContext. Recovery curves and scored observations are hydrated from their stored artifacts rather than recomputed by narration. The model returns plain-language text plus context evidence paths. The server checks paths, quantities, and disallowed claims before releasing an answer; unsupported or failed output uses an explicit deterministic context fallback. These checks constrain outputs but do not constitute clinical or exhaustive semantic validation. Questions, context snapshots, accepted Gemini answers, displayed answers, provider mode, and timestamps are stored in `conversations`. Prior transcripts are displayed as history, not resent as a source of potentially stale measurements. ElevenLabs receives only the validated displayed answer.
 
 ## Security boundaries and deployment limits
 
@@ -61,3 +63,9 @@ Narration selects only precomputed facts; the optional language service returns 
 - TLS is required for public deployment and webhooks. Local HTTP is supported for loopback development only. `COOKIE_SECURE=true` must be set behind public HTTPS.
 - Initial database creation is handled by SQLAlchemy metadata. Future schema changes need a real migration; there is no preexisting database migration to perform in this first release.
 - A configured, credentialed integration is not the same as a verified live integration. See `INTEGRATIONS.md` for the external dependencies still needed.
+
+## Conversation lifecycle
+
+The `conversations` table is created additively by the existing metadata startup on SQLite and PostgreSQL. A client request ID prevents repeated submissions from creating duplicate exchanges or repeated Gemini requests. Questions are persisted before the provider call; interrupted pending exchanges remain visible. Completion cannot recreate a deleted account’s conversation. Transcripts follow the configured retention window and participate in export and account deletion. Demo transcript owners use a separate, opaque HttpOnly cookie; anonymous visitors never share questions through the common synthetic measurement account.
+
+Speech tickets expire after five minutes and are single-use. Authorized transcript replay issues a fresh ticket. The browser streams MP3 through MediaSource when supported, buffers audio otherwise, and keeps completed audio only in memory for replay/autoplay retries. Provider failures preserve text. Playback events drive avatar speech gestures; closing chat, changing accounts, or stopping speech aborts audio. Microphone transcription uses browser speech recognition when available, with a permission-gated MediaRecorder fallback that sends a bounded recording to Gemini’s native audio endpoint. Both submit only the resulting question text through the same ask endpoint; raw microphone audio is not retained.

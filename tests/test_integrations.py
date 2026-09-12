@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import struct
 import time
@@ -100,6 +101,12 @@ async def test_calendar_add_includes_reminder_and_refuses_busy_slot():
             return "test-access"
 
     class Store:
+        def get(self, _uid, kind, key=None):
+            # add() checks connected_providers() (store "connection" docs)
+            # before picking a provider to write to -- simulate Google
+            # already connected, same as this test's OAuth stub assumes.
+            return {"status": "connected"} if kind == "connection" and key == "google-calendar" else None
+
         def remove_doc(self, *args):
             pass
 
@@ -144,3 +151,133 @@ async def test_calendar_add_includes_reminder_and_refuses_busy_slot():
         calendar.availability = occupied
         with pytest.raises(ValueError, match="now busy"):
             await calendar.add(user, p)
+
+
+async def test_calendar_add_falls_back_to_microsoft_when_google_not_connected():
+    class OAuth:
+        def token(self, *args):
+            return "test-access"
+
+    class Store:
+        def __init__(self):
+            self.docs = {}
+
+        def get(self, uid, kind, key=None):
+            if kind == "connection":
+                return {"status": "connected"} if key == "microsoft-calendar" else None
+            return self.docs.get((uid, kind, key))
+
+        def put(self, uid, kind, value, key=None):
+            self.docs[(uid, kind, key)] = value
+
+        def remove_doc(self, *args):
+            pass
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.method == "GET":
+            # The idempotency re-check GET only finds something once an
+            # event has actually been created at that vendor id.
+            if request.url.path.endswith("/graph-event-1"):
+                return httpx.Response(200, json={"id": "graph-event-1"})
+            return httpx.Response(404)
+        return httpx.Response(201, json={"id": "graph-event-1"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        store = Store()
+        calendar = CalendarService(OAuth(), http, store)
+        user = {"id": "u", "profile": {"timezone": "America/New_York"}}
+        start = datetime.now(timezone.utc) + timedelta(hours=3)
+        p = Proposal(
+            id="p",
+            kind="workout",
+            title="Evening workout",
+            start=start,
+            end=start + timedelta(minutes=30),
+            intensity="moderate",
+            reason="Computed reason",
+            score=1,
+            terms={},
+        )
+
+        async def free(*args, **kwargs):
+            return [], "connected"
+
+        calendar.availability = free
+        created = await calendar.add(user, p, 15)
+        assert created["id"] == "graph-event-1"
+        post = next(r for r in requests if r.method == "POST")
+        assert post.url.path == "/v1.0/me/events"
+        body = json.loads(post.content)
+        assert body["subject"] == "BioTwin · Evening workout"
+        assert body["isReminderOn"] is True
+        assert body["reminderMinutesBeforeStart"] == 15
+        assert body["start"]["timeZone"] == "America/New_York"
+        # Local-time, no UTC offset suffix -- Graph's dateTimeTimeZone contract.
+        assert "+" not in body["start"]["dateTime"] and "Z" not in body["start"]["dateTime"]
+        assert store.get("u", "calendar_event_ref", "%s" % hashlib.sha256(b"u:p").hexdigest()[:40]) == {
+            "vendor_id": "graph-event-1"
+        }
+
+        # Retrying the same proposal must not create a second event.
+        requests.clear()
+        again = await calendar.add(user, p, 15)
+        assert again["id"] == "graph-event-1"
+        assert all(r.method == "GET" for r in requests)
+
+
+async def test_calendar_availability_merges_busy_across_connected_providers():
+    class OAuth:
+        def token(self, *args):
+            return "test-access"
+
+    class Store:
+        def get(self, uid, kind, key=None):
+            if kind == "connection":
+                return {"status": "connected"} if key in ("google-calendar", "microsoft-calendar") else None
+            return None
+
+        def put(self, *args):
+            pass
+
+    def handler(request):
+        if "googleapis.com" in str(request.url):
+            return httpx.Response(
+                200,
+                json={
+                    "calendars": {
+                        "primary": {
+                            "busy": [{"start": "2026-09-12T09:00:00Z", "end": "2026-09-12T10:00:00Z"}]
+                        }
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "start": {"dateTime": "2026-09-12T14:00:00.0000000", "timeZone": "UTC"},
+                        "end": {"dateTime": "2026-09-12T15:00:00.0000000", "timeZone": "UTC"},
+                        "showAs": "busy",
+                    },
+                    {
+                        "start": {"dateTime": "2026-09-12T16:00:00.0000000", "timeZone": "UTC"},
+                        "end": {"dateTime": "2026-09-12T17:00:00.0000000", "timeZone": "UTC"},
+                        "showAs": "free",
+                    },
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        calendar = CalendarService(OAuth(), http, Store())
+        user = {"id": "u", "profile": {"timezone": "UTC"}}
+        busy, status = await calendar.availability(user, force=True)
+        assert status == "connected"
+        # One busy block from Google, one from Microsoft -- the "free"
+        # Microsoft entry must be excluded by the showAs filter.
+        assert len(busy) == 2
+        assert {b.start.hour for b in busy} == {9, 14}

@@ -12,6 +12,9 @@ GOOGLE_SCOPES = " ".join(
 CALENDAR_SCOPES = (
     "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events"
 )
+# offline_access is what earns a refresh token from Microsoft's identity
+# platform -- there's no separate access_type=offline param like Google's.
+MICROSOFT_CALENDAR_SCOPES = "https://graph.microsoft.com/Calendars.ReadWrite offline_access"
 
 
 class OAuth:
@@ -20,9 +23,9 @@ class OAuth:
         self.vault = TokenVault(config.token_encryption_key)
 
     def credentials(self, provider):
-        if provider not in ["fitbit", "garmin", "google-calendar"]:
+        if provider not in ["fitbit", "garmin", "google-calendar", "microsoft-calendar"]:
             raise ValueError("Unknown provider")
-        prefix = "garmin" if provider == "garmin" else "google"
+        prefix = "garmin" if provider == "garmin" else "microsoft" if provider == "microsoft-calendar" else "google"
         return getattr(self.config, prefix + "_client_id"), getattr(self.config, prefix + "_client_secret")
 
     def start(self, provider, user_id):
@@ -49,6 +52,9 @@ class OAuth:
         }
         if provider == "garmin":
             url = "https://connect.garmin.com/oauth2Confirm"
+        elif provider == "microsoft-calendar":
+            url = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+            params.update(scope=MICROSOFT_CALENDAR_SCOPES, response_mode="query")
         else:
             url = "https://accounts.google.com/o/oauth2/v2/auth"
             params.update(
@@ -78,7 +84,10 @@ class OAuth:
         token = r.json()
         if "access_token" not in token:
             raise ValueError("Provider did not issue an access token")
-        if provider != "google-calendar":
+        # Calendar-only connections have nothing to reverse-map a vendor
+        # webhook to (no inbound push from either vendor for these) --
+        # unlike garmin/fitbit, which need vendor_id -> user_id for that.
+        if provider not in ("google-calendar", "microsoft-calendar"):
             url = (
                 "https://apis.garmin.com/wellness-api/rest/user/id"
                 if provider == "garmin"
@@ -96,11 +105,11 @@ class OAuth:
         self.save(user_id, provider, token)
 
     def token_url(self, provider):
-        return (
-            "https://connectapi.garmin.com/di-oauth2-service/oauth/token"
-            if provider == "garmin"
-            else "https://oauth2.googleapis.com/token"
-        )
+        if provider == "garmin":
+            return "https://connectapi.garmin.com/di-oauth2-service/oauth/token"
+        if provider == "microsoft-calendar":
+            return "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+        return "https://oauth2.googleapis.com/token"
 
     def save(self, user_id, provider, token):
         token = {
@@ -162,8 +171,16 @@ class OAuth:
                 "https://apis.garmin.com/wellness-api/rest/user/registration",
                 headers={"Authorization": f"Bearer {token}"},
             )
+            r.raise_for_status()
+        elif provider == "microsoft-calendar":
+            # Microsoft's identity platform has no per-app token-revoke
+            # endpoint the way Google does (/me/revokeSignInSessions kills
+            # every session for every app, which is the wrong scope here).
+            # Forgetting the stored token is the standard "disconnect this
+            # app" move: it stops being refreshed and simply expires.
+            pass
         else:
             r = await self.http.post("https://oauth2.googleapis.com/revoke", data={"token": token})
-        r.raise_for_status()
+            r.raise_for_status()
         for kind in ["token", "connection", "identity"]:
             self.store.remove_doc(user_id, kind, provider)

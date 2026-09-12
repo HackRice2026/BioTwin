@@ -8,6 +8,7 @@ import {
   Check,
   ArrowUpRight,
   Bluetooth,
+  Radio,
   RefreshCw,
   LogOut,
   Download,
@@ -165,13 +166,43 @@ export default function Connections({
   const bleDevice = useRef<{ gatt?: { disconnect: () => void } } | null>(null);
   const [broadcasting, setBroadcasting] = useState(false),
     [deleting, setDeleting] = useState(false);
+  const [bleBridgeStatus, setBleBridgeStatus] = useState<{
+    status: string;
+    detail?: string;
+  }>({ status: "stopped" });
+  const [influxSyncStatus, setInfluxSyncStatus] = useState<{
+    status: string;
+    detail?: string;
+    last_frame_at?: string;
+  }>({ status: "stopped" });
   const reload = () =>
     api<Sources>("/sources")
       .then(setSources)
       .catch((e) => notify(e.message));
+  const pollBridge = () =>
+    api<{ status: string; detail?: string }>(
+      "/api/connect/garmin-ble-bridge/status",
+    )
+      .then(setBleBridgeStatus)
+      .catch(() => {});
+  const pollInfluxSync = () =>
+    api<{ status: string; detail?: string; last_frame_at?: string }>(
+      "/api/connect/garmin-influx/live/status",
+    )
+      .then(setInfluxSyncStatus)
+      .catch(() => {});
   useEffect(() => {
     reload();
-    return () => bleDevice.current?.gatt?.disconnect();
+    pollBridge();
+    pollInfluxSync();
+    const interval = setInterval(() => {
+      pollBridge();
+      pollInfluxSync();
+    }, 3000);
+    return () => {
+      bleDevice.current?.gatt?.disconnect();
+      clearInterval(interval);
+    };
   }, []);
   async function connect(provider: string) {
     if (session?.demo) {
@@ -280,6 +311,60 @@ export default function Connections({
       notify((e as Error).message);
     }
   }
+  async function toggleGarminInflux() {
+    if (session?.demo) {
+      onAuth();
+      return;
+    }
+    setBusy("garmin-influx");
+    try {
+      if (
+        influxSyncStatus.status === "live" ||
+        influxSyncStatus.status === "starting"
+      ) {
+        await post("/api/connect/garmin-influx/live/stop");
+        setInfluxSyncStatus({ status: "stopped" });
+      } else {
+        setInfluxSyncStatus({ status: "starting" });
+        await post("/api/connect/garmin-influx/live/start");
+        notify(
+          "Pulling your history from InfluxDB, then staying connected for new data.",
+        );
+      }
+      onChange();
+      reload();
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function toggleBleBridge() {
+    if (session?.demo) {
+      onAuth();
+      return;
+    }
+    setBusy("garmin-ble-bridge");
+    try {
+      if (
+        bleBridgeStatus.status === "connected" ||
+        bleBridgeStatus.status === "connecting"
+      ) {
+        await post("/api/connect/garmin-ble-bridge/stop");
+        setBleBridgeStatus({ status: "stopped" });
+      } else {
+        await post("/api/connect/garmin-ble-bridge/start");
+        setBleBridgeStatus({ status: "connecting" });
+        notify(
+          "Connecting to the local live BLE script (ble_hr_live.py on ws://localhost:8765)…",
+        );
+      }
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
   async function save(e: FormEvent) {
     e.preventDefault();
     if (session?.demo) {
@@ -320,6 +405,12 @@ export default function Connections({
             name: "Google Calendar",
             icon: CalendarDays,
             text: "Find free time and add your chosen recovery or workout session, with a calendar reminder.",
+          },
+          {
+            id: "microsoft-calendar",
+            name: "Outlook Calendar",
+            icon: CalendarDays,
+            text: "The same free-time check and event creation, for Outlook/Microsoft 365 calendars. Connect either this or Google -- both at once works too, and busy time from both is checked.",
           },
           {
             id: "fitbit",
@@ -410,7 +501,7 @@ export default function Connections({
           </p>
           <small className="setup-note">
             {sources?.elevenlabs.configured
-              ? "Use Listen in the twin conversation."
+              ? "Ask your twin a question to hear its answer. Saved conversations can be replayed with Listen."
               : "Add ELEVENLABS_API_KEY to the server .env, then restart."}
           </small>
         </section>
@@ -418,7 +509,7 @@ export default function Connections({
       <div className="two-col">
         <section className="card import-card">
           <span className="eyebrow">START WITH YOUR WATCH</span>
-          <h3>Your Garmin, two more ways.</h3>
+          <h3>Your Garmin, four more ways.</h3>
           <p>
             Import an original Garmin activity FIT file or a supported JSON
             export. Recorded data follows the same model and avatar pipeline.
@@ -456,6 +547,57 @@ export default function Connections({
               ? "Disconnect broadcast"
               : "Connect heart-rate broadcast"}
           </button>
+          <div className="connection-divider" />
+          <h4>Local Garmin dashboard (InfluxDB)</h4>
+          <p>
+            Already running the standalone garmin viz dashboard on this
+            machine? Pull its history, then stay connected -- new points it
+            writes keep flowing into this twin as they land, not just once.
+          </p>
+          <button
+            className="button"
+            onClick={toggleGarminInflux}
+            disabled={busy === "garmin-influx"}
+          >
+            <RefreshCw size={16} />
+            {influxSyncStatus.status === "live"
+              ? "Disconnect (stop live sync)"
+              : influxSyncStatus.status === "starting"
+                ? "Connecting…"
+                : "Connect to Garmin (sync + stay live)"}
+          </button>
+          {influxSyncStatus.status === "live" && (
+            <small className="setup-note">
+              Live · watching for new InfluxDB data
+              {influxSyncStatus.last_frame_at
+                ? ` · last point ${new Date(influxSyncStatus.last_frame_at).toLocaleTimeString()}`
+                : ""}
+            </small>
+          )}
+          {influxSyncStatus.status === "error" && (
+            <p className="error">{influxSyncStatus.detail}</p>
+          )}
+          <h4>Live from the terminal script</h4>
+          <p>
+            Bridges the already-running <code>ble_hr_live.py</code> BLE
+            script (heart-rate broadcast, no browser Bluetooth required)
+            into this twin in real time, heartbeat by heartbeat.
+          </p>
+          <button
+            className="button"
+            onClick={toggleBleBridge}
+            disabled={busy === "garmin-ble-bridge"}
+          >
+            <Radio size={16} />
+            {bleBridgeStatus.status === "connected"
+              ? "Disconnect live bridge"
+              : bleBridgeStatus.status === "connecting"
+                ? "Connecting…"
+                : "Go live"}
+          </button>
+          {bleBridgeStatus.status === "error" && (
+            <p className="error">{bleBridgeStatus.detail}</p>
+          )}
         </section>
         <section className="card">
           <div className="card-heading">

@@ -1,4 +1,5 @@
 from shared.schemas import NarrationContext
+from zoneinfo import ZoneInfo
 
 
 def narration_context(state, plan=None, readiness_history=()):
@@ -33,6 +34,9 @@ def narration_context(state, plan=None, readiness_history=()):
             ("heart_rate_bpm", "heart rate", "beats per minute"),
             ("hrv_rmssd_ms", "HRV RMSSD", "milliseconds"),
             ("resting_hr_bpm", "resting heart rate", "beats per minute"),
+            ("respiration_brpm", "respiration", "breaths per minute"),
+            ("spo2_pct", "oxygen saturation", "percent"),
+            ("steps", "step count", "steps"),
         ]:
             value = getattr(state.latest, field)
             if value is not None:
@@ -42,7 +46,10 @@ def narration_context(state, plan=None, readiness_history=()):
     if plan:
         facts.append(plan.explanation)
         for p in plan.proposals:
-            facts.append(f"Your plan suggests {p.title.lower()} at {p.start.strftime('%H:%M')}. {p.reason}")
+            local_start = p.start.astimezone(ZoneInfo(plan.timezone))
+            facts.append(
+                f"Your plan suggests {p.title.lower()} at {local_start.strftime('%H:%M %Z')}. {p.reason}"
+            )
     trend = []
     scores = [
         x for x in sorted(readiness_history, key=lambda x: x["computed_at"]) if x.get("score") is not None
@@ -60,4 +67,6 @@ def narration_context(state, plan=None, readiness_history=()):
         prediction=state.prediction,
         facts=tuple(facts),
         recent_trend=tuple(trend),
+        provenance=state.provenance_banner,
+        quality=state.quality,
     )

@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     event,
 )
+from sqlalchemy.exc import IntegrityError
 from shared.schemas import TwinFrame, utcnow
 
 metadata = MetaData()
@@ -63,6 +64,21 @@ sessions = Table(
     Column("hash", String, primary_key=True),
     Column("user_id", String),
     Column("expires", Float),
+)
+conversations = Table(
+    "conversations",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("user_id", String, nullable=False, index=True),
+    Column("question", Text, nullable=False),
+    Column("answer", Text),
+    Column("gemini_answer", Text),
+    Column("created_at", Float, nullable=False, index=True),
+    Column("completed_at", Float),
+    Column("mode", String, nullable=False),
+    Column("notice", Text),
+    Column("model", String),
+    Column("context", JSON, nullable=False),
 )
 outbox = Table(
     "outbox",
@@ -244,6 +260,83 @@ class Store:
                 )
             )
 
+    def conversation(self, user_id, conversation_id):
+        with self.engine.connect() as c:
+            row = (
+                c.execute(
+                    select(conversations).where(
+                        conversations.c.user_id == user_id,
+                        conversations.c.id == conversation_id,
+                    )
+                )
+                .mappings()
+                .first()
+            )
+            return dict(row) if row else None
+
+    def begin_conversation(self, user_id, conversation_id, question, context):
+        try:
+            with self.engine.begin() as c:
+                # Serialize with account deletion so a slow answer cannot recreate deleted personal data.
+                if not user_id.startswith("guest:"):
+                    c.execute(select(users.c.id).where(users.c.id == user_id).with_for_update()).scalar_one()
+                c.execute(
+                    insert(conversations).values(
+                        id=conversation_id,
+                        user_id=user_id,
+                        question=question,
+                        created_at=utcnow().timestamp(),
+                        mode="pending",
+                        context=context,
+                    )
+                )
+            return self.conversation(user_id, conversation_id), True
+        except IntegrityError:
+            existing = self.conversation(user_id, conversation_id)
+            if not existing or existing["question"] != question:
+                raise ValueError("This request ID was already used. Send a new question.") from None
+            return existing, False
+
+    def complete_conversation(self, user_id, conversation_id, response):
+        with self.engine.begin() as c:
+            c.execute(
+                update(conversations)
+                .where(
+                    conversations.c.user_id == user_id,
+                    conversations.c.id == conversation_id,
+                    conversations.c.mode == "pending",
+                )
+                .values(
+                    answer=response.answer,
+                    gemini_answer=response.answer if response.mode == "language_service" else None,
+                    completed_at=utcnow().timestamp(),
+                    mode=response.mode,
+                    notice=response.notice,
+                    model=response.model,
+                )
+            )
+        return self.conversation(user_id, conversation_id)
+
+    def conversation_history(self, user_id, limit=None, before=None):
+        query = select(conversations).where(conversations.c.user_id == user_id)
+        if before:
+            anchor = self.conversation(user_id, before)
+            if not anchor:
+                raise ValueError("Conversation history cursor is unavailable")
+            query = query.where(
+                (conversations.c.created_at < anchor["created_at"])
+                | ((conversations.c.created_at == anchor["created_at"]) & (conversations.c.id < before))
+            )
+        with self.engine.connect() as c:
+            rows = (
+                c.execute(
+                    query.order_by(conversations.c.created_at.desc(), conversations.c.id.desc()).limit(limit)
+                )
+                .mappings()
+                .all()
+            )
+            return [dict(row) for row in reversed(rows)]
+
     def claim(self):
         now = utcnow().timestamp()
         with self.lock, self.engine.begin() as c:
@@ -297,6 +390,7 @@ class Store:
         cutoff = (utcnow() - timedelta(days=days)).timestamp()
         with self.engine.begin() as c:
             c.execute(delete(frames).where(frames.c.event_time < cutoff))
+            c.execute(delete(conversations).where(conversations.c.created_at < cutoff))
             c.execute(delete(sessions).where(sessions.c.expires < utcnow().timestamp()))
             # Derived history also contains health data and follows the same retention horizon.
             for row in c.execute(
@@ -325,8 +419,26 @@ class Store:
                         )
                     )
 
+    def purge_provenance(self, user_id, provenance):
+        """Remove every measurement of one provenance for one user, plus the
+        documents derived from history (same reasoning as purge()'s
+        retention sweep: derived data carries the same taint as its source).
+        Used once, to convert the demo account from synthetic to real
+        Garmin data without leaving old synthetic frames mixed into its
+        history or stale baselines computed from them.
+        """
+        with self.engine.begin() as c:
+            c.execute(
+                delete(frames).where(frames.c.user_id == user_id, frames.c.provenance == provenance)
+            )
+            for kind in ["baseline", "readiness", "prediction", "prediction_score", "plan"]:
+                c.execute(
+                    delete(documents).where(documents.c.user_id == user_id, documents.c.kind == kind)
+                )
+
     def delete_user(self, user_id):
         with self.engine.begin() as c:
+            c.execute(select(users.c.id).where(users.c.id == user_id).with_for_update()).first()
             ids = {user_id}
             for identity in c.execute(
                 select(documents.c.payload).where(
@@ -352,6 +464,6 @@ class Store:
                     c.execute(delete(outbox).where(outbox.c.id == row["id"]))
                 elif clean != row["payload"]:
                     c.execute(update(outbox).where(outbox.c.id == row["id"]).values(payload=clean))
-            for table in [frames, documents, sessions]:
+            for table in [frames, documents, sessions, conversations]:
                 c.execute(delete(table).where(table.c.user_id == user_id))
             c.execute(delete(users).where(users.c.id == user_id))
