@@ -198,6 +198,102 @@ class CalendarService:
             return await self._add_microsoft(user, proposal, reminder_minutes)
         raise ValueError("Connect Google Calendar or Outlook Calendar to add real events")
 
+    async def seed_if_empty(self, user, days=7):
+        """User-triggered, never automatic: if a connected calendar has
+        nothing coming up in the next `days`, populate it with the same
+        representative student week the demo account shows (DEMO_WEEKLY_
+        SCHEDULE), so there's something real to navigate around instead of
+        every slot reading as free. Refuses outright the moment anything is
+        already on the calendar -- this only ever writes into empty space,
+        never near existing events.
+        """
+        uid = user["id"]
+        if uid == "demo":
+            raise ValueError("The demo account already has a sample schedule built in")
+        providers = self.connected_providers(uid)
+        if not providers:
+            raise ValueError("Connect Google Calendar or Outlook Calendar first")
+        tz = ZoneInfo(user["profile"].get("timezone", "UTC"))
+        now = utcnow().astimezone(tz)
+        window_start = datetime.combine(now.date(), time.min, tz)
+        window_end = window_start + timedelta(days=days)
+        busy = []
+        for provider in providers:
+            fetch = self._google_busy if provider == "google-calendar" else self._microsoft_busy
+            busy.extend(await fetch(uid, window_start, window_end, tz, user["profile"]))
+        if busy:
+            return {"seeded": False, "created": 0, "reason": "Your calendar already has events in the next week"}
+        provider = "google-calendar" if "google-calendar" in providers else "microsoft-calendar"
+        write = self._write_seed_google if provider == "google-calendar" else self._write_seed_microsoft
+        created = 0
+        for offset in range(days):
+            day = window_start + timedelta(days=offset)
+            for start_off, end_off, title in DEMO_WEEKLY_SCHEDULE[day.weekday()]:
+                start, end = day + start_off, day + end_off
+                if start <= now:
+                    continue
+                event_id = hashlib.sha256(f"{uid}:seed:{start.isoformat()}:{title}".encode()).hexdigest()[:40]
+                await write(uid, event_id, title, start, end, tz)
+                created += 1
+        self.store.remove_doc(uid, "calendar")
+        return {"seeded": True, "created": created}
+
+    async def _write_seed_google(self, uid, event_id, title, start, end, tz):
+        token = self.oauth.token(uid, "google-calendar")
+        headers = {"Authorization": f"Bearer {token}"}
+        url = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+        existing = await self.http.get(f"{url}/{event_id}", headers=headers)
+        if existing.status_code == 200:
+            return existing.json()
+        if existing.status_code != 404:
+            existing.raise_for_status()
+        response = await self.http.post(
+            url,
+            headers=headers,
+            params={"sendUpdates": "none"},
+            json={
+                "id": event_id,
+                "summary": title,
+                "description": "Sample schedule added by BioTwin so there's something real to plan around.",
+                "start": {"dateTime": start.isoformat(), "timeZone": str(tz)},
+                "end": {"dateTime": end.isoformat(), "timeZone": str(tz)},
+            },
+        )
+        if response.status_code == 409:
+            response = await self.http.get(f"{url}/{event_id}", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    async def _write_seed_microsoft(self, uid, event_id, title, start, end, tz):
+        token = self.oauth.token(uid, "microsoft-calendar")
+        headers = {"Authorization": f"Bearer {token}"}
+        ref = self.store.get(uid, "calendar_event_ref", event_id)
+        if ref:
+            existing = await self.http.get(
+                f"https://graph.microsoft.com/v1.0/me/events/{ref['vendor_id']}", headers=headers
+            )
+            if existing.status_code == 200:
+                return existing.json()
+            if existing.status_code != 404:
+                existing.raise_for_status()
+        response = await self.http.post(
+            "https://graph.microsoft.com/v1.0/me/events",
+            headers=headers,
+            json={
+                "subject": title,
+                "body": {
+                    "contentType": "text",
+                    "content": "Sample schedule added by BioTwin so there's something real to plan around.",
+                },
+                "start": {"dateTime": start.astimezone(tz).replace(tzinfo=None).isoformat(), "timeZone": str(tz)},
+                "end": {"dateTime": end.astimezone(tz).replace(tzinfo=None).isoformat(), "timeZone": str(tz)},
+            },
+        )
+        response.raise_for_status()
+        created = response.json()
+        self.store.put(uid, "calendar_event_ref", {"vendor_id": created["id"]}, event_id)
+        return created
+
     async def _add_google(self, user, proposal, reminder_minutes):
         event_id = hashlib.sha256(f"{user['id']}:{proposal.id}".encode()).hexdigest()[:40]
         token = self.oauth.token(user["id"], "google-calendar")

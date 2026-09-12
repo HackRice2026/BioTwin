@@ -281,3 +281,71 @@ async def test_calendar_availability_merges_busy_across_connected_providers():
         # Microsoft entry must be excluded by the showAs filter.
         assert len(busy) == 2
         assert {b.start.hour for b in busy} == {9, 14}
+
+
+async def test_seed_refuses_when_calendar_already_has_events():
+    class OAuth:
+        def token(self, *args):
+            return "test-access"
+
+    class Store:
+        def get(self, uid, kind, key=None):
+            if kind == "connection":
+                return {"status": "connected"} if key == "google-calendar" else None
+            return None
+
+    def handler(request):
+        # Any freeBusy check comes back with one existing event.
+        return httpx.Response(
+            200,
+            json={"calendars": {"primary": {"busy": [{"start": "2026-09-14T09:00:00Z", "end": "2026-09-14T10:00:00Z"}]}}},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        calendar = CalendarService(OAuth(), http, Store())
+        user = {"id": "u", "profile": {"timezone": "UTC"}}
+        result = await calendar.seed_if_empty(user)
+        assert result == {"seeded": False, "created": 0, "reason": "Your calendar already has events in the next week"}
+
+
+async def test_seed_writes_a_full_week_when_calendar_is_empty():
+    from core.calendar import DEMO_WEEKLY_SCHEDULE
+
+    class OAuth:
+        def token(self, *args):
+            return "test-access"
+
+    class Store:
+        def get(self, uid, kind, key=None):
+            if kind == "connection":
+                return {"status": "connected"} if key == "google-calendar" else None
+            return None
+
+        def remove_doc(self, *args):
+            pass
+
+    posts = []
+
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(404)
+        if "freeBusy" in str(request.url):
+            return httpx.Response(200, json={"calendars": {"primary": {"busy": []}}})
+        posts.append(request)
+        return httpx.Response(200, json={"id": f"created-{len(posts)}"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        calendar = CalendarService(OAuth(), http, Store())
+        user = {"id": "u", "profile": {"timezone": "UTC"}}
+        result = await calendar.seed_if_empty(user)
+        assert result["seeded"] is True
+        # Every event has an "id"/"summary"/no fabricated wellness description --
+        # this is a Google Calendar event body, not a wellness-plan one.
+        assert len(posts) == result["created"] > 0
+        bodies = [json.loads(p.content) for p in posts]
+        assert all("summary" in b and b["summary"] for b in bodies)
+        titles = {b["summary"] for b in bodies}
+        # At least one class, one work block, one meeting/club made it through.
+        assert any("Class" in t for t in titles)
+        assert any("Work" in t for t in titles)
+        assert any("Office hours" in t or "Club" in t for t in titles)

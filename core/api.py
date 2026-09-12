@@ -378,6 +378,11 @@ def create_app(config=None):
         rt().store.put(u["id"], "added_event", result, proposal.id)
         return result
 
+    @app.post("/api/calendar/seed")
+    async def calendar_seed(request: Request):
+        u = user(request, True)
+        return await rt().calendar.seed_if_empty(u)
+
     def conversation_owner(request, response=None):
         u = user(request)
         if u["id"] != "demo":

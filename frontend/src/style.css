@@ -357,6 +357,18 @@ p {
 .button.primary:hover {
   background: #38674f;
 }
+.button.secondary {
+  border-style: dashed;
+  border-color: #c3cfba;
+  background: transparent;
+  color: var(--muted);
+  margin-top: 10px;
+}
+.button.secondary:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: #f3f6ef;
+}
 .text-button {
   background: none;
   border: 0;

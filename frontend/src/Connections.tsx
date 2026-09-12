@@ -219,6 +219,24 @@ export default function Connections({
       setBusy("");
     }
   }
+  async function seedCalendar(id: string) {
+    setBusy(`seed:${id}`);
+    try {
+      const result = await post<{ seeded: boolean; created: number; reason?: string }>(
+        "/api/calendar/seed",
+      );
+      notify(
+        result.seeded
+          ? `Added ${result.created} sample events for the coming week.`
+          : (result.reason ?? "Your calendar already has events coming up."),
+      );
+      reload();
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
   async function upload(selected: File) {
     if (session?.demo) {
       onAuth();
@@ -475,6 +493,19 @@ export default function Connections({
                   </button>
                 )}
               </div>
+              {(item.id === "google-calendar" || item.id === "microsoft-calendar") &&
+                source?.status === "connected" && (
+                  <button
+                    className="button secondary"
+                    disabled={busy === `seed:${item.id}`}
+                    onClick={() => seedCalendar(item.id)}
+                    title="Only writes events if the coming week is completely empty."
+                  >
+                    {busy === `seed:${item.id}`
+                      ? "Checking your week…"
+                      : "Seed a sample week (if empty)"}
+                  </button>
+                )}
               {!source?.configured && (
                 <small className="setup-note">
                   Server setup required · see the integration guide
