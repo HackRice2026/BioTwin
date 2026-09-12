@@ -434,11 +434,18 @@ This file is a living document. The agent MUST:
     built the image, brought the full stack up with a real Postgres
     database, and got a real `mode: "language_service"` answer back from
     the containerized app, not just the local dev server.
-  - This machine's own local setup (2026-09-12): logged in as
-    `launchboxed@gmail.com`, project `project-b0574b76-03df-42f0-956`. If
-    that project's Vertex AI access or billing ever changes, re-verify with
-    a direct call before assuming this still works -- don't trust this note
-    past its date.
+  - Per-machine setups verified so far (each is a different teammate's
+    account/project -- this is opt-in and per-person, so don't assume one
+    entry covers another machine):
+    - 2026-09-12: logged in as `launchboxed@gmail.com`, project
+      `project-b0574b76-03df-42f0-956`.
+    - 2026-09-12: logged in as `shivendrabhagat121@gmail.com`, project
+      `project-1d1613d0-157c-4dbc-ad1`. VERIFIED with a real end-to-end
+      `narrate()` call (fixture context, not just config wiring): got
+      `mode: "language_service"`, `model: "vertex:gemini-2.5-flash"`.
+    If either project's Vertex AI access or billing ever changes,
+    re-verify with a direct call before assuming that entry still works --
+    don't trust these notes past their date.
 - **Live HR streaming shortcut (VERIFIED working, Venu 2) — do this, in this
   exact order, every time, no re-deriving it:**
   1. Bluetooth ON on your Mac (menu bar / System Settings). If the script
