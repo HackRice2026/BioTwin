@@ -351,6 +351,33 @@ This file is a living document. The agent MUST:
      `git ls-files` directly) -- a teammate on the same branch seeing a
      different model is a stale checkout or a cached browser response, not
      a repo/gitignore problem. See Remember for the exact check to run.
+- 2026-09-12 — Two more real bugs reported straight from a screenshot, both
+  fixed and verified:
+  1. Idle pose had both arms stuck out near the GLB's T-pose bind rotation
+     ("looks like a scarecrow"). `baseTransforms()` uses each bone's
+     as-loaded rotation as the zero-point for every procedural offset, and
+     idle only ever nudged the arm a few hundredths of a radian off that --
+     fine only if the bind pose is already relaxed, which it is not (a
+     near-horizontal T-pose, confirmed identical between this model and the
+     previous one, so not something the model swap caused). Fixed in
+     `frontend/src/Avatar.tsx` with one named offset constant applied under
+     the same offset system gestures already use.
+  2. Lip sync was "just opening and closing," reported verbatim -- true,
+     because `services/avatar_face_service/app.py`'s `make_frame()` drove
+     jawOpen/mouthFunnel/mouthPucker/mouthStretch all off the same sine
+     wave(s), so every shape scaled together instead of forming distinct
+     mouth shapes. Replaced with a small set of distinct viseme-like target
+     shapes the existing phase counter now cycles and smoothstep-blends
+     between. Still fully procedural (no audio content analyzed, just
+     energy + a cycle timer) -- not a step toward real Audio2Face, just a
+     less-bad placeholder. Deployed straight to the running instance on the
+     SCC box and verified live over the actual WebSocket through the
+     existing tunnel: returned frames now hit qualitatively different
+     shapes in sequence instead of all rising and falling together.
+  3. Deploying #2 taught a real lesson the hard way -- see Remember, tmux
+     `exec` gotcha. Took the whole `avatar-face` tmux session down for
+     about a minute by sending it C-c; recovered by recreating the session
+     and rerunning `start.sh`, no data lost, but worth not repeating.
 
 ---
 
@@ -523,6 +550,32 @@ This file is a living document. The agent MUST:
   machines first (a stale checkout is the most likely cause); if commits
   already match, a hard-refresh or private window rules out a stale
   browser cache at that same unchanging URL.
+- The avatar's procedural pose system (`Avatar.tsx`'s `damp()` calls in the
+  `useFrame` loop) offsets FROM the GLB's own bind-pose rotation, captured
+  once at load as `base[name]` -- it is not an absolute target. If a bone
+  looks wrong in a given state, check whether that state actually offsets
+  the bone far enough from the bind pose, not just whether an offset
+  exists at all. The bind pose itself is a near-horizontal T-pose for
+  every arm bone (verified identical between avatar model exports so far)
+  -- don't assume it's already a relaxed standing pose.
+- The remote face service on the SCC box (`/data/saurav/avatar_face_service`,
+  `start.sh`, tmux session `avatar-face`, port 8765) is started with
+  `exec uvicorn ...` -- `exec` replaces the shell in that tmux pane, so
+  there is no shell left underneath it. Sending `C-c` to stop it kills the
+  *entire pane/window/session*, not just the process -- tmux has nothing
+  left to return a prompt on. To restart it: `tmux new-session -d -s
+  avatar-face` fresh, then `send-keys -t avatar-face "bash
+  /data/saurav/avatar_face_service/start.sh" Enter` -- do not try to reuse
+  the old session after a C-c to this pane, it's already gone.
+- SSH access to `scc` lands as user `nvidia`, not `saurav` (who owns
+  `/data/saurav` and the actual running services) -- but `nvidia` has
+  **passwordless sudo to any user** (`sudo -n -l` shows `(ALL)
+  NOPASSWD: ALL`), confirmed working. `sudo -n -u saurav <cmd>` is the
+  correct way to inspect/edit/restart anything under `/data/saurav`
+  non-interactively; no password prompt, no need for `sudo -iu saurav`
+  with a login shell (that combination is what disconnected an earlier
+  attempt that bundled it with a port-forward command -- plain non-login
+  `sudo -n -u saurav` avoids whatever the bastion didn't like about that).
 
 ---
 
