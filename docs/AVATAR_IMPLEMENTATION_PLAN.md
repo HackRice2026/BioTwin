@@ -211,15 +211,28 @@ on the SCC box, `services/avatar_body_service/start.sh` (uses the
 tunneled locally the same way as 8765
 (`ssh -N -L 8766:localhost:8766 scc`).
 
-### Real NVIDIA Audio2Face-3D: built and verified running, but not integrated -- here's exactly why
+### Real NVIDIA Audio2Face-3D: built, running, and producing real ARKit blendshapes
 
-Added 2026-09-13. Short version: **the actual official SDK genuinely
-builds and runs real inference on this H100** -- verified, not
-assumed. It is **not wired into the app**, and the reason isn't
-another dependency fight: it's a real architectural mismatch between
-what this SDK produces and what our avatar needs, discovered by
-actually inspecting the model's own metadata, not assumed from the
-name.
+Added 2026-09-13, corrected same day. Short version: **the actual
+official SDK genuinely builds and runs real inference on this H100**,
+**and it does produce standard, named ARKit blendshape weights** --
+both verified directly, not assumed. An earlier version of this note
+concluded the SDK's output couldn't drive an ARKit-blendshape avatar
+without a separate mesh-retargeting research project. That was wrong,
+and the record is corrected here rather than left stale: the first
+pass only looked at the raw regression network's output
+(`network_info.json`, 272 unnamed PCA-style shape coefficients over
+NVIDIA's own 61,520-vertex "mark" mesh) and stopped there. The SDK has
+a second, separate component -- a **blendshape solver**
+(`IBlendshapeSolver`, `ReadRegressionBlendshapeSolveExecutorBundle`)
+-- that takes that raw geometry and solves it against a named
+blendshape basis file shipped with every downloaded model
+(`bs_skin.npz`). That basis's names are the standard Apple ARKit set,
+verified directly from the running solver itself (not just the npz
+file): `skinSolver->GetPoseName(i)` for all 52 poses printed
+`eyeBlinkLeft`, `jawOpen`, `mouthFunnel`, `mouthSmileLeft`,
+`browInnerUp`, `cheekPuff`, `tongueOut`, and so on -- the exact same
+names this avatar's GLB morph targets use.
 
 **What was built and run, for real:**
 - Cloned `NVIDIA/Audio2Face-3D-SDK` (MIT) to `/data/saurav/audio2face-sdk`.
@@ -253,37 +266,39 @@ name.
   across multiple simulated tracks, no errors, no fallback, no
   synthetic data.
 
-**Why this isn't wired into the app -- checked, not guessed:**
-inspected the actual model metadata (`network_info.json` for the
-"mark" regression model, and the `v3.0` model's own HuggingFace README)
-before assuming anything about output format. Both are explicit:
-output is **facial motion on skin (272 shape coefficients over a
-61,520-vertex mesh specific to NVIDIA's own "mark"/"claire"/"james"
-reference characters), tongue, jaw, and eyes** -- not ARKit blendshape
-weights. Grepped the entire SDK source and docs for "arkit" and common
-ARKit shape names (`jawOpen`, `mouthFunnel`) -- zero real matches. The
-"Audio2Face-3D converts speech into ARKit Blendshapes" claim from
-NVIDIA's own docs describes the **gated NIM microservice**
-(`NVIDIA/Audio2Face-3D-Samples`, obtained through NGC), which does
-that conversion as part of its own server-side pipeline -- it is not a
-capability of this open SDK on its own.
+**Verified with a real, purpose-built sample, not just reading headers:**
+added a new sample target, `sample-a2f-blendshape-print`
+(`audio2face-sdk/source/samples/sample-a2f-blendshape-print/`, MIT,
+same license as the rest of the SDK), built via
+`ReadRegressionBlendshapeSolveExecutorBundle` + `GetExecutorSkinSolver`
++ the `IBlendshapeExecutor::HostResults` callback. Compiled clean on
+the first try. Run against the SDK's own real 4-second test audio:
+238 frames processed, each with real, content-varying weights on named
+poses -- e.g. frame 140 (`mouthFunnel=0.40, jawLeft=0.24, jawRight=0.35`,
+a rounded-vowel-looking shape) vs. frame 220
+(`mouthShrugLower=0.53` dominant) -- not a fixed cycle, not silence.
 
-**What it would actually take to use this on our avatar:** the SDK's
-raw output would need to be retargeted from NVIDIA's own character
-mesh/shape-basis onto our completely different GLB mesh -- a real
-deformation-transfer / mesh-fitting problem (find the ARKit blendshape
-weights on our mesh that best reproduce NVIDIA's vertex deltas on
-theirs), not a data-format conversion. That's a bounded but genuinely
-separate research-engineering task, not a quick follow-up, and wasn't
-attempted. The alternative -- gated NGC access to the actual NIM
-microservice, which does emit ARKit blendshapes directly -- was
-already checked for and confirmed unavailable earlier in this project
-(see the Log entries around 2026-09-12/13).
+**What this means for integration:** no mesh-retargeting research
+project needed. What's left is ordinary (if nontrivial) systems
+engineering: this SDK is a C++/CUDA library with no Python bindings,
+so it needs a bridge -- most likely a small persistent C++ program
+(built on this same verified sample) that reads streamed audio from
+stdin and writes newline-delimited JSON blendshape frames to stdout,
+run as a subprocess from a new Python service exactly the way
+`avatar_face_service` already shells out to `ffmpeg`. That bridge
+program is not built yet -- this entry covers proving the model
+produces the right kind of output for real, not the streaming service
+around it. Tracked from here on the `mesh` branch (branched from `dev`
+after the EMAGE/ASR work was merged in).
 
-Nothing from this SDK is deployed as a running service; the build
-lives at `/data/saurav/audio2face-sdk` on the SCC box for reference,
-not wired to any port or tmux session. The face service in production
-today is still the ASR-based one described above.
+Still true from the original investigation: the gated NIM microservice
+path (`NVIDIA/Audio2Face-3D-Samples`, via NGC) remains unavailable and
+wasn't revisited -- this open SDK path turned out not to need it.
+
+Nothing from this SDK is deployed as a running service yet; the build
+lives at `/data/saurav/audio2face-sdk` on the SCC box. The face
+service in production today is still the ASR-based one described
+above, until the streaming bridge above is built and swapped in.
 
 ## How to run what exists now
 
