@@ -279,17 +279,39 @@ a rounded-vowel-looking shape) vs. frame 220
 (`mouthShrugLower=0.53` dominant) -- not a fixed cycle, not silence.
 
 **What this means for integration:** no mesh-retargeting research
-project needed. What's left is ordinary (if nontrivial) systems
-engineering: this SDK is a C++/CUDA library with no Python bindings,
-so it needs a bridge -- most likely a small persistent C++ program
-(built on this same verified sample) that reads streamed audio from
-stdin and writes newline-delimited JSON blendshape frames to stdout,
-run as a subprocess from a new Python service exactly the way
-`avatar_face_service` already shells out to `ffmpeg`. That bridge
-program is not built yet -- this entry covers proving the model
-produces the right kind of output for real, not the streaming service
-around it. Tracked from here on the `mesh` branch (branched from `dev`
-after the EMAGE/ASR work was merged in).
+project needed. This SDK is a C++/CUDA library with no Python
+bindings, so it needs a bridge -- built one: the sample above, extended
+to read raw 16kHz mono float32 PCM from stdin (until EOF, one full
+utterance) and write one JSON line per frame to stdout
+(`services/audio2face_sdk_bridge/sample-a2f-blendshape-print/main.cpp`
+in this repo; deploy over the SDK checkout's copy of the same path).
+Meant to run as a subprocess from a Python service exactly the way
+`avatar_face_service` already shells out to `ffmpeg`. Verified
+end-to-end with real audio, not just the SDK's own test clip: piped a
+real ElevenLabs-generated 4-second speech clip (ffmpeg-decoded to raw
+PCM first) through it -- 233 frames of real, well-formed JSON, exit
+code 0.
+
+Getting a clean exit took a real, two-step debugging pass, not a
+one-shot success: the first version segfaulted on exit (all real
+output already correct and flushed) because the bundle holds internal
+references into the optional model-info objects, and plain
+reverse-declaration-order destruction tore those down first. The
+"obvious" fix -- destroy the bundle explicitly before those went out of
+scope -- reproducibly hung instead (confirmed via `ps` on the remote
+box, twice, that the process was genuinely stuck, not a slow SSH
+pipe). The actual fix, appropriate for a short-lived one-shot CLI
+process: don't wrap any of these SDK objects in RAII, don't call
+`Destroy()` on anything, flush stdout and `_exit(0)` directly. Verified
+clean afterward with `nvidia-smi`: no leaked GPU memory, no lingering
+process.
+
+**Still not done:** this is a batch bridge (whole utterance in, all
+frames out), not a low-latency incremental stream -- fine for
+individual TTS turns, not what you'd want for finer-grained real-time
+control. No Python service wraps it yet. Both are the natural next
+steps, tracked on the `mesh` branch (branched from `dev` after the
+EMAGE/ASR work was merged in).
 
 Still true from the original investigation: the gated NIM microservice
 path (`NVIDIA/Audio2Face-3D-Samples`, via NGC) remains unavailable and
