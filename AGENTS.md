@@ -439,14 +439,25 @@ This file is a living document. The agent MUST:
   NVIDIA's normal apt repo (no NGC/gated access needed for the SDK or
   its non-emotion models), full CMake build, real ONNX-to-TensorRT
   engine conversion, real inference on real audio, both the regression
-  and diffusion model variants. This is NOT wired into the app: checked
-  the model's own metadata before assuming anything, and its output is
-  NVIDIA's own proprietary per-character shape/vertex basis (their
-  "mark"/"claire"/"james" meshes), not ARKit blendshapes -- the "outputs
-  ARKit Blendshapes" claim describes the separate, still-gated NIM
-  microservice, not this open SDK. Using this on our avatar would need
-  a real mesh-retargeting project, not a quick follow-up. Full detail
-  in docs/AVATAR_IMPLEMENTATION_PLAN.md's new Audio2Face-3D section.
+  and diffusion model variants.
+- 2026-09-13 — Correction to the entry above, same day: it first
+  concluded the SDK's output was unusable on our avatar without a
+  mesh-retargeting project. Wrong -- that only checked the raw
+  regression network's output. The SDK's separate blendshape-solver
+  component (`ReadRegressionBlendshapeSolveExecutorBundle`,
+  `IBlendshapeSolver`) DOES produce the standard, named ARKit blendshape
+  set -- verified by printing `GetPoseName()` for all 52 poses from a
+  real running solver (`eyeBlinkLeft`, `jawOpen`, `mouthFunnel`, ... the
+  same names this avatar's morph targets use) and real per-frame
+  weights that vary with audio content, via a new sample built for
+  this, `sample-a2f-blendshape-print`. No mesh-retargeting research
+  needed after all -- what's left is building a C++ subprocess bridge
+  (stdin audio -> stdout JSON blendshape frames) so a Python service can
+  use it, same shape as how the ASR lip-sync service already shells out
+  to ffmpeg. Not built yet. Tracked on the `mesh` branch. Full detail,
+  including exactly what was wrong in the first pass, in
+  docs/AVATAR_IMPLEMENTATION_PLAN.md's Audio2Face-3D section -- that
+  entry was corrected in place rather than left stale.
 
 ---
 
@@ -735,17 +746,24 @@ This file is a living document. The agent MUST:
   incompatibility, confirmed by the subsequent build succeeding cleanly.
 - The real, open (non-gated) `NVIDIA/Audio2Face-3D-SDK` builds and runs
   on the SCC H100 (verified: 147/147 CMake targets, real TensorRT engine
-  conversion, real sample inference on real audio) but its output is
-  NVIDIA's own proprietary per-character shape/vertex basis (their
-  "mark"/"claire"/"james" reference meshes), confirmed by reading
-  `network_info.json` and the model's HuggingFace README directly --
-  NOT ARKit blendshape weights, despite that being how NVIDIA's own
-  docs describe the separate, still-gated NIM microservice. There is
-  no quick path from this SDK's output to our avatar's ARKit blendshapes
-  without a real mesh-retargeting effort. Don't restart this build
-  expecting a different answer; the blocker is the output format, not
-  the environment setup (that part now works fine and is documented
-  in docs/AVATAR_IMPLEMENTATION_PLAN.md).
+  conversion, real sample inference on real audio) AND produces the
+  standard, named ARKit blendshape set (`jawOpen`, `mouthFunnel`,
+  `eyeBlinkLeft`, ... all 52, verified via `GetPoseName()` on a real
+  running solver) -- but only through its **blendshape-solve** bundle
+  (`ReadRegressionBlendshapeSolveExecutorBundle` +
+  `GetExecutorSkinSolver`), not the plain geometry bundle
+  (`ReadRegressionGeometryExecutorBundle`) the first two samples use,
+  which only outputs raw vertex positions for NVIDIA's own
+  "mark"/"claire"/"james" meshes. An earlier version of this note said
+  ARKit output wasn't achievable without a mesh-retargeting project --
+  that was wrong, from only having checked the geometry path; corrected
+  here rather than left stale. See
+  `audio2face-sdk/source/samples/sample-a2f-blendshape-print/` (new,
+  built for this) for a working, verified example of the right bundle
+  call. What's left is a C++-to-Python bridge (subprocess, JSON over
+  stdin/stdout, same shape as how the ASR lip-sync service shells out
+  to ffmpeg) -- not built yet, tracked on the `mesh` branch. Full detail
+  in docs/AVATAR_IMPLEMENTATION_PLAN.md's Audio2Face-3D section.
 - The two avatar GPU services (`avatar-face`, `avatar-body`) now have a
   watchdog on the SCC box, per explicit "keep it running always"
   request: `services/ensure_avatar_services.sh` (checks each service's
