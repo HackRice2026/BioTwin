@@ -31,7 +31,7 @@ hostname -I
 ipconfig
 ```
 
-Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — voice, live updates and API calls all work the same as on `localhost`. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
+Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — voice, live updates and API calls all work the same as on `localhost`. They need no Google or ElevenLabs setup of their own: narration and speech are server-side, so your host machine's credentials cover every LAN visitor (see docs/INTEGRATIONS.md for the per-machine setup, which is only needed for a separate copy of the app). Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
 
 Create an adult account from “Connect your own story.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
 
