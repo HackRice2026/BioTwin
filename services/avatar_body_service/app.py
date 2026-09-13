@@ -28,10 +28,18 @@ app.add_middleware(
 SAMPLE_RATE = 16000
 MODEL_SOURCE = "H-Liu1997/emage_audio"
 
-# SMPL-X joint (axis-angle, radians) -> this rig's bone name. Only the joints
-# that matter for a visible upper-body/legs gesture -- fingers and the jaw/
-# eye joints (also present in EMAGE's 55-joint output) are skipped for now,
-# not because they can't be mapped, just not done yet.
+# SMPL-X joint (axis-angle, radians) -> this rig's bone name. Covers
+# spine/neck/head/arms/legs plus fingers. Not mapped: EMAGE's jaw and
+# left/right_eye_smplhf joints -- the jaw would fight the ASR lip-sync
+# service's own jawOpen morph target, and eyes would fight the existing
+# gaze system, so both are deliberately left alone here rather than
+# having two systems drive the same feature.
+#
+# SMPL-X gives 3 joints per finger (e.g. left_index1/2/3); this rig has 4
+# segments per finger (LeftHandIndex1-4). Mapped 1:1 through segment 3;
+# segment 4 (a short distal/tip bone) is left at rest -- there's no 4th
+# SMPL-X joint to drive it from, and leaving it untouched is a safe
+# default rather than guessing.
 SMPLX_TO_BONE: dict[str, str] = {
     "spine1": "Spine",
     "spine2": "Spine1",
@@ -52,6 +60,18 @@ SMPLX_TO_BONE: dict[str, str] = {
     "right_knee": "RightLeg",
     "left_ankle": "LeftFoot",
     "right_ankle": "RightFoot",
+    **{
+        f"{side}_{finger}{n}": f"{Side}Hand{Finger}{n}"
+        for side, Side in (("left", "Left"), ("right", "Right"))
+        for finger, Finger in (
+            ("thumb", "Thumb"),
+            ("index", "Index"),
+            ("middle", "Middle"),
+            ("ring", "Ring"),
+            ("pinky", "Pinky"),
+        )
+        for n in (1, 2, 3)
+    },
 }
 
 _model = None
