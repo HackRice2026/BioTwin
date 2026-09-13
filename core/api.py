@@ -137,7 +137,7 @@ async def approve_pending_calendar_event(runtime, owner, u):
     )
 
 
-async def propose_coach_calendar_draft(runtime, owner, u, question, plan):
+async def propose_coach_calendar_draft(runtime, owner, u, question, plan, ctx=None, config=None, http=None, recent_turns=()):
     if not plan or not plan.proposals:
         return None
     q = question.lower()
@@ -157,15 +157,23 @@ async def propose_coach_calendar_draft(runtime, owner, u, question, plan):
     runtime.store.put(owner, "pending_calendar_draft", draft, require_user=True)
     local_start = proposal.start.astimezone(ZoneInfo(plan.timezone))
     local_end = proposal.end.astimezone(ZoneInfo(plan.timezone))
+    # The deterministic line is the safety net, not the first choice: it's what
+    # ships if the model's own phrasing can't be verified against ctx (guard()
+    # rejects it) or narration isn't configured. Whenever it can be verified,
+    # let the model actually reason over the full context -- other facts, the
+    # coach_brief, recent_conversation -- instead of only ever reciting this
+    # one proposal's fields back verbatim.
+    deterministic = (
+        f"I'd recommend {proposal.title.lower()} from {local_start.strftime('%I:%M %p').lstrip('0')} "
+        f"to {local_end.strftime('%I:%M %p').lstrip('0')}. {proposal.reason}"
+    )
+    answer, mode, model = deterministic, "template", None
+    if ctx is not None:
+        narration = await narrate(question, ctx, config, http, recent_turns)
+        if narration.mode == "language_service":
+            answer, mode, model = narration.answer, narration.mode, narration.model
     return (
-        NarrationResponse(
-            answer=(
-                f"I'd recommend {proposal.title.lower()} from {local_start.strftime('%I:%M %p').lstrip('0')} "
-                f"to {local_end.strftime('%I:%M %p').lstrip('0')}. {proposal.reason} "
-                "Want me to add it to your Google Calendar?"
-            ),
-            mode="template",
-        ),
+        NarrationResponse(answer=f"{answer} Want me to add it to your Google Calendar?", mode=mode, model=model),
         draft,
     )
 
@@ -692,7 +700,9 @@ def create_app(config=None):
                 recommended = None
                 if not prepared and u["id"] != "demo" and wants_coach_calendar_draft(question):
                     try:
-                        recommended = await propose_coach_calendar_draft(rt(), owner, u, question, turn["plan"])
+                        recommended = await propose_coach_calendar_draft(
+                            rt(), owner, u, question, turn["plan"], ctx, config, rt().http, recent_turns
+                        )
                     except (ValueError, httpx.HTTPError):
                         recommended = None
                 if recommended:

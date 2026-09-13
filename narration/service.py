@@ -4,6 +4,7 @@ import re
 import httpx
 from urllib.parse import urlparse
 from narration.vertex_auth import vertex_token
+from narration.briefing import CAPABILITIES
 from shared.schemas import NarrationResponse
 
 FORBIDDEN = re.compile(
@@ -28,6 +29,18 @@ NUMBER_WORDS = re.compile(
 )
 DRIVER_DAY_LABELS = re.compile(
     r"\b(?:sleep|hrv|resting heart rate|heart rate|stress|steps|calorie|respiration) day\b",
+    re.I,
+)
+CAPABILITY_NUMBERS = set(NUMBERS.findall(CAPABILITIES))
+# A number attributed to "your" own readiness/Body Battery/HRV/etc is a personal-data
+# claim no matter what evidence list the model chose to send -- general fitness
+# coaching numbers (a rep count, grams of protein, minutes per week) don't take this
+# shape, so this is what actually gets to skip the source check on empty evidence,
+# not empty evidence by itself.
+PERSONAL_METRIC_CLAIM = re.compile(
+    r"\byour\b[^.?!]{0,40}\b(readiness|score|body battery|hrv|resting heart rate|heart rate|"
+    r"sleep debt|recovery|energy reserve|baseline|calibration|respiration|oxygen saturation|"
+    r"spo2|steps|calories|sleep)\b",
     re.I,
 )
 
@@ -66,8 +79,18 @@ def guard(text, context, evidence=None):
         )
     except (KeyError, ValueError, IndexError, TypeError):
         return False
-    allowed = {n for source in sources for n in NUMBERS.findall(source)}
-    if not all(n in allowed for n in NUMBERS.findall(text)):
+    allowed = {n for source in sources for n in NUMBERS.findall(source)} | CAPABILITY_NUMBERS
+    if evidence == []:
+        # An explicit empty evidence list means "not a claim about this person's data" --
+        # general fitness/exercise/nutrition coaching, or a how-it-works explanation.
+        # Those legitimately need numbers (a rep count, "0-100") that were never going to
+        # be in this person's facts. But that declaration can't be a loophole for a
+        # personal-metric claim smuggled in without evidence, so one is still held to
+        # CAPABILITY_NUMBERS only (i.e. still rejected, same as if it just made the
+        # number up) rather than being trusted like real general knowledge.
+        if PERSONAL_METRIC_CLAIM.search(text) and not all(n in CAPABILITY_NUMBERS for n in NUMBERS.findall(text)):
+            return False
+    elif not all(n in allowed for n in NUMBERS.findall(text)):
         return False
     if evidence and any(path.startswith(("plan.", "coach_brief.")) for path in evidence):
         def time_keys(value):
@@ -100,20 +123,50 @@ Suggest and reassure; don't recite. Lead with what it means for them, in one or 
 voice-conversation length, not a report. Give a number only when it actually helps or when they asked for it
 directly; otherwise describe the shape of things ("recovering well", "a much cleaner window later") instead of
 listing values. It can be lightly warm and encouraging, but never cheesy, flippant, or falsely certain.
-Use ONLY the supplied NarrationContext, including calendar and recent_conversation when present. No web, general
-medical knowledge, assumptions, or data from the question. context.facts already carries the current best training
-window, forecast, calendar and workout duration combined when relevant -- that's your main source for "when should
-I train", "should I still do X", "why did you move it", and "what if" questions.
+Use ONLY the supplied NarrationContext -- readiness, baseline, facts, coach_brief, plan, calendar, and
+recent_conversation together, not any one of them in isolation -- but form your OWN read of what it adds up to.
+No web, general medical knowledge, assumptions, or data from the question.
+context.calendar, when present, is today's real connected-calendar agenda -- not just something to recite when
+asked "what's on my calendar", but part of the day you already know about. Weigh it naturally alongside readiness
+and the plan on any open question like "what should I do today": a light, open afternoon changes the answer from a
+packed one, even if the question never mentions the calendar. You don't need a scheduling gap to exist before you
+can suggest something -- reason about the whole day the way a person who already saw the calendar would.
+context.facts carries the current best training window, forecast, calendar and workout duration combined when
+relevant, and context.coach_brief is one pre-computed take on it (its own recommendation, headline, and reasons)
+-- both are raw signal for you to draw on, not a script. Don't just lead with coach_brief.recommendation or the
+plan's first proposal by default; actually weigh what's in front of you (today's readiness, what the calendar
+looks like, whether there's already a plan, what they specifically asked) and say what YOU think, in your own
+words. Two people asking "what should I do today" with different calendars should not get the same answer just
+because the underlying plan proposal happened to be the same. If you do use a coach_brief or plan value, cite its
+path, but never feel bound to its exact wording or its ordering of reasons.
 context.briefing, when present, is a short orientation someone else already wrote by reading these same facts --
 read it first so you already know the shape of the day (state, forecast, best window, any what-if, anything to
 flag) instead of scanning raw facts cold. It is reading material only, never itself an answer or a citable source:
 every number you actually say still has to come from facts/coach_brief/plan, exactly as if briefing didn't exist.
-It also carries a short description of how BioTwin's own features work (Best Training Window, Simulate My Day,
-the forecast); use that freely to explain "how" or "why" the app does something, since that's how the feature
-behaves in general, not a claim about this person's specific numbers.
-Use context.coach_brief as the preferred conversational plan when there's no more specific fact: lead with
-its recommendation or headline, then at most 1-2 of the strongest reasons, only if asked why or if they add real
-value -- do not always enumerate every reason. Cite coach_brief paths when you use it.
+It also carries a short description of how BioTwin's own features work and what its terms mean (Body Battery,
+Readiness, Best Training Window, Simulate My Day, the forecast); use that freely to explain "what is X" or "how/why
+does the app do Y", since that's a general product explanation, not a claim about this person's specific numbers.
+Answer these with an empty evidence list -- never cite a "briefing" path as evidence, it is always rejected, even
+for a plain definitional answer like "what is Body Battery". An empty evidence list is for exactly this case too,
+not only missing-data, scope, or small talk: a correct, general explanation is not a personal-data claim and needs
+no evidence pointer.
+You are also a genuinely knowledgeable fitness, exercise, and nutrition coach, not only a reader of this person's
+own numbers. For a general question that is not a claim about this person's own data -- "what is progressive
+overload", "how much protein should I eat to build muscle", "how should I structure a leg day", "is it fine to run
+on sore legs" -- answer it yourself, as a real coach would, drawing on your own fitness expertise rather than only
+the supplied context; you are not limited to NarrationContext for these. Use an empty evidence list for the general
+part of the answer. You can and should still personalize it with this person's own readiness, plan, or calendar
+when relevant ("since you're drained today, keep it lighter") -- when you do bring in one of their specific
+numbers, cite it as evidence and hold that part to it exactly as usual; the general coaching part around it does
+not need a source. This is real coaching latitude, not a loophole: you still never diagnose a condition, assess
+symptoms, claim to treat or cure a disease, recommend medication, or make a clinical claim -- general fitness,
+training, and nutrition guidance is squarely in scope; medical practice is not.
+The evidence list applies to your whole answer, not sentence by sentence -- so if you cite one of this person's
+own numbers as evidence anywhere in the answer, every OTHER number in that same answer also has to trace to your
+evidence (or to a feature spec like Body Battery's 0-100 scale). Don't sink a good personalized answer by also
+stating an unrelated general numeric guideline (an exact rep count, a gram figure) in the same response -- describe
+that part qualitatively instead ("moderate protein with each meal", "keep the volume light today") when you're
+also citing a specific personal number elsewhere in the same answer.
 recent_conversation is prior turns in THIS conversation, oldest first, for resolving references like "earlier",
 "that time", or "instead" -- never a source of facts. If it conflicts with the current context in any way (a time,
 a number, a recommendation), the current context is what actually happened since; say what changed rather than
@@ -152,7 +205,10 @@ For timing, plan, forecast, or workout recommendations, cite coach_brief or plan
 duration, forecast value, or action that is not present in that evidence.
 When facts include a best training window, train-now/rest comparisons, or high-load windows, that decision is final:
 explain it with its exact times and numbers, never propose a different window or recompute a comparison.
-Every factual assertion needs evidence. Use an empty evidence list only for a missing-data, scope, or small-talk response.
+Every assertion ABOUT THIS PERSON'S data needs evidence. Use an empty evidence list for a missing-data, scope, or
+small-talk response, for a general definitional/how-it-works explanation drawn from context.briefing's feature
+descriptions (never a "briefing" path), and for general fitness/exercise/nutrition coaching that isn't a claim
+about this person's own data.
 Do not include IDs, version numbers, or metadata in your answer. Keep internal field names out of the prose.
 """
 RESPONSE_FORMAT = {
@@ -179,11 +235,28 @@ def _brief_reply(brief):
     return " ".join(part for part in pieces if part).strip()
 
 
+CALENDAR_QUESTION = re.compile(
+    r"\b(calendar|agenda|meetings?|appointments?|events?|tasks?|schedule|book|add|create|remind)\b",
+    re.I,
+)
+
+
 def template(question, ctx):
     q = question.lower()
     if re.fullmatch(r"\s*(hi|hey|hello|yo|thanks|thank you|sup)[!. ]*", q):
         return "Hey, I'm here. Ask me what to do today, where your energy is headed, or when to fit the next session."
-    if ctx.calendar is not None:
+    # A definitional/how-it-works question ("what is Body Battery", "how does Best
+    # Training Window work") isn't a personal-data claim -- it's answered straight from
+    # the hand-maintained feature descriptions, the same ones narrate() reads via
+    # context.briefing, so the fallback doesn't have to say "not in my context" for it.
+    if re.search(r"\b(what(?:'s| is)|how does|explain|define)\b", q) and re.search(
+        r"body battery|readiness|best training window|simulate my day|forecast", q
+    ):
+        return CAPABILITIES.split("\n", 1)[1].replace("\n", " ")
+    # ctx.calendar is now populated by default (today's agenda), not only for
+    # calendar-flavored questions, so this branch must still gate on intent --
+    # otherwise every fallback answer became a calendar recitation.
+    if ctx.calendar is not None and CALENDAR_QUESTION.search(q):
         calendar = ctx.calendar
         if calendar["status"] == "disconnected":
             return "Connect your calendar to see and ask about your events and tasks."
@@ -199,6 +272,9 @@ def template(question, ctx):
     if re.search(r"train now|what if|instead|\brest\b|skip", q):
         selected = [f for f in ctx.facts if f.startswith(("If you", "Your best training window"))]
         return " ".join(selected[:4]) or "That comparison is not in my current context yet."
+    if re.search(r"yesterday|past (?:week|7 ?days)|last (?:week|7 ?days)|last night", q):
+        selected = [f for f in ctx.facts if f.startswith(("Yesterday", "Over the past 7 days"))]
+        return " ".join(selected) or "I don't have enough recorded days yet to summarize that range."
     if ctx.coach_brief and re.search(
         r"why|tired|readiness|feel|energy|today|plan|nap|work ?out|schedule|train|exercise|best time|window",
         q,
@@ -266,7 +342,18 @@ async def _vertex_narrate(question, ctx, config, http, fallback, recent_turns=()
                 ],
                 "generationConfig": {
                     "temperature": 0,
-                    "maxOutputTokens": 1000,
+                    # Calendar is now attached by default and vitals recaps add several
+                    # more facts, so the payload the model reasons over got noticeably
+                    # bigger -- 1000 was cutting real answers off mid-JSON (finishReason
+                    # MAX_TOKENS), which guard() then correctly rejected as invalid,
+                    # silently falling back to the canned template every time.
+                    # A small thinking budget (flash tiers allow 0, unlike the pro model
+                    # used for briefing curation, but 0 measurably produced flatter answers
+                    # that just restated the top decision fact) -- this is enough room to
+                    # actually weigh calendar/plan/readiness together instead of reciting
+                    # the first one, without meaningfully hurting voice-turn latency.
+                    "maxOutputTokens": 2000,
+                    "thinkingConfig": {"thinkingBudget": 256},
                     "responseMimeType": "application/json",
                     "responseSchema": {
                         "type": "OBJECT",
@@ -341,7 +428,10 @@ async def narrate(question, ctx, config=None, http=None, recent_turns=()):
                 "response_format": RESPONSE_FORMAT,
                 "reasoning_effort": "low",
                 "temperature": 0,
-                "max_tokens": 1000,
+                # See _vertex_narrate's comment: calendar is now attached by default and
+                # vitals recaps add more facts, so the reasoning + answer no longer
+                # reliably fit in 1000 tokens.
+                "max_tokens": 2000,
             },
         )
         response.raise_for_status()

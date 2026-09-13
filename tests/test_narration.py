@@ -220,3 +220,23 @@ async def test_narration_key_never_sent_to_configured_foreign_host(context):
         result = await narrate("How am I doing?", context, settings, client)
     assert result.mode == "guard_fallback"
     assert "configuration" in result.notice
+
+
+def test_guard_allows_a_capabilities_number_with_empty_evidence(context):
+    """A plain 'what is Body Battery' answer cites no personal data (empty evidence is
+    correct for it), but still needs to state a number straight out of the hand-written
+    CAPABILITIES text (its 0-100 scale), or general fitness-coaching numbers ("3 sets of
+    10 reps"). Neither is an invented personal-data number just because there's no
+    personal-data source behind it -- guard() trusts general/non-personal numbers on an
+    explicit empty evidence list, same as the general fitness-coaching answers this
+    account can now give."""
+    assert guard("Body Battery is Garmin's own proprietary 0-100 energy-level estimate.", context, evidence=[])
+    assert guard("Aim for 3 sets of 10 reps, resting about 90 seconds between sets.", context, evidence=[])
+
+
+def test_guard_still_rejects_an_unevidenced_personal_metric_number_even_with_empty_evidence(context):
+    """The general-knowledge carve-out above must not become a hole for a fabricated
+    claim about THIS person's own data: 'your readiness/HRV/etc is <number>' still has
+    to be evidenced no matter what evidence list the model sent."""
+    assert not guard("Your readiness is 54.4 today.", context, evidence=[])
+    assert not guard("Your HRV is 42 milliseconds.", context, evidence=[])

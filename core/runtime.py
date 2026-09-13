@@ -28,6 +28,7 @@ from modeling.training_window import best_training_window
 from modeling.explanations import narration_context
 from core.agenda import AgendaService
 from narration.briefing import curate_briefing, CAPABILITIES
+from narration.calendar import calendar_context
 
 log = logging.getLogger("biotwin")
 
@@ -416,13 +417,14 @@ class Runtime:
             busy, status = await self.calendar.availability(user)
         except (ValueError, httpx.HTTPError):
             busy, status = [], "unavailable"
-        events = None
+        agenda = None
         if status == "connected":
             today = utcnow().astimezone(ZoneInfo(tz)).date()
             try:
-                events = (await AgendaService(self.calendar).list(user, today, today + timedelta(days=1)))["events"]
+                agenda = await AgendaService(self.calendar).list(user, today, today + timedelta(days=1))
             except (ValueError, httpx.HTTPError):
-                events = None
+                agenda = None
+        events = agenda["events"] if agenda else None
         decision = best_training_window(current, energy_trajectory, busy, user["profile"], utcnow(), status, events=events)
         ctx = narration_context(
             current,
@@ -431,7 +433,17 @@ class Runtime:
             outlook,
             energy_trajectory,
             decision,
+            history=self.history(uid),
+            timezone_name=tz,
+            now=utcnow(),
         )
+        # Today's real agenda, not just the training-window decision's busy/free view --
+        # a plain "what should I do today" question needs to actually see the day, not
+        # just a training slot, per feedback that recommendations felt too narrow.
+        # ask() still overrides this with a wider explicit range when the question is
+        # calendar-specific (a date range, an event count, etc.).
+        if agenda:
+            ctx = ctx.model_copy(update={"calendar": calendar_context(agenda)})
         briefing_doc = self.store.get(uid, "agent_briefing")
         narrative = briefing_doc["narrative"] if briefing_doc else None
         stale = not briefing_doc or utcnow().timestamp() - briefing_doc["generated_at"] > self.briefing_ttl

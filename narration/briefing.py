@@ -20,6 +20,10 @@ NUMBERS = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
 # Hand-maintained, not data-driven, so it is never sent through the curation model --
 # refreshed by a person when a feature actually changes, not on a timer.
 CAPABILITIES = """How BioTwin's own features work, for explaining them when asked:
+Body Battery is Garmin's own proprietary 0-100 energy-level estimate, built from HRV, stress,
+sleep, and activity; BioTwin reads, displays, and forecasts it, but does not compute or own its
+formula -- that belongs to Garmin's device firmware. Readiness is BioTwin's own separate metric,
+not a substitute for or a recomputation of Body Battery.
 Best Training Window scores every free time slot between waking and three hours before
 bedtime using projected Body Battery, time-of-day preference, forecast confidence, and
 free time, then picks the highest score; it skips anything within 10 minutes of a

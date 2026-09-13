@@ -2,6 +2,8 @@ from datetime import datetime
 from shared.schemas import NarrationContext
 from zoneinfo import ZoneInfo
 
+from modeling.vitals_history import vitals_summary_facts
+
 
 SIGNAL_LABELS = {
     "hrv": "HRV",
@@ -105,7 +107,17 @@ def _decision_facts(decision):
     return facts
 
 
-def narration_context(state, plan=None, readiness_history=(), outlook=None, trajectory=None, decision=None):
+def narration_context(
+    state,
+    plan=None,
+    readiness_history=(),
+    outlook=None,
+    trajectory=None,
+    decision=None,
+    history=(),
+    timezone_name="UTC",
+    now=None,
+):
     r, b = state.readiness, state.baseline_summary
     facts = []
     if decision:
@@ -154,6 +166,8 @@ def narration_context(state, plan=None, readiness_history=(), outlook=None, traj
                 facts.append(f"Your latest recorded {label} is {value:g} {unit}.")
         if state.latest.sleep:
             facts.append(f"Your latest recorded sleep lasted {state.latest.sleep.total_minutes} minutes.")
+    if history and now is not None:
+        facts.extend(vitals_summary_facts(history, timezone_name, now))
     if plan:
         facts.append(plan.explanation)
         for p in plan.proposals:

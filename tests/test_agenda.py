@@ -13,7 +13,8 @@ from core.config import Settings
 from core.store import Store
 from narration.calendar import calendar_context, prepare_event
 from narration.service import guard
-from shared.schemas import DailyPlan, NarrationContext, Proposal, utcnow
+from modeling.explanations import narration_context
+from shared.schemas import DailyPlan, NarrationContext, Proposal, TwinState, utcnow
 
 
 CAL = {
@@ -300,6 +301,88 @@ async def test_coach_recommendation_drafts_then_voice_approval_confirms(store):
     assert approved[1]["status"] == "created"
     assert writes[0]["summary"] == "BioTwin · Light movement"
     assert store.get(USER["id"], "pending_calendar_draft") is None
+
+
+async def test_coach_calendar_draft_uses_the_model_reasoning_when_it_can_be_grounded(store):
+    """Same drafting flow, but with ctx/config/http supplied (as ask() now does): the
+    spoken answer should be the model's own grounded reasoning, not just the
+    proposal's fields read back verbatim -- that verbatim recitation is what should
+    only ever happen as a fallback, when the model's answer can't be verified."""
+    writes = []
+
+    def calendar_handler(req):
+        if req.url.path.endswith("calendarList"):
+            return httpx.Response(200, json={"items": [CAL]})
+        if req.url.path.endswith("freeBusy"):
+            return httpx.Response(200, json={"calendars": {CAL["id"]: {"busy": []}}})
+        if req.method == "GET" and "/events/" in req.url.path:
+            return httpx.Response(404)
+        if req.method == "POST" and req.url.path.endswith("/events"):
+            writes.append(json.loads(req.content))
+            return httpx.Response(200, json={"id": writes[-1]["id"], "htmlLink": "https://calendar.google.com/event"})
+        raise AssertionError(str(req.url))
+
+    start = utcnow() + timedelta(days=1)
+    proposal = Proposal(
+        id="coach-draft",
+        kind="workout",
+        title="Light movement",
+        start=start,
+        end=start + timedelta(minutes=30),
+        intensity="light",
+        reason="Readiness supports an easy session in a free window.",
+        score=0.8,
+        terms={"free_slot": 1.0},
+    )
+    plan = DailyPlan(
+        date=str(start.date()),
+        timezone="America/Chicago",
+        calendar_status="connected",
+        proposals=[proposal],
+        busy=[],
+        explanation="Test plan",
+    )
+    from pathlib import Path
+
+    state = TwinState.model_validate_json(Path("fixtures/golden/twin-state.json").read_text())
+    ctx = narration_context(state, plan=plan)
+    config = Settings(_env_file=None, allow_external_narration=True, narration_api_key="k")
+
+    narration_calls = []
+
+    def narration_handler(req):
+        narration_calls.append(req)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "answer": "A light session fits nicely in your open window this morning -- your readiness supports it.",
+                                    "evidence": ["plan.proposals.0.reason"],
+                                }
+                            )
+                        },
+                    }
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(calendar_handler)) as calendar_http:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(narration_handler)) as narration_http:
+            runtime = SimpleNamespace(store=store, calendar=CalendarService(OAuth(), calendar_http, store))
+            answer, draft = await propose_coach_calendar_draft(
+                runtime, USER["id"], USER, "What workout should I do?", plan, ctx, config, narration_http
+            )
+
+    assert len(narration_calls) == 1
+    assert "A light session fits nicely in your open window this morning" in answer.answer
+    assert "Want me to add it" in answer.answer
+    assert answer.mode == "language_service"
+    assert draft["title"] == "BioTwin · Light movement"
 
 
 def test_agenda_endpoint_account_isolation_and_calendar_context(tmp_path):
