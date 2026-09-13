@@ -482,7 +482,7 @@ button.primary:hover:not(:disabled) {
 }
 @media (min-width: 761px) {
   .workspace:has(> .page-intro:empty) {
-    padding-top: calc(var(--bar) + 14px);
+    padding-top: 18px;
   }
 }
 .page-intro {
