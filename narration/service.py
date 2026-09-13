@@ -29,6 +29,11 @@ def resolve_evidence(context, path):
         if part in {"user_id", "id", "schema_version", "model_version"}:
             raise ValueError("Identity and version fields are not physiological evidence")
         value = value[int(part)] if isinstance(value, list) else value[part]
+    if isinstance(value, list) and not value:
+        # An empty list is itself a real, checkable fact (e.g. "no workout
+        # proposals exist") -- reject non-empty lists/dicts below (too coarse
+        # to ground one specific claim), but not this.
+        return ""
     if value is None or isinstance(value, (dict, list, bool)):
         raise ValueError("Evidence must point to an available scalar or fact")
     return str(value)
