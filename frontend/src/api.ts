@@ -129,3 +129,73 @@ export type Trajectory =
       reason?: string;
       note: string;
     };
+export type TrainingScenario = {
+  key: "now" | "best" | "rest";
+  start: string | null;
+  energy: number | null;
+  evening_energy: number;
+  recovery_load: "Low" | "Medium" | "High";
+  intensity: string;
+  recommended: boolean;
+};
+export type ModelDetail = {
+  horizon: string;
+  matlab_model: string;
+  matlab_mae: number;
+  baseline: string;
+  baseline_mae: number;
+  running: string;
+  running_mae: number;
+  ml_wins: boolean;
+};
+type DecisionDay = {
+  now: { time: string; energy: number };
+  curve: {
+    time: string;
+    minutes: number;
+    value: number;
+    confidence: "High" | "Moderate" | "Low";
+    method: string;
+  }[];
+  busy: { start: string; end: string; title: string }[];
+  risks: { start: string; end: string; label: string; reasons: string[] }[];
+  recovery: {
+    threshold: number;
+    minutes: number;
+    at: string;
+    confidence: string;
+  } | null;
+  heart_rate_recovery_tau_s: number | null;
+  readiness: number | null;
+};
+type DecisionBase = {
+  issued_at: string;
+  timezone: string;
+  calendar_status: "connected" | "demo" | "unavailable";
+  model_details: ModelDetail[];
+  assumption: string;
+};
+/** GET /api/training-window -- decided by modeling/training_window.py; the coach
+    narrates this same object, so nothing here is recomputed in the browser. */
+export type TrainingDecision =
+  | (DecisionBase &
+      Partial<DecisionDay> & {
+        available: false;
+        reason: string;
+        scenarios?: TrainingScenario[];
+      })
+  | (DecisionBase &
+      DecisionDay & {
+        available: true;
+        window: {
+          start: string;
+          end: string;
+          minutes: number;
+          energy: number;
+          confidence: "High" | "Moderate" | "Low";
+          workout: { title: string; intensity: string; minutes: number };
+          reasons: string[];
+        };
+        evening_at: string;
+        scenarios: TrainingScenario[];
+      });

@@ -125,6 +125,8 @@ Return JSON with answer (plain text, no markdown) and evidence (paths to the exa
 e.g. readiness.score, facts.0, baseline_summary.shrinkage_weight, coach_brief.recommendation, plan.proposals.0.reason).
 For timing, plan, forecast, or workout recommendations, cite coach_brief or plan evidence and do not mention any time,
 duration, forecast value, or action that is not present in that evidence.
+When facts include a best training window, train-now/rest comparisons, or high-load windows, that decision is final:
+explain it with its exact times and numbers, never propose a different window or recompute a comparison.
 Every factual assertion needs evidence. Use an empty evidence list only for a missing-data, scope, or small-talk response.
 Do not include IDs, version numbers, or metadata in your answer. Keep internal field names out of the prose.
 """
@@ -169,14 +171,20 @@ def template(question, ctx):
         return prefix + " ".join(facts[:6]) + (" See the agenda for the remaining entries." if len(facts) > 6 else "")
     if re.search(r"diagnos|disease|medic|prescri|chest pain|condition|symptom", q):
         return "I can explain your recorded measurements and model estimates. I cannot assess symptoms or provide medical advice."
-    if ctx.coach_brief and any(w in q for w in ["why", "tired", "readiness", "feel", "energy", "today", "plan", "nap", "workout", "schedule"]):
+    if re.search(r"train now|what if|instead|\brest\b|skip", q):
+        selected = [f for f in ctx.facts if f.startswith(("If you", "Your best training window"))]
+        return " ".join(selected[:4]) or "That comparison is not in my current context yet."
+    if ctx.coach_brief and re.search(
+        r"why|tired|readiness|feel|energy|today|plan|nap|work ?out|schedule|train|exercise|best time|window",
+        q,
+    ):
         return _brief_reply(ctx.coach_brief)
     if "trend" in q and ctx.recent_trend:
         selected = list(ctx.recent_trend)
     elif any(w in q for w in ["recovery", "recover", "predict"]):
         selected = [f for f in ctx.facts if any(w in f for w in ["recovery", "Held-out"])]
     elif any(w in q for w in ["plan", "nap", "workout", "calendar", "schedule"]):
-        selected = [f for f in ctx.facts if "plan" in f.lower() or "schedule" in f.lower()]
+        selected = [f for f in ctx.facts if "plan" in f.lower() or "schedule" in f.lower() or "training window" in f]
         if not selected:
             return "I can draft a clean plan once I can see your calendar windows. Connect calendar, then tell me to plan it and I'll propose the event for approval."
     elif any(w in q for w in ["sleep", "hrv", "heart rate"]):

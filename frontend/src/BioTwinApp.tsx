@@ -43,6 +43,8 @@ import {
   topicSignal,
 } from "./DashboardPanels";
 import type { CaptionWord } from "./captions";
+import { BestWindowCard, DayForecast, FuturePaths } from "./TrainingWindow";
+import { spokenFocus, spokenSoFar, wantsComparison } from "./trainingFocus";
 
 type Page =
   "Overview" | "Signals" | "Daily plan" | "Connections";
@@ -120,6 +122,7 @@ export default function BioTwinApp() {
   const [auth, setAuth] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
+  const [compare, setCompare] = useState(false);
   const [takeover, setTakeover] = useState<{
     topic: Topic;
     question: string;
@@ -158,6 +161,7 @@ export default function BioTwinApp() {
     },
     onQuestion: (text, calendarMode) => {
       const topic = calendarMode ? "plan" : questionTopic(text);
+      setCompare(wantsComparison(text));
       setPage("Overview");
       setHistoryOpen(false);
       autoTopic.current = !!topic;
@@ -198,6 +202,7 @@ export default function BioTwinApp() {
     setAdded([]);
     setEventEditor(null);
     setTakeover(null);
+    setCompare(false);
     autoTopic.current = false;
   }, [data.accountKey]);
   useEffect(() => {
@@ -320,6 +325,32 @@ export default function BioTwinApp() {
     .filter((m) => m.role === "twin")
     .at(-1);
   const answer = recentReply?.text ?? "";
+  const focus = spokenFocus(
+    speaking
+      ? spokenSoFar(conversation.captionWords, conversation.audioTime) ||
+          conversation.activeAnswer
+      : answer,
+    data.decision,
+  );
+  const decisionCards = (
+    <>
+      <div className="decision-grid">
+        <BestWindowCard
+          decision={data.decision}
+          focus={focus}
+          onCompare={() => setCompare(true)}
+        />
+        <DayForecast decision={data.decision} focus={focus} />
+      </div>
+      {compare && (
+        <FuturePaths
+          decision={data.decision}
+          focus={focus}
+          onClose={() => setCompare(false)}
+        />
+      )}
+    </>
+  );
   const talk = () => {
     navigate("Overview");
     requestAnimationFrame(() => input.current?.focus());
@@ -663,6 +694,7 @@ export default function BioTwinApp() {
                   />
                 ) : takeover.topic === "plan" ? (
                   <>
+                    {decisionCards}
                     <CalendarAgenda
                       calendar={data.calendar}
                       compact
@@ -695,6 +727,7 @@ export default function BioTwinApp() {
                   </button>
                 </div>
               )}
+              {decisionCards}
               <div className="section-label">
                 <h2>Your essentials</h2>
                 <button onClick={() => navigate("Signals")}>
