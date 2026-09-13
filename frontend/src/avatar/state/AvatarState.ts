@@ -38,6 +38,15 @@ export type FaceFrame = {
   weights: Record<string, number>;
 };
 
+// bones maps a bone name (e.g. "LeftArm") to an already-sign-corrected
+// [x, y, z] axis-angle vector -- the delta to compose onto that bone's own
+// rest quaternion, not an absolute rotation. See avatarBus.ts's
+// axisAngleToQuaternion for how it's applied.
+export type BodyFrame = {
+  timestampMs: number;
+  bones: Record<string, [number, number, number]>;
+};
+
 export const defaultEmotion: EmotionState = {
   energy: 0.55,
   happiness: 0.45,

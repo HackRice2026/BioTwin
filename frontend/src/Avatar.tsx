@@ -23,9 +23,11 @@ import {
 import type { TwinState, SimulationOverlay } from "./contracts";
 import { humanize } from "./api";
 import {
+  axisAngleToQuaternion,
   emitAvatarSemantic,
   listenAvatarAudio,
   listenAvatarSemantic,
+  parseBodyFrame,
   parseFaceFrame,
 } from "./avatar/avatarBus";
 import {
@@ -36,6 +38,7 @@ import {
 import type {
   AvatarAction,
   AvatarSemanticState,
+  BodyFrame,
   FaceFrame,
   FaceServiceState,
 } from "./avatar/state/AvatarState";
@@ -70,6 +73,10 @@ const faceHttp =
   import.meta.env.VITE_FACE_SERVICE_HTTP || "http://localhost:8765";
 const faceWs =
   import.meta.env.VITE_FACE_SERVICE_WS || "ws://localhost:8765/ws/face";
+const bodyHttp =
+  import.meta.env.VITE_BODY_SERVICE_HTTP || "http://localhost:8766";
+const bodyWs =
+  import.meta.env.VITE_BODY_SERVICE_WS || "ws://localhost:8766/ws/body";
 
 const demoStates: Record<string, Partial<AvatarSemanticState>> = {
   "1": {
@@ -193,6 +200,7 @@ function Body({
   thinking,
   semantic,
   faceFrames,
+  bodyFrames,
   audioEnergy,
   onPerf,
   onMotion,
@@ -205,6 +213,7 @@ function Body({
   thinking: boolean;
   semantic: RefObject<AvatarSemanticState>;
   faceFrames: RefObject<FaceFrame[]>;
+  bodyFrames: RefObject<BodyFrame[]>;
   audioEnergy: RefObject<number>;
   onPerf: (n: number) => void;
   onMotion: (s: string) => void;
@@ -431,6 +440,37 @@ function Body({
       damp(`${side}Foot`, -squat * 0.28 - walk * sign * 0.08);
     }
 
+    // EMAGE-driven body gestures: while actually speaking (and only in the
+    // plain "idle" action, so a deliberate pose -- squat/point/celebrate/
+    // walk -- is never fought with real gesture data), replace the bones it
+    // covers with base-pose * (fresh EMAGE delta), blending smoothly in via
+    // slerp from whatever the procedural pass above just set. When it stops
+    // being fresh (speech ends, or the body service is behind/offline), we
+    // simply stop touching those bones again -- damp() above already runs
+    // for them every frame regardless, so they smoothly damp back to the
+    // plain procedural target on their own; no separate transition-out
+    // logic needed.
+    const bodyFrame = bodyFrames.current.at(-1);
+    const bodyFresh =
+      speaking &&
+      action === "idle" &&
+      !!bodyFrame &&
+      window.performance.now() - bodyFrame.timestampMs < 500;
+    if (bodyFresh) {
+      for (const [boneName, delta] of Object.entries(bodyFrame!.bones) as [
+        string,
+        [number, number, number],
+      ][]) {
+        const node = nodes[boneName];
+        const origin = base[boneName];
+        if (!node || !origin) continue;
+        const target = new THREE.Quaternion()
+          .setFromEuler(origin.rotation)
+          .multiply(axisAngleToQuaternion(delta));
+        node.quaternion.slerp(target, 1 - Math.exp(-dt * 8));
+      }
+    }
+
     const frame = faceFrames.current.at(-1);
     const speech =
       frame && window.performance.now() - frame.timestampMs < 220
@@ -535,6 +575,8 @@ export default function Avatar({
   });
   const socket = useRef<WebSocket | null>(null);
   const faceFrames = useRef<FaceFrame[]>([]);
+  const bodySocket = useRef<WebSocket | null>(null);
+  const bodyFrames = useRef<BodyFrame[]>([]);
   const audioEnergy = useRef(0);
   const [quality, setQuality] = useState("Auto");
   const [dpr, setDpr] = useState(1.5);
@@ -650,16 +692,64 @@ export default function Avatar({
         });
     };
     checkHealth();
+
+    // Body-gesture service: same audio, a separate WS/health pair, entirely
+    // best-effort -- if it's offline the avatar just keeps whatever
+    // procedural pose it already had (see the useFrame loop's speaking-only
+    // gesture-overlay block), same graceful-degrade shape as the face
+    // service but with no cycling fallback of its own.
+    let bodyStopped = false;
+    let bodyRetry = 0;
+    let bodyHealthTimer: number | undefined;
+    const connectBody = () => {
+      if (bodyStopped) return;
+      if (bodySocket.current?.readyState === WebSocket.OPEN) return;
+      const ws = new WebSocket(bodyWs);
+      bodySocket.current = ws;
+      ws.onopen = () => {
+        bodyRetry = 0;
+      };
+      ws.onmessage = (event) => {
+        const raw = typeof event.data === "string" ? JSON.parse(event.data) : null;
+        const frame = parseBodyFrame(raw);
+        if (!frame) return;
+        frame.timestampMs = window.performance.now();
+        bodyFrames.current.push(frame);
+        if (bodyFrames.current.length > 4) bodyFrames.current.shift();
+      };
+      ws.onclose = () => {
+        if (bodySocket.current === ws) bodySocket.current = null;
+        if (!bodyStopped)
+          window.setTimeout(connectBody, Math.min(5000, 1000 + bodyRetry++ * 500));
+      };
+    };
+    const checkBodyHealth = () => {
+      fetch(`${bodyHttp}/health`, { mode: "cors" })
+        .then((response) => {
+          if (!response.ok) throw new Error("Body service unavailable");
+          connectBody();
+        })
+        .catch(() => {
+          if (!bodyStopped) bodyHealthTimer = window.setTimeout(checkBodyHealth, 5000);
+        });
+    };
+    checkBodyHealth();
+
     const stopAudio = listenAvatarAudio(({ bytes }) => {
       audioEnergy.current = Math.min(0.75, bytes.byteLength / 18000);
       const ws = socket.current;
       if (ws?.readyState === WebSocket.OPEN) ws.send(bytes.slice(0));
+      const bws = bodySocket.current;
+      if (bws?.readyState === WebSocket.OPEN) bws.send(bytes.slice(0));
     });
     return () => {
       stopped = true;
+      bodyStopped = true;
       stopAudio();
       if (healthTimer) window.clearTimeout(healthTimer);
+      if (bodyHealthTimer) window.clearTimeout(bodyHealthTimer);
       socket.current?.close();
+      bodySocket.current?.close();
     };
   }, []);
 
@@ -723,6 +813,7 @@ export default function Avatar({
               thinking={thinking}
               semantic={semantic}
               faceFrames={faceFrames}
+              bodyFrames={bodyFrames}
               audioEnergy={audioEnergy}
               onPerf={perf}
               onMotion={setMotion}
