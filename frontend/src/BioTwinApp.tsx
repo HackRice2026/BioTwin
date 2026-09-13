@@ -16,7 +16,6 @@ import {
   Pause,
   Radio,
   Send,
-  Sparkles,
   Volume2,
   X,
 } from "lucide-react";
@@ -261,7 +260,6 @@ export default function BioTwinApp() {
     }
   }
   const actions = { reminder, setReminder, adding, added, book };
-  const demo = status === "offline" || session?.demo;
   // The measured Garmin level, not energy_reserve_pct: that one is readiness
   // rescaled by recovery progress, an estimate, and this tile says "current".
   const battery = state?.latest?.body_battery_pct ?? null;
@@ -354,19 +352,6 @@ export default function BioTwinApp() {
         <div className="nav-caption">YOUR PERSONAL SPACE</div>
         <nav aria-label="Main navigation">{navButtons}</nav>
         <div className="nav-bottom">
-          <div className="nav-note">
-            <span className="green">
-              <Sparkles size={19} />
-            </span>
-            <p>
-              A little more in tune
-              <br />
-              with yourself.
-            </p>
-            <button onClick={talk}>
-              Talk to your twin <ArrowUpRight size={15} />
-            </button>
-          </div>
           <button
             className="account-control"
             onClick={() =>
@@ -436,13 +421,6 @@ export default function BioTwinApp() {
             <span>Battery Forecast</span>
           </button>
         </div>
-        <button
-          className="icon-btn history-launch"
-          aria-label="Conversation history"
-          onClick={() => setHistoryOpen(true)}
-        >
-          <History size={20} />
-        </button>
       </header>
       <main className="workspace" id="main-content">
         <div className="page-intro">
@@ -459,33 +437,11 @@ export default function BioTwinApp() {
               <p>{descriptions[page]}</p>
             </div>
           )}
-          <span className={`connection-pill ${status}`}>
-            <i />
-            {status === "offline"
-              ? "Offline example"
-              : status === "connecting"
-                ? "Connecting"
-                : demo
-                  ? "Preview workspace"
-                  : "Connected"}
-          </span>
         </div>
         {status === "offline" && (
           <div className="notice offline-notice" role="status">
             You're viewing an offline example. Your personal measurements aren't
             updating.<button onClick={data.reset}>Reconnect</button>
-          </div>
-        )}
-        {demo && status === "online" && (
-          <div className="preview-note">
-            <span>
-              {state?.provenance_banner === "synthetic"
-                ? "Explore with example measurements."
-                : "Previewing shared wearable measurements."}
-            </span>
-            <button onClick={() => setAuth(true)}>
-              Connect your own data <ArrowUpRight size={13} />
-            </button>
           </div>
         )}
         {!state && (
