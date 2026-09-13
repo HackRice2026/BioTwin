@@ -128,6 +128,18 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Calendar agenda follows every event/calendar/task page and
+  keeps all-day ends exclusive; Tasks failure doesn't discard calendar events.
+  Event drafts are account-scoped, expire after an hour and require visible
+  confirmation; stable Google IDs protect retries. Draft persistence checks
+  the account still exists, and expiry cleanup covers both draft documents.
+  Real Vertex read/draft checks passed with fixture calendar data, without
+  creating real events. No connected calendar existed in this local database;
+  real Google consent/read/write is still unverified on this machine.
+  The numeric narration guard rejects spelled-out counts and zero-padded date
+  conversions; calendar facts now supply human-readable dates/times and the
+  prompt avoids unsolicited counts. Keep the physiological guard unchanged.
+
 - 2026-09-12 — Calendar follow-up authorized on dev: replace free/busy-only
   display with named events and optional Google Tasks, plus calendar-grounded
   twin answers and reviewable event drafts. Assumptions: show all readable

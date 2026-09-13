@@ -22,7 +22,10 @@ def calendar_context(agenda):
             when = f"{event['start'][:10]} through {last}, all day"
         else:
             a, b = instant(event["start"], tz).astimezone(tz), instant(event["end"], tz).astimezone(tz)
-            when = f"{a:%Y-%m-%d %I:%M %p} to {b:%Y-%m-%d %I:%M %p} ({tz})"
+            when = (
+                f"{a:%B} {a.day} {a.year}, {a.strftime('%I:%M %p').lstrip('0')} "
+                f"to {b:%B} {b.day} {b.year}, {b.strftime('%I:%M %p').lstrip('0')} ({tz})"
+            )
         facts.append(f"Calendar event: {event['title']}. {when}. Calendar: {event['calendar_name']}.")
     for task in agenda["tasks"]:
         if task["due"] and not agenda["start"] <= task["due"] < agenda["end"]:

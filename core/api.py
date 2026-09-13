@@ -513,7 +513,7 @@ def create_app(config=None):
             if prepared:
                 answer, draft = prepared
                 if draft:
-                    rt().store.put(owner, "conversation_draft", draft, data.request_id)
+                    rt().store.put(owner, "conversation_draft", draft, data.request_id, require_user=True)
             else:
                 answer = await narrate(question, ctx, config, rt().http)
             row = rt().store.complete_conversation(owner, data.request_id, answer)

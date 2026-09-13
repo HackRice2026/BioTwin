@@ -326,7 +326,7 @@ class AgendaService:
             id=secrets.token_hex(16),
             expires=utcnow().timestamp() + 3600,
         )
-        self.store.put(user["id"], "calendar_draft", data, data["id"])
+        self.store.put(user["id"], "calendar_draft", data, data["id"], require_user=True)
         return data
 
     async def confirm(self, user, draft_id):
@@ -391,7 +391,7 @@ class AgendaService:
             response.raise_for_status()
             created = response.json()
         result = {"id": created["id"], "url": safe_link(created.get("htmlLink")), "status": "created"}
-        self.store.put(uid, "calendar_draft", {**data, "created": result}, draft_id)
+        self.store.put(uid, "calendar_draft", {**data, "created": result}, draft_id, require_user=True)
         self.store.remove_doc(uid, "calendar")
         return result
 
@@ -399,6 +399,8 @@ class AgendaService:
 def calendar_question(question):
     return bool(
         re.search(
-            r"\b(calendar|agenda|meetings?|appointments?|events?|tasks?|schedule|book)\b", question, re.I
+            r"\b(calendar|agenda|meetings?|appointments?|events?|tasks?|schedule|book|add|create|remind)\b",
+            question,
+            re.I,
         )
     )

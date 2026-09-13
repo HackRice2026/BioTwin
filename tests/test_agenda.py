@@ -41,6 +41,7 @@ class OAuth:
 @pytest.fixture
 def store(tmp_path):
     store = Store(f"sqlite:///{tmp_path}/agenda.db")
+    store.create_user("u", "u@example.test", "test-hash", "Test", USER["profile"])
     store.put("u", "connection", {"status": "connected"}, "google-calendar")
     yield store
     store.engine.dispose()
@@ -113,7 +114,7 @@ async def test_all_calendars_event_pages_tasks_and_exclusive_all_day_dates(store
     assert result["events"][-1]["all_day"] and result["events"][-1]["end"] == "2026-10-08"
     facts = calendar_context(result)["facts"]
     assert any("2026-10-06 through 2026-10-07, all day" in f for f in facts)
-    assert any("09:00 AM" in f for f in facts)
+    assert any("9:00 AM" in f for f in facts)
     assert any("no due date" in f for f in facts)
 
 
@@ -272,10 +273,10 @@ def test_agenda_endpoint_account_isolation_and_calendar_context(tmp_path):
                 "request_id": "calendar-question-0001",
             },
         ).json()
-        assert "Design review" in reply["answer"] and "09:00 AM" in reply["answer"]
+        assert "Design review" in reply["answer"] and "9:00 AM" in reply["answer"]
         row = rt.store.conversation(uid, "calendar-question-0001")
         ctx = NarrationContext.model_validate(row["context"])
-        assert guard("Design review starts at 09:00 AM.", ctx, ["calendar.facts.0"])
+        assert guard("Design review starts at 9:00 AM.", ctx, ["calendar.facts.0"])
         assert not guard("Design review starts at 17:45.", ctx, ["calendar.facts.0"])
         assert client.get("/api/calendar/agenda?start=2026-10-12&end=2026-10-05").status_code == 422
         client.post("/auth/session/logout")
@@ -284,3 +285,14 @@ def test_agenda_endpoint_account_isolation_and_calendar_context(tmp_path):
             json={"email": "other@example.test", "password": "calendar-test-password", "adult": True},
         )
         assert client.get("/api/calendar/agenda").json()["events"] == []
+
+
+def test_calendar_drafts_expire_and_cannot_recreate_deleted_accounts(store):
+    store.put("u", "calendar_draft", {"expires": 0}, "expired", require_user=True)
+    store.put("u", "conversation_draft", {"expires": 0}, "expired", require_user=True)
+    store.purge(7)
+    assert store.get("u", "calendar_draft", "expired") is None
+    assert store.get("u", "conversation_draft", "expired") is None
+    with pytest.raises(ValueError, match="no longer available"):
+        store.put("deleted-user", "calendar_draft", {"title": "private"}, "draft", require_user=True)
+    assert store.get("deleted-user", "calendar_draft", "draft") is None

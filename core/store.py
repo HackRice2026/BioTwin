@@ -211,8 +211,13 @@ class Store:
                 )
             ).scalar_one_or_none()
 
-    def put(self, user_id, kind, payload, key="current", immutable=False):
+    def put(self, user_id, kind, payload, key="current", immutable=False, require_user=False):
         with self.lock, self.engine.begin() as c:
+            if (
+                require_user
+                and not c.execute(select(users.c.id).where(users.c.id == user_id).with_for_update()).first()
+            ):
+                raise ValueError("This account is no longer available")
             condition = (
                 (documents.c.user_id == user_id) & (documents.c.kind == kind) & (documents.c.key == key)
             )
@@ -406,7 +411,13 @@ class Store:
                         )
                     )
             for row in (
-                c.execute(select(documents).where(documents.c.kind.in_(["speech", "oauth_state"])))
+                c.execute(
+                    select(documents).where(
+                        documents.c.kind.in_(
+                            ["speech", "oauth_state", "calendar_draft", "conversation_draft"]
+                        )
+                    )
+                )
                 .mappings()
                 .all()
             ):
@@ -428,13 +439,9 @@ class Store:
         history or stale baselines computed from them.
         """
         with self.engine.begin() as c:
-            c.execute(
-                delete(frames).where(frames.c.user_id == user_id, frames.c.provenance == provenance)
-            )
+            c.execute(delete(frames).where(frames.c.user_id == user_id, frames.c.provenance == provenance))
             for kind in ["baseline", "readiness", "prediction", "prediction_score", "plan"]:
-                c.execute(
-                    delete(documents).where(documents.c.user_id == user_id, documents.c.kind == kind)
-                )
+                c.execute(delete(documents).where(documents.c.user_id == user_id, documents.c.kind == kind))
 
     def delete_user(self, user_id):
         with self.engine.begin() as c:
