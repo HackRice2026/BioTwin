@@ -130,6 +130,21 @@ class Store:
                 )
             )
 
+    def ensure_guest(self, user_id):
+        """Anonymous demo visitors write conversations/documents under a synthetic
+        "guest:<hash>" owner id (see conversation_owner in api.py) so their questions
+        stay private from other visitors sharing the public demo data. Every such
+        write sits behind a real foreign key to `users` on Postgres though -- SQLite
+        never enforced it, so this only surfaces once a Postgres-backed deployment is
+        used: every guest write fails there without this placeholder row existing
+        first. Idempotent; tolerates a concurrent request creating it first."""
+        if self.user(user_id):
+            return
+        try:
+            self.create_user(user_id, f"{user_id}@guest.invalid", "", "Guest", {})
+        except IntegrityError:
+            pass
+
     def save_profile(self, user_id, profile):
         with self.engine.begin() as c:
             c.execute(update(users).where(users.c.id == user_id).values(profile=profile))

@@ -530,7 +530,9 @@ def create_app(config=None):
                 max_age=604800,
             )
         # The public demo's measurements are shared; visitors' questions never are.
-        return "guest:" + hashlib.sha256(token.encode()).hexdigest()
+        guest = "guest:" + hashlib.sha256(token.encode()).hexdigest()
+        rt().store.ensure_guest(guest)
+        return guest
 
     def transcript(row):
         return {
