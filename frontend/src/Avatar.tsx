@@ -78,6 +78,24 @@ const bodyHttp =
 const bodyWs =
   import.meta.env.VITE_BODY_SERVICE_WS || "ws://localhost:8766/ws/body";
 
+// Bones the EMAGE body-gesture service is never allowed to drive, regardless
+// of what it sends -- covers this rig's actual lower-body node names
+// (Hips, LeftFoot, RightFoot) plus the standard Mixamo leg names in case a
+// different rig is ever swapped in.
+const LOWER_BODY_BONES = new Set([
+  "Hips",
+  "LeftUpLeg",
+  "RightUpLeg",
+  "LeftLeg",
+  "RightLeg",
+  "LeftFoot",
+  "RightFoot",
+  "LeftToeBase",
+  "RightToeBase",
+  "LeftToe",
+  "RightToe",
+]);
+
 const demoStates: Record<string, Partial<AvatarSemanticState>> = {
   "1": {
     emotion: defaultEmotion,
@@ -461,6 +479,15 @@ function Body({
         string,
         [number, number, number],
       ][]) {
+        // This rig has no separate thigh/knee bones -- the body service's
+        // hip/knee/ankle output all lands on "Hips" and the two foot bones,
+        // with nothing in between to distribute it naturally, so a foot
+        // rotation alone reads as an isolated ankle flap ("waddling") with
+        // no matching leg motion. Never apply EMAGE output below the waist;
+        // procedural squat/walk still drive the foot bones directly (see
+        // the damp() calls above) since those are deliberate poses, not
+        // per-frame network output.
+        if (LOWER_BODY_BONES.has(boneName)) continue;
         const node = nodes[boneName];
         const origin = base[boneName];
         if (!node || !origin) continue;
@@ -510,14 +537,30 @@ function Body({
       }
     }
 
+    // "conversation" (the default, normal-chat framing) is a tight bust
+    // shot cropped roughly to the elbows -- started from this rig's real
+    // bind-pose bone heights (elbow at render-space y=0.18, top of head
+    // near y=0.96), then tuned against actual screenshots, since the idle
+    // pose rotates the arms down from that bind T-pose and moves the
+    // effective elbow height lower than the bind-pose number alone would
+    // suggest. Legs are never in frame here, on top of never being driven
+    // by EMAGE output (see the bone exclusion above). "exercise"/
+    // "full_body" are unchanged -- those modes exist specifically to show
+    // squat/walk demos, which need the legs visible.
     const targetCamera =
       semanticState.camera === "exercise"
         ? new THREE.Vector3(0, 0.6, 5.2)
         : semanticState.camera === "full_body"
           ? new THREE.Vector3(0, 0.35, 4.4)
-          : new THREE.Vector3(0, 0.28, 3.7);
+          : new THREE.Vector3(0, 0.4, 1.0);
     camera.position.lerp(targetCamera, 1 - Math.exp(-dt * 1.7));
-    camera.lookAt(0, semanticState.camera === "exercise" ? 0.3 : 0.1, 0);
+    const lookAtY =
+      semanticState.camera === "exercise"
+        ? 0.3
+        : semanticState.camera === "full_body"
+          ? 0.1
+          : 0.5;
+    camera.lookAt(0, lookAtY, 0);
 
     if (clock > 3 && rawDt < 0.5) performance.current.push(rawDt * 1000);
     if (clock - reported.current > 5 && performance.current.length > 60) {
@@ -797,7 +840,7 @@ export default function Avatar({
       <CanvasBoundary>
         <Canvas
           dpr={compact ? 1 : dpr}
-          camera={{ position: [0, 0.28, 3.7], fov: compact ? 31 : 35 }}
+          camera={{ position: [0, 0.4, 1.0], fov: compact ? 31 : 35 }}
           gl={{
             antialias: true,
             alpha: true,
@@ -852,9 +895,9 @@ export default function Avatar({
             enablePan={false}
             enableZoom
             zoomSpeed={0.6}
-            minDistance={1.05}
+            minDistance={0.85}
             maxDistance={6}
-            target={[0, 0.1, 0]}
+            target={[0, 0.5, 0]}
             minPolarAngle={0.78}
             maxPolarAngle={1.85}
           />
