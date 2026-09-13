@@ -257,8 +257,10 @@ try {
   assert.equal(agendaRequests.at(-1).start, day);
   assert.equal(agendaRequests.at(-1).end, nextDay);
   const previous = reads;
-  await page.getByLabel("Next day").click();
-  await page.waitForResponse((r) => r.url().includes("/api/calendar/agenda?"));
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/calendar/agenda?")),
+    page.getByLabel("Next day").click(),
+  ]);
   assert.ok(reads > previous);
   assert.equal(agendaRequests.at(-1).start, nextDay);
   assert.equal(

@@ -135,6 +135,8 @@ This file is a living document. The agent MUST:
   consumers; the one-day constraint belongs to this UI. VERIFIED in Chrome at
   1440/390/360px, including day navigation, filters, drafts, confirmed writes
   and partial/read failure states; production build and 21 frontend tests pass.
+  Calendar browser tests must arm `waitForResponse` before the triggering click;
+  the opposite order intermittently misses fast CI responses.
 
 - 2026-09-12 — While publishing calendar work, origin/dev advanced with
   watch/forecast and OAuth-return fixes. Merged normally; retained all of them
