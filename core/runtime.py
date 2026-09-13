@@ -54,9 +54,30 @@ class Runtime:
         self.tasks = []
         self.last_transition = {}
         self.refit_due = set()
+        self.rr_buffers = defaultdict(lambda: deque(maxlen=40))
         self.wakeup = asyncio.Event()
         self.errors = {}
         self.ingest_lock = asyncio.Lock()
+
+    def rr_rmssd(self, uid, intervals, window=40):
+        """RMSSD over a rolling window of measured beat-to-beat intervals.
+
+        RMSSD needs consecutive intervals, so it is accumulated here rather than
+        derived per sample. Implausible intervals are discarded instead of
+        smoothed: an optical sensor that drops a beat reports a doubled interval,
+        which would inflate variability into a recovery signal that never happened.
+        None until the window holds enough beats to mean anything.
+        """
+        buffer = self.rr_buffers[uid]
+        for value in intervals:
+            if 300 <= value <= 2000 and (
+                not buffer or abs(value - buffer[-1]) <= 0.3 * buffer[-1]
+            ):
+                buffer.append(float(value))
+        if len(buffer) < 20:
+            return None
+        diffs = [b - a for a, b in zip(buffer, list(buffer)[1:])]
+        return round((sum(d * d for d in diffs) / len(diffs)) ** 0.5, 1)
 
     def history(self, uid):
         if uid not in self.history_cache:
@@ -250,6 +271,14 @@ class Runtime:
             provenance_banner=provenance,
             prediction=prediction.model_copy(update={"curve": [], "observed": []}) if prediction else None,
         )
+        # A presentation estimate from already-computed signals. Readiness carries
+        # sleep, HRV, resting HR and sleep debt; recovery adds a live rest component.
+        # A missing live pulse is not evidence of zero recovery.
+        if ready.score is not None:
+            reserve = ready.score
+            if state.drivers.pulse_hz is not None:
+                reserve = .8 * reserve + 20 * state.drivers.recovery_progress
+            state = state.model_copy(update={"energy_reserve_pct": round(max(0, min(100, reserve)))})
         self.states[uid] = state
         return state
 

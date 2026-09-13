@@ -638,6 +638,7 @@
         "fitbit_live",
         "fitbit_backfill",
         "garmin_ble_live",
+        "garmin_ciq_live",
         "garmin_live",
         "garmin_fit_replay",
         "garmin_influx_backfill",
@@ -1132,6 +1133,76 @@
           "default": null,
           "title": "Steps"
         },
+        "body_battery": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery"
+        },
+        "stress_level": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Level"
+        },
+        "total_calories": {
+          "anyOf": [
+            {
+              "maximum": 30000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Calories"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "maximum": 500000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance M"
+        },
+        "acceleration_mg": {
+          "anyOf": [
+            {
+              "maximum": 32000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acceleration Mg"
+        },
         "max_hr_bpm": {
           "anyOf": [
             {
@@ -1174,34 +1245,6 @@
           "default": null,
           "title": "Distance Meters"
         },
-        "floors_ascended": {
-          "anyOf": [
-            {
-              "maximum": 2000,
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Floors Ascended"
-        },
-        "active_kcal": {
-          "anyOf": [
-            {
-              "maximum": 20000,
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Active Kcal"
-        },
         "body_battery_pct": {
           "anyOf": [
             {
@@ -1216,7 +1259,35 @@
           "default": null,
           "title": "Body Battery Pct"
         },
-        "stress_level": {
+        "body_battery_charged": {
+          "anyOf": [
+            {
+              "maximum": 300,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Charged"
+        },
+        "body_battery_drained": {
+          "anyOf": [
+            {
+              "maximum": 300,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body Battery Drained"
+        },
+        "body_battery_at_wake": {
           "anyOf": [
             {
               "maximum": 100,
@@ -1228,7 +1299,35 @@
             }
           ],
           "default": null,
-          "title": "Stress Level"
+          "title": "Body Battery At Wake"
+        },
+        "stress_avg": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Avg"
+        },
+        "stress_max": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Max"
         },
         "stress_high_min": {
           "anyOf": [
@@ -1272,24 +1371,24 @@
           "default": null,
           "title": "Stress Low Min"
         },
-        "body_battery_charged": {
+        "active_calories": {
           "anyOf": [
             {
-              "maximum": 300,
+              "maximum": 20000,
               "minimum": 0,
-              "type": "number"
+              "type": "integer"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Body Battery Charged"
+          "title": "Active Calories"
         },
-        "body_battery_drained": {
+        "active_kcal": {
           "anyOf": [
             {
-              "maximum": 300,
+              "maximum": 20000,
               "minimum": 0,
               "type": "number"
             },
@@ -1298,12 +1397,40 @@
             }
           ],
           "default": null,
-          "title": "Body Battery Drained"
+          "title": "Active Kcal"
         },
-        "body_battery_at_wake": {
+        "active_seconds": {
           "anyOf": [
             {
-              "maximum": 100,
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active Seconds"
+        },
+        "highly_active_seconds": {
+          "anyOf": [
+            {
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Highly Active Seconds"
+        },
+        "floors_climbed": {
+          "anyOf": [
+            {
+              "maximum": 1000,
               "minimum": 0,
               "type": "number"
             },
@@ -1312,7 +1439,21 @@
             }
           ],
           "default": null,
-          "title": "Body Battery At Wake"
+          "title": "Floors Climbed"
+        },
+        "floors_ascended": {
+          "anyOf": [
+            {
+              "maximum": 2000,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Floors Ascended"
         },
         "moderate_intensity_min": {
           "anyOf": [
@@ -1361,6 +1502,20 @@
     "TwinState": {
       "additionalProperties": false,
       "properties": {
+        "energy_reserve_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Energy Reserve Pct"
+        },
         "schema_version": {
           "default": "1.0.0",
           "title": "Schema Version",

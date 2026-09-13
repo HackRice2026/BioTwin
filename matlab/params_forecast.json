@@ -1,0 +1,72 @@
+{
+  "model": "ridge",
+  "horizon_minutes": 60,
+  "target": "garmin body battery level",
+  "features": [
+    "bb_current_measured",
+    "bb_current_change_1h",
+    "hour_sin",
+    "hour_cos",
+    "hr_last",
+    "has_sleep_context",
+    "rem_sleep_min",
+    "stress_max"
+  ],
+  "mean": [
+    58.826561,
+    0.086039,
+    -0.018747,
+    -0.031769,
+    61.658797,
+    0.849943,
+    74.108286,
+    29.059024
+  ],
+  "std": [
+    24.005163,
+    7.180089,
+    0.707065,
+    0.706346,
+    14.986553,
+    0.357168,
+    24.849426,
+    24.22683
+  ],
+  "coef": [
+    19.972661,
+    4.564066,
+    2.127806,
+    -0.667413,
+    -0.909684,
+    -0.53155,
+    0.615004,
+    -0.856636
+  ],
+  "intercept": 58.868104,
+  "clip": [
+    0,
+    100
+  ],
+  "lambda": 1.0,
+  "fitted_on": {
+    "rows": 4405,
+    "days": 23
+  },
+  "validation": {
+    "rows": 791,
+    "mae": 1.9068,
+    "rmse": 2.4543,
+    "r2": 0.9896
+  },
+  "beats": {
+    "best_rule_extrapolation_mae": 2.35,
+    "controls_only_mae": 2.14,
+    "matlab_boosted_trees_mae": 1.92
+  },
+  "caveats": [
+    "Forecasts Garmin's Body Battery, a proprietary composite, not energy.",
+    "Feature set chosen among four app-computable variants on validation, so validation is not untouched for this model; the test split is.",
+    "Fitted on 23 days from one person. Personalised, not validated.",
+    "A wellness estimate, not a clinical measurement."
+  ]
+}

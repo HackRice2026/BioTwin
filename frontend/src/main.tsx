@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./style.css";
+import App from "./BioTwinApp";
+import "./biotwin.css";
 import { registerSW } from "virtual:pwa-register";
 registerSW({ immediate: true });
 ReactDOM.createRoot(document.getElementById("root")!).render(

@@ -16,13 +16,38 @@ def frame(**kwargs):
 
 
 def test_identifiability_recovers_planted_tau():
-    rng = np.random.default_rng(20)
+    rng = np.random.default_rng(0)
     for tau in [45, 110, 220]:
         t = np.arange(0, 361, 5)
         hr = decay(t, 65, 150, tau) + rng.normal(0, 0.2, len(t))
-        fitted, rmse = fit_segment(t, hr, 65)
-        assert abs(fitted - tau) / tau < 0.05
-        assert rmse < 1
+        fit = fit_segment(t, hr, 65)
+        assert abs(fit.tau - tau) / tau < 0.05
+        assert not fit.saturated
+
+
+def test_identifiability_recovers_tau_when_recovery_stops_above_resting():
+    """Sub-maximal recovery settles on an elevated plateau, not on resting HR.
+
+    Regression test for a pinned asymptote: bounding the asymptote near resting made
+    a decay toward 95 bpm unfittable and drove tau into its upper bound. Recorded
+    walks in this project produced a median tau of 900 s (the bound) before the fix.
+    """
+    rng = np.random.default_rng(1)
+    for tau, plateau in [(40, 95.0), (70, 120.0), (150, 80.0)]:
+        t = np.arange(0, 301, 5)
+        hr = decay(t, plateau, 165, tau) + rng.normal(0, 0.3, len(t))
+        fit = fit_segment(t, hr, 50)  # resting is 50; the plateau is far above it
+        assert abs(fit.tau - tau) / tau < 0.12, f"tau {fit.tau:.0f} vs planted {tau}"
+        assert abs(fit.asymptote - plateau) < 6, f"asymptote {fit.asymptote:.0f} vs {plateau}"
+        assert not fit.saturated
+
+
+def test_unidentified_segment_is_reported_not_accepted():
+    """A near-linear decline does not identify a constant; it must not pass as a slow one."""
+    t = np.arange(0, 301, 5)
+    hr = 150 - 0.02 * t  # gentle drift, no exponential settling
+    fit = fit_segment(t, hr, 50)
+    assert fit.saturated, f"expected a bound-limited fit, got tau {fit.tau:.0f}"
 
 
 def test_recovery_fit_uses_held_out_sessions():
@@ -154,3 +179,75 @@ def test_prediction_scoring_ignores_preissuance_data():
 def test_sleep_interval_rejects_invalid_duration():
     with pytest.raises(ValueError):
         SleepSummary(start=NOW, end=NOW + timedelta(hours=1), total_minutes=400)
+
+
+def engine_state(history, base):
+    from modeling.engine import reconcile, readiness
+    latest, quality = reconcile(history, NOW)
+    return readiness("u", history, base, NOW, quality, latest)
+
+def test_confidence_is_measured_against_reportable_signals():
+    """A sensor that never reports RMSSD should not cap confidence at 60%.
+
+    Weights are sleep 0.35 / hrv 0.30 / resting 0.20 / debt 0.15, so leaving an
+    unreported signal in the denominator limits a Venu 2 to 0.60 however complete
+    its own measurements are. A late or contested reading must still cost full
+    confidence -- only a never-observed one is discounted.
+    """
+    history = []
+    for day in range(1, 8):
+        stamp = NOW - timedelta(days=day)
+        history.append(
+            frame(resting_hr_bpm=52, heart_rate_bpm=52).model_copy(
+                update={"event_time": stamp}
+            )
+        )
+        history.append(
+            frame(
+                sleep=SleepSummary(
+                    start=stamp - timedelta(hours=8),
+                    end=stamp,
+                    total_minutes=450,
+                )
+            ).model_copy(update={"event_time": stamp})
+        )
+    history.sort(key=lambda f: f.event_time)
+    base = baseline(history, "u", NOW, fit=False)
+    assert base.hrv_rmssd.n_days == 0, "fixture must contain no RMSSD"
+
+    state = engine_state(history, base)
+    assert state.confidence > 0.62, (
+        f"confidence {state.confidence} still limited by an unreported signal"
+    )
+    assert "not reported by this device" in (state.degraded_reason or "")
+
+
+def test_an_evening_plan_explains_itself_instead_of_looking_disconnected():
+    """A connected calendar with no legal windows left is the normal late-evening
+    outcome. It used to return the same generic explanation as a successful plan,
+    and the UI answered an empty proposal list with "Connect your calendar" --
+    telling someone to connect what they had already connected."""
+    from datetime import datetime, timezone as tzmod
+    from modeling.planning import make_plan
+    from shared.schemas import BusyInterval, EnergyState, Readiness
+
+    profile = {"timezone": "America/Chicago", "bedtime": "23:00", "workout_minutes": 30}
+    late = datetime(2026, 9, 13, 2, 30, tzinfo=tzmod.utc)   # 21:30 in Chicago
+    ready = Readiness(
+        user_id="u", computed_at=late, score=70.0, state=EnergyState.BALANCED,
+        confidence=0.8, contributions={}, sleep_debt_minutes=0,
+    )
+    busy = [BusyInterval(
+        start=datetime(2026, 9, 13, 3, 0, tzinfo=tzmod.utc),
+        end=datetime(2026, 9, 13, 4, 0, tzinfo=tzmod.utc),
+    )]
+    plan = make_plan(late, ready, busy, profile, "connected")
+    assert plan.proposals == []
+    assert plan.calendar_status == "connected"
+    assert "No windows left today" in plan.explanation
+    assert "20:00" in plan.explanation and "23:00" in plan.explanation
+    assert "connect" not in plan.explanation.lower()
+
+    # Midday, the same inputs still produce real options.
+    midday = datetime(2026, 9, 12, 15, 0, tzinfo=tzmod.utc)   # 10:00 in Chicago
+    assert make_plan(midday, ready, busy, profile, "connected").proposals

@@ -18,6 +18,7 @@ class Provenance(StrEnum):
     FITBIT_LIVE = "fitbit_live"
     FITBIT_BACKFILL = "fitbit_backfill"
     GARMIN_BLE_LIVE = "garmin_ble_live"
+    GARMIN_CIQ_LIVE = "garmin_ciq_live"
     GARMIN_LIVE = "garmin_live"
     GARMIN_FIT_REPLAY = "garmin_fit_replay"
     GARMIN_INFLUX_BACKFILL = "garmin_influx_backfill"
@@ -44,6 +45,8 @@ class SleepSummary(Contract):
     deep_minutes: int | None = Field(default=None, ge=0)
     rem_minutes: int | None = Field(default=None, ge=0)
     efficiency_pct: float | None = Field(default=None, ge=0, le=100)
+    # Vendor-computed sleep score. Displayed as the vendor's own summary, never
+    # treated as a measurement or blended into BioTwin's readiness.
     score: int | None = Field(default=None, ge=0, le=100)
 
     @model_validator(mode="after")
@@ -72,22 +75,44 @@ class TwinFrame(Contract):
     activity_level: float | None = Field(default=None, ge=0, le=1)
     sleep: SleepSummary | None = None
     steps: int | None = Field(default=None, ge=0, le=200000)
+    # Current watch values, distinct from daily averages, charge/drain and active calories.
+    body_battery: int | None = Field(default=None, ge=0, le=100)
+    stress_level: float | None = Field(default=None, ge=0, le=100)
+    total_calories: int | None = Field(default=None, ge=0, le=30000)
+    distance_m: float | None = Field(default=None, ge=0, le=500000)
+    acceleration_mg: float | None = Field(default=None, ge=0, le=32000)
     max_hr_bpm: float | None = Field(default=None, ge=25, le=250)
     min_hr_bpm: float | None = Field(default=None, ge=25, le=250)
     distance_meters: float | None = Field(default=None, ge=0, le=100000)
-    floors_ascended: float | None = Field(default=None, ge=0, le=2000)
-    active_kcal: float | None = Field(default=None, ge=0, le=20000)
+    # Vendor daily summaries. These are proprietary composites, not sensor
+    # measurements: they are shown with their provenance and deliberately kept out
+    # of the readiness score, whose weights are a documented engineering spec.
+    #
+    # body_battery_pct is the intraday level, distinct from the charged/drained
+    # totals beside it: Body Battery at a moment, and both what the forecast
+    # predicts and its strongest input. Both branches added this field
+    # independently -- dev from its InfluxDB sync, mathworks from the MEASURED
+    # samples in stress.json -- so the merge keeps one field under dev's name.
     body_battery_pct: float | None = Field(default=None, ge=0, le=100)
-    stress_level: float | None = Field(default=None, ge=0, le=100)
-    stress_high_min: float | None = Field(default=None, ge=0, le=1440)
-    stress_medium_min: float | None = Field(default=None, ge=0, le=1440)
-    stress_low_min: float | None = Field(default=None, ge=0, le=1440)
     # Charged/drained are cumulative daily totals (can exceed a single 0-100
     # reading across multiple charge/drain cycles in a day), not a level --
     # body_battery_pct is the instantaneous level, this is the day's churn.
+    # The 0-100 ceiling this branch originally gave them was wrong and would
+    # have rejected valid days.
     body_battery_charged: float | None = Field(default=None, ge=0, le=300)
     body_battery_drained: float | None = Field(default=None, ge=0, le=300)
     body_battery_at_wake: float | None = Field(default=None, ge=0, le=100)
+    stress_avg: int | None = Field(default=None, ge=0, le=100)
+    stress_max: int | None = Field(default=None, ge=0, le=100)
+    stress_high_min: float | None = Field(default=None, ge=0, le=1440)
+    stress_medium_min: float | None = Field(default=None, ge=0, le=1440)
+    stress_low_min: float | None = Field(default=None, ge=0, le=1440)
+    active_calories: int | None = Field(default=None, ge=0, le=20000)
+    active_kcal: float | None = Field(default=None, ge=0, le=20000)
+    active_seconds: int | None = Field(default=None, ge=0, le=86400)
+    highly_active_seconds: int | None = Field(default=None, ge=0, le=86400)
+    floors_climbed: float | None = Field(default=None, ge=0, le=1000)
+    floors_ascended: float | None = Field(default=None, ge=0, le=2000)
     moderate_intensity_min: float | None = Field(default=None, ge=0, le=1440)
     vigorous_intensity_min: float | None = Field(default=None, ge=0, le=1440)
     confidence: float = Field(default=1, ge=0, le=1)
@@ -208,6 +233,7 @@ class MetricQuality(Contract):
 
 
 class TwinState(Contract):
+    energy_reserve_pct: int | None = Field(default=None, ge=0, le=100)
     schema_version: str = SCHEMA_VERSION
     sequence: int
     server_time: AwareDatetime
