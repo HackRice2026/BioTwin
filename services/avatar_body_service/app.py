@@ -170,7 +170,9 @@ STEP_SECONDS = 1.0
 POSE_FPS = 30
 
 
-def infer_bone_deltas(window: "np.ndarray", new_samples: int) -> list[dict[str, list[float]]]:
+def infer_bone_deltas(
+    window: "np.ndarray", new_samples: int, seed: "np.ndarray | None"
+) -> tuple[list[dict[str, list[float]]], "np.ndarray"]:
     """Blocking (real GPU inference) -- always call via asyncio.to_thread.
 
     Runs EMAGE on the whole window (context) but only returns bone-rotation
@@ -180,15 +182,33 @@ def infer_bone_deltas(window: "np.ndarray", new_samples: int) -> list[dict[str, 
     match this rig's rotation convention (see docs/AVATAR_IMPLEMENTATION_PLAN.md
     "Body gestures" section for how that sign was determined) -- the client
     builds the quaternion and composes it onto the bone's own rest pose.
+
+    `seed` (raw axis-angle + trans, `model.cfg.seed_frames` frames from the
+    tail of the PREVIOUS call's output, or None for the first call on a
+    connection) gives this call's own generation something to continue from
+    across the outer sliding-window boundary -- model.inference() already
+    seeds itself between its own internal windows for one call, this
+    extends the same idea across separate calls. Returns the new tail seed
+    to pass into the next call, alongside the frames.
     """
     import torch
     import torch.nn.functional as F
+    from models.emage_audio.processing_emage_audio import axis_angle_to_rotation_6d
 
+    seed_frames = _model.cfg.seed_frames
     audio_t = torch.from_numpy(window).to(_device).unsqueeze(0)
     speaker_id = torch.zeros(1, 1, device=_device).long()
     trans = torch.zeros(1, 1, 3, device=_device)
+    masked_motion = None
+    if seed is not None:
+        seed_t = torch.from_numpy(seed).to(_device).unsqueeze(0)  # [1, seed_frames, 55, 3 + 3 trans]
+        seed_pose6d = axis_angle_to_rotation_6d(seed_t[:, :, :55]).reshape(1, seed_frames, -1)
+        seed_trans = seed_t[:, :, 55]  # [1, seed_frames, 3] (stored packed, see below)
+        seed_foot = torch.zeros(1, seed_frames, 4, device=_device)  # not tracked; zeroed, same as an unknown-contact default
+        masked_motion = torch.cat([seed_pose6d, seed_trans, seed_foot], dim=-1)
+        trans[:, 0] = seed_t[0, -1, 55]
     with torch.no_grad():
-        latent_dict = _model.inference(audio_t, speaker_id, _motion_vq, masked_motion=None, mask=None)
+        latent_dict = _model.inference(audio_t, speaker_id, _motion_vq, masked_motion=masked_motion, mask=None)
         cfg = _model.cfg
         face_latent = latent_dict["rec_face"] if cfg.lf > 0 and cfg.cf == 0 else None
         upper_latent = latent_dict["rec_upper"] if cfg.lu > 0 and cfg.cu == 0 else None
@@ -204,6 +224,7 @@ def infer_bone_deltas(window: "np.ndarray", new_samples: int) -> list[dict[str, 
             get_global_motion=True, ref_trans=trans[:, 0],
         )
     motion = all_pred["motion_axis_angle"].cpu().numpy().reshape(-1, 55, 3)  # [T, 55, 3]
+    motion_trans = all_pred["trans"].cpu().numpy().reshape(-1, 3)  # [T, 3]
     new_frame_count = max(1, round(new_samples / SAMPLE_RATE * POSE_FPS))
     newest = motion[-new_frame_count:]
     frames: list[dict[str, list[float]]] = []
@@ -213,7 +234,14 @@ def infer_bone_deltas(window: "np.ndarray", new_samples: int) -> list[dict[str, 
             aa = newest[t, _joint_index[smplx_name]]
             bones[bone_name] = [-float(aa[0]), -float(aa[1]), -float(aa[2])]
         frames.append(bones)
-    return frames
+    # Pack the new seed as [seed_frames, 55, 4] -- axis-angle (3) with trans
+    # appended as a 4th "joint-shaped" row (see the unpack above) so this
+    # stays one plain array between calls, no separate second parameter.
+    tail = min(seed_frames, motion.shape[0])
+    packed = np.zeros((tail, 56, 3), dtype=np.float32)
+    packed[:, :55] = motion[-tail:]
+    packed[:, 55, :3] = motion_trans[-tail:]
+    return frames, packed
 
 
 @dataclass
@@ -222,6 +250,7 @@ class ConnectionState:
     scored_samples: int = 0
     frame_queue: deque = field(default_factory=deque)
     inference_busy: bool = False
+    motion_seed: "np.ndarray | None" = None
 
 
 async def _pump_ffmpeg_output(proc: "asyncio.subprocess.Process", state: ConnectionState) -> None:
@@ -246,7 +275,9 @@ async def _pump_ffmpeg_output(proc: "asyncio.subprocess.Process", state: Connect
         state.inference_busy = True
         started = time.perf_counter()
         try:
-            frames = await asyncio.to_thread(infer_bone_deltas, window, new_samples)
+            frames, state.motion_seed = await asyncio.to_thread(
+                infer_bone_deltas, window, new_samples, state.motion_seed
+            )
             elapsed_ms = (time.perf_counter() - started) * 1000
             metrics.inference_ms.append(elapsed_ms)
             state.frame_queue.extend(frames)
