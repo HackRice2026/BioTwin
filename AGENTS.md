@@ -128,6 +128,12 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — After merging a shared-schema change, CI caught stale generated
+  `frontend/src/contracts.ts` even though the local build passed. Run
+  `npm run types` from `frontend/`, then `bash scripts/check_schema.sh` from the
+  repository root whenever `shared/schemas` or a branch containing schema work
+  is merged.
+
 - 2026-09-13 — Forecast replaces the passive “Ready for today” overview card.
   It converts existing readiness, signal contributions, profile sleep target and
   calendar-aware plan proposals into checkable daily assignments. Training is
