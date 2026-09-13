@@ -13,10 +13,25 @@ uv sync --frozen
 npm ci --prefix frontend
 uv run python -m scripts.setup
 npm run build --prefix frontend
-uv run uvicorn core.api:app --host 127.0.0.1 --port 8000 --no-access-log
+uv run uvicorn core.api:app --host 0.0.0.0 --port 8000 --no-access-log
 ```
 
 Open **http://localhost:8000**. For frontend hot reload, run `bash scripts/dev.sh` and open http://localhost:5173. Offline installation must be tested using the production build on port 8000.
+
+### LAN access (share your dev server with a teammate)
+
+Both dev servers listen on `0.0.0.0` by default, so anyone on the same WiFi can reach them at your machine's LAN IP instead of `localhost`. Find that IP:
+
+```sh
+# macOS
+ipconfig getifaddr en0
+# Linux
+hostname -I
+# Windows (PowerShell)
+ipconfig
+```
+
+Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — voice, live updates and API calls all work the same as on `localhost`. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
 
 Create an adult account from “Connect your own story.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
 
@@ -29,7 +44,7 @@ Create an adult account from “Connect your own story.” In Connections, impor
 - Original locally stored 3D human: articulated arms, hands, fingers, legs, feet and head; breathing/pulse from fresh measurements; continuously blended posture; exercise and recovery state machine. Auto/Low/Medium/High graphics and reduced motion.
 - Heart rate, RMSSD, sleep stages, respiration, resting HR, oxygen saturation, steps, readiness history, and recovery graphs with provenance.
 - Calendar-feasible nap/workout suggestions, a clearly marked experimental day outlook, calendar event creation and popup reminders. Availability is rechecked before each write; repeat submissions do not duplicate an event.
-- Grounded typed conversation and microphone transcription when the browser supports it; ElevenLabs streaming speech from validated answers. Optional language-service fact selection cannot author physiological claims.
+- Typed or spoken questions answered by Gemini from the computed NarrationContext, with evidence and numerical validation. ElevenLabs speech plays automatically with avatar gestures; saved transcripts survive reloads and support replay. Explicit text fallbacks handle either provider failing.
 - Rest / light activity / exercise simulation on the same avatar and charts.
 - Installable PWA with a production-generated synthetic offline bundle. Service workers cache the app and public demo only, never personal API responses.
 - Adult accounts, password hashing, opaque HttpOnly sessions, per-user envelope-encrypted provider tokens, export and deletion, configurable measurement retention, diagnostics, Docker deployment, and CI.
@@ -45,9 +60,20 @@ Fill in the ignored `.env` file using [the integration guide](docs/INTEGRATIONS.
 | Garmin cloud | Approved Connect Developer access, client ID/secret, configured webhook | FIT/JSON imports and supported Bluetooth broadcast remain available |
 | Fitbit / Google Health | OAuth client, enabled API, test users/approval, webhook setup | Clear setup error; no invented live data |
 | Google Calendar | Google OAuth client and Calendar API enabled | Calendar proposals remain unavailable for real accounts |
+| Gemini | API key, narration endpoint/model, and external narration enabled | Clearly labeled deterministic context explanation |
 | ElevenLabs | API key and accessible voice ID | Grounded text works; speech reports setup required |
 
-External services were verified with protocol tests and mocked HTTP responses. **Live Garmin cloud sync, live Google account consent/calendar writes, and actual ElevenLabs audio have not been exercised with your accounts.**
+Gemini and ElevenLabs were exercised together in Chrome using a temporary account with generated test measurements: an answer was saved, spoken, and restored after reload. The current local voice is **George**, selected with user approval after the original library voice required a paid plan. **Live Garmin cloud sync and real Google Calendar consent/writes still require verification.**
+
+## Team accounts
+
+Not everyone on the team has the paired Garmin watch/account, so a new teammate's login starts empty. `scripts/onboard_teammate.py` gives them their own account seeded with a replay copy of the `demo` account's current history (real, live-synced Garmin/InfluxDB data when `DEMO_USES_REAL_DATA=true`) instead of a blank dashboard:
+
+```bash
+PYTHONPATH=. uv run scripts/onboard_teammate.py --email teammate@example.com --name Teammate
+```
+
+Prints the generated password once (pass `--password` to set your own). Safe to re-run for the same email later to refresh their data with the source account's latest history -- it only ever writes to that one teammate's own rows, tagged `provenance: replay`, never touching anyone else's account.
 
 ## Verification
 
@@ -63,6 +89,9 @@ npm run build --prefix frontend
 # With the app running and Chrome installed on macOS:
 node scripts/browser-check.mjs
 node scripts/account-check.mjs
+node scripts/voice-check.mjs
+# Optional live provider test using the configured local keys:
+BIOTWIN_LIVE_VOICE=true node scripts/voice-check.mjs
 node scripts/performance-check.mjs
 ```
 

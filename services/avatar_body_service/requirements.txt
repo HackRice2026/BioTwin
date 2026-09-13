@@ -1,0 +1,16 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+numpy>=1.26,<3
+torch>=2.4
+transformers==4.46.3
+smplx>=0.1.28
+scipy>=1.11
+
+# System packages this service also needs (not pip-installable):
+#   ffmpeg (decodes the client's MP3 audio chunks to PCM before inference)
+# Also needs the PantoMatrix/EMAGE repo checked out somewhere on PYTHONPATH
+# (models.emage_audio is imported from it, not from a pip package) -- see
+# AGENTS.md and docs/AVATAR_IMPLEMENTATION_PLAN.md for the exact setup used
+# on the SCC box. transformers is pinned exactly: EMAGE's PreTrainedModel
+# subclass breaks on newer transformers internals (AttributeError on
+# all_tied_weights_keys) -- this is the version confirmed working.

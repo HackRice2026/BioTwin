@@ -1,6 +1,6 @@
 # Integration setup
 
-The user's final requirements are Garmin first (watch paired with iPhone), minimum achievable latency, calendar writes with reminders, and ElevenLabs speech. Fitbit remains an optional adapter. Garmin recorded-data fallback is accepted. No real wearable credentials or voice credentials were supplied during implementation.
+The user's final requirements are Garmin first (watch paired with iPhone), minimum achievable latency, calendar writes with reminders, and ElevenLabs speech. Fitbit remains an optional adapter. Garmin recorded-data fallback is accepted. Gemini and ElevenLabs credentials are configured in the ignored local `.env`; wearable developer credentials remain outstanding.
 
 ## Local environment
 
@@ -72,21 +72,50 @@ The server supports multiple calendar IDs through profile settings (`calendar_id
 
 References: [Create events](https://developers.google.com/workspace/calendar/api/guides/create-events), [Reminders and notifications](https://developers.google.com/workspace/calendar/api/concepts/reminders), [Incremental synchronization](https://developers.google.com/workspace/calendar/api/guides/sync).
 
-## ElevenLabs
+## Outlook Calendar, events and reminders
 
-`TODO(blocked): ElevenLabs API key with text-to-speech access and available credits — add the key and an accessible voice, then verify speech in the UI.`
+`TODO(blocked): Azure app registration, enabled Microsoft Graph calendar permissions and user consent -- configure client credentials and redirect URI.`
+
+Register an app in the [Azure Portal App registrations](https://portal.azure.com) blade (any Microsoft account, personal or work/school, can register one), add `${PUBLIC_URL}/auth/microsoft-calendar/callback` as a web redirect URI, and create a client secret under Certificates & secrets. Configure:
 
 ```dotenv
+MICROSOFT_CLIENT_ID=...
+MICROSOFT_CLIENT_SECRET=...
+```
+
+Connect from BioTwin. Scopes are `Calendars.ReadWrite` and `offline_access` (Microsoft's identity platform issues a refresh token because of the scope, not a separate `access_type=offline` parameter the way Google needs). Busy time is read via `/me/calendarView`, filtered to events with `showAs` of `busy` or `oof`; free/tentative/working-elsewhere entries on the calendar do not block a slot. If both Google and Outlook are connected, availability merges busy time from both -- a meeting on either calendar counts. New events are still written to Google when both are connected; Outlook is the target only when Google isn't.
+
+Unlike Google, Graph does not accept a client-chosen event ID for idempotent creation; a local id-to-event mapping (`calendar_event_ref`) plays that role instead so a retried request cannot double-book. Unlike Google, Graph's event `start`/`end` want a local, offset-free clock time paired with an explicit IANA `timeZone` field, not an offset-inclusive timestamp -- the request is built accordingly. The primary calendar's timezone is deliberately not auto-detected after connecting the way it is for Google: Graph's `mailboxSettings.timeZone` comes back as a Windows timezone name ("Pacific Standard Time"), not IANA, and saving that into the profile would break every other `ZoneInfo(...)` call in the app rather than just leaving the existing zone alone. Set the profile timezone directly, or connect Google Calendar too, if that auto-detection matters.
+
+Disconnecting removes the locally stored token only. Microsoft's identity platform has no per-app token-revoke endpoint the way Google's `/revoke` is -- `/me/revokeSignInSessions` revokes every session for every app, the wrong scope for "disconnect this one integration" -- so the token is simply forgotten and left to expire.
+
+References: [Get calendarView](https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview), [Create event](https://learn.microsoft.com/en-us/graph/api/calendar-post-events), [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app).
+
+## Talk to your twin: Gemini and ElevenLabs
+
+The local configuration has been verified with this Gemini client endpoint and model:
+
+```dotenv
+NARRATION_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+NARRATION_API_KEY=...
+NARRATION_MODEL=gemini-3.1-flash-lite
+ALLOW_EXTERNAL_NARRATION=true
 ELEVENLABS_API_KEY=...
 ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 ```
 
-Ask the twin a question, then click **Listen with ElevenLabs**. A short-lived, account-scoped response ID retrieves the already validated answer, and the backend streams MP3 from ElevenLabs to the audio player. The API key never goes to the browser. Arbitrary client-written speech text is not accepted. Failed speech remains an explicit error alongside the usable text answer; browser speech synthesis is not silently substituted.
+`JBFqnCBsd6RMkjVDRZzb` is George, tested successfully and selected with the user's approval. The originally configured library voice returned `paid_plan_required`. The key can synthesize speech but cannot list voices (`voices_read` is absent); listing voices is not required for playback. A Gemini model-discovery request verified the selected model is available, and the actual chat-completions request returned a validated answer. The client uses low reasoning effort and structured JSON responses through Google's OpenAI-compatible REST endpoint.
 
-Voice playback is intentionally initiated by a user gesture, which also supports mobile browser audio restrictions. Model and voice availability depend on the ElevenLabs account. Optional microphone input uses the browser's supported speech-recognition service and is independently permission-gated by the browser; ElevenLabs provides the spoken output.
+Open **Talk to my twin**, type a question and send it, or press the microphone button and speak. Browsers with speech recognition submit the final transcription automatically. Otherwise, BioTwin records through MediaRecorder: tap the microphone again to finish, or it stops after thirty seconds. The recording is sent to the authenticated `/api/twin/transcribe` endpoint, and Gemini transcribes only the question before the normal narration flow starts. Recordings are limited to 5 MB and are not stored in the transcript. Gemini receives only the question and the computed context: readiness and contributions, baseline summary, facts about recorded signals, provenance and quality, trend, stored plan, and stored prediction. No provider tokens, account credentials, raw history query, or external tools are available to Gemini. Its answer must cite context evidence and pass the numerical/claim guard before reaching the UI or speech service. Failed requests or rejected output return a visibly labeled context fallback.
 
-Reference: [ElevenLabs stream speech](https://elevenlabs.io/docs/api-reference/text-to-speech/stream).
+ElevenLabs automatically reads the accepted answer. Browser playback events animate the twin; a compact twin remains visible inside the conversation on mobile. Chrome streams MP3 as it arrives; unsupported MediaSource browsers buffer audio before playing. If autoplay is blocked, **Listen with ElevenLabs** resumes the in-memory audio after a user gesture. **Stop speaking**, closing the panel, and account changes stop playback. An audio error remains visible with the saved text and a retry action.
+
+Each exchange is saved in the SQL `conversations` table before playback, including the question, accepted Gemini text, displayed response, provider mode/model, timestamp, and context snapshot. Reopening the panel or reloading restores history; older history is paginated. Transcript speech replay uses a new short-lived, owner-scoped ticket. User transcripts are included in data export and deletion and follow the configured retention period. Demo visitors have isolated browser-owned transcripts. Public offline example answers are explicitly not saved as personal exchanges.
+
+No API key is sent to the browser. The server refuses narration endpoints outside the configured Google API host/path. Microphone capture needs browser permission. The built-in speech-recognition path and the MediaRecorder fallback are independently exercised by browser tests using simulated speech/streams. The native Gemini audio endpoint also transcribed a generated spoken question live. Physical microphone capture on this user's iPhone has not been exercised.
+
+References: [Gemini OpenAI-compatible REST and structured responses](https://ai.google.dev/gemini-api/docs/openai), [Gemini models](https://ai.google.dev/gemini-api/docs/models), [Gemini audio transcription](https://ai.google.dev/gemini-api/docs/audio), [ElevenLabs streaming speech](https://elevenlabs.io/docs/api-reference/text-to-speech/stream).
 
 ## Optional Fitbit / Google Health
 

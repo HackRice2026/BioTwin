@@ -12,22 +12,38 @@ METRICS = (
     "activity_level",
     "sleep",
     "steps",
+    # Live watch stream and derived motion.
     "body_battery",
     "stress_level",
     "total_calories",
     "distance_m",
+    "max_hr_bpm",
+    "min_hr_bpm",
+    "distance_meters",
     "acceleration_mg",
     # Vendor daily composites. Carried so they can be displayed with provenance;
     # they are not sensor measurements and do not feed readiness.
-    "body_battery_level",
+    #
+    # body_battery_pct is the instantaneous level -- both sides of this merge
+    # added it independently, dev from its InfluxDB sync and mathworks from the
+    # intraday samples in stress.json. One field, dev's name.
+    "body_battery_pct",
     "body_battery_charged",
     "body_battery_drained",
+    "body_battery_at_wake",
     "stress_avg",
     "stress_max",
+    "stress_high_min",
+    "stress_medium_min",
+    "stress_low_min",
     "active_calories",
+    "active_kcal",
     "active_seconds",
     "highly_active_seconds",
     "floors_climbed",
+    "floors_ascended",
+    "moderate_intensity_min",
+    "vigorous_intensity_min",
 )
 
 

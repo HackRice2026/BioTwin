@@ -150,7 +150,7 @@ def wellness_frames(root, uid):
                 continue
             out.append(TwinFrame(user_id=uid, event_time=stamp(sample[0]),
                                  provenance=Provenance.GARMIN_FIT_REPLAY,
-                                 body_battery_level=int(level)))
+                                 body_battery_pct=float(level)))
 
     for row in load("stress.json"):
         data = row.get("data") or {}

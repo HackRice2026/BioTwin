@@ -10,6 +10,7 @@ from shared.schemas import (
     DailyPlan,
     NarrationContext,
     NarrationResponse,
+    Conversation,
     SimulationOverlay,
     DayOutlook,
 )
@@ -28,6 +29,7 @@ Package = create_model(
             DailyPlan,
             NarrationContext,
             NarrationResponse,
+            Conversation,
             SimulationOverlay,
             DayOutlook,
         ]

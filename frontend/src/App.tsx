@@ -1,3 +1,4 @@
+import { useTwinConversation } from "./useTwinConversation";
 import { useEffect, useRef, useState } from "react";
 import WatchConnection from "./WatchConnection";
 import type { FormEvent, ReactNode } from "react";
@@ -9,6 +10,7 @@ import {
   Battery,
   CalendarDays,
   Check,
+  ChevronDown,
   CloudOff,
   FlaskConical,
   Heart,
@@ -32,13 +34,15 @@ import {
   Bluetooth,
   Footprints,
   Mic,
-  BatteryCharging,
   Gauge,
+  MapPin,
+  Building2,
   Flame,
 } from "lucide-react";
 import { useHeartRateBroadcast } from "./ble";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
+import LiveSchedule from "./LiveSchedule";
 import { useTwin } from "./transport";
 import { api, post, humanize, value } from "./api";
 import type { Session, MetricPoint, SleepPoint, Forecast } from "./api";
@@ -69,6 +73,9 @@ const navigation: { name: Page; icon: typeof Activity }[] = [
   { name: "What-if lab", icon: FlaskConical },
   { name: "Connections", icon: Link2 },
 ];
+const WORKOUT_TIMING_INTENT =
+  /when (should|can) i (work ?out|exercise)|best time to (work ?out|exercise)|can i fit (a |my )?work ?out|schedule (a |my )?work ?out|find (a |me )?time to (work ?out|exercise)/i;
+
 const emptySeries: Record<string, MetricPoint[]> = {
   heart_rate_bpm: [],
   hrv_rmssd_ms: [],
@@ -76,23 +83,14 @@ const emptySeries: Record<string, MetricPoint[]> = {
   respiration_brpm: [],
   spo2_pct: [],
   steps: [],
-  // Vendor daily composites, shown with provenance and kept out of readiness.
-  body_battery_charged: [],
-  body_battery_drained: [],
-  stress_avg: [],
-  stress_max: [],
-  active_calories: [],
-  active_seconds: [],
-  highly_active_seconds: [],
-  floors_climbed: [],
+  stress_level: [],
+  body_battery_pct: [],
+  distance_meters: [],
+  floors_ascended: [],
+  active_kcal: [],
+  max_hr_bpm: [],
+  min_hr_bpm: [],
 };
-type Reply = {
-  answer: string;
-  mode: string;
-  reply_id?: string;
-  voice_configured?: boolean;
-};
-type Message = { role: "user" | "twin"; text: string; reply?: Reply };
 
 function Card({
   children,
@@ -245,6 +243,16 @@ export default function App() {
     [session, setSession] = useState<Session | null>(null);
   const { state, live, status, bundle, error } = useTwin(accountKey);
   const overlay = useRef<SimulationOverlay | null>(null);
+  const conversationOverlay = useRef<SimulationOverlay | null>(null);
+  const [narrow, setNarrow] = useState(
+    () => matchMedia("(max-width: 760px)").matches,
+  );
+  useEffect(() => {
+    const query = matchMedia("(max-width: 760px)");
+    const update = () => setNarrow(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const [simulation, setSimulation] = useState<SimulationOverlay | null>(null),
     [scenarioBusy, setScenarioBusy] = useState("");
   const [metrics, setMetrics] = useState(emptySeries),
@@ -258,21 +266,38 @@ export default function App() {
     [toast, setToast] = useState(""),
     [auth, setAuth] = useState(false),
     [chat, setChat] = useState(false),
-    [messages, setMessages] = useState<Message[]>([]),
-    [question, setQuestion] = useState(""),
-    [asking, setAsking] = useState(false),
-    [speaking, setSpeaking] = useState(false),
     [reminder, setReminder] = useState(10),
     [adding, setAdding] = useState(""),
-    [added, setAdded] = useState<string[]>([]);
+    [added, setAdded] = useState<string[]>([]),
+    [liveSchedule, setLiveSchedule] = useState(false);
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
   const [ops, setOps] = useState<Record<string, unknown> | null>(null),
     [showOps, setShowOps] = useState(false),
     [loadingPlan, setLoadingPlan] = useState(false);
-  const audio = useRef<HTMLAudioElement | null>(null),
-    messagesEnd = useRef<HTMLDivElement>(null);
+  const messagesEnd = useRef<HTMLDivElement>(null);
+  const conversation = useTwinConversation({
+    open: chat,
+    online: status === "online",
+    bundle,
+    session,
+    accountKey,
+  });
+  const {
+    messages,
+    question,
+    setQuestion,
+    asking,
+    transcribing,
+    speaking,
+    listening,
+    needsTap,
+    ask,
+    microphone,
+    stopSpeaking,
+    resumeSpeech,
+  } = conversation;
   const notify = (s: string) => setToast(s);
   // Live heart rate is startable from whichever screen is open, so a
   // demonstration does not have to leave the overview to begin streaming.
@@ -284,8 +309,7 @@ export default function App() {
     return false;
   });
   const changed = () => {
-    audio.current?.pause();
-    setSpeaking(false);
+    conversation.reset();
     setSession(null);
     setMetrics(emptySeries);
     setSleep([]);
@@ -296,7 +320,6 @@ export default function App() {
     setAccountKey((k) => k + 1);
     overlay.current = null;
     setSimulation(null);
-    setMessages([]);
     setAdded([]);
   };
   useEffect(() => {
@@ -373,12 +396,6 @@ export default function App() {
       clearInterval(timer);
     };
   }, [status, bundle, days, accountKey]);
-  useEffect(
-    () => () => {
-      audio.current?.pause();
-    },
-    [],
-  );
   function navigate(next: Page) {
     setPage(next);
     if (next !== "What-if lab") {
@@ -441,79 +458,6 @@ export default function App() {
     } finally {
       setAdding("");
     }
-  }
-  async function ask(text: string) {
-    if (!text.trim() || asking) return;
-    setQuestion("");
-    setMessages((m) => [...m, { role: "user", text }]);
-    setAsking(true);
-    try {
-      let reply: Reply;
-      if (status === "offline" && bundle) {
-        const key = /recover|predict/i.test(text)
-          ? "recovery"
-          : /sleep/i.test(text)
-            ? "sleep"
-            : /plan|nap|workout/i.test(text)
-              ? "plan"
-              : "readiness";
-        reply = {
-          answer: `Offline example: ${bundle.answers[key] ?? "Reconnect to ask about your personal measurements."}`,
-          mode: "offline",
-        };
-      } else reply = await post<Reply>("/api/twin/ask", { question: text });
-      setMessages((m) => [...m, { role: "twin", text: reply.answer, reply }]);
-    } catch (e) {
-      setMessages((m) => [...m, { role: "twin", text: (e as Error).message }]);
-    } finally {
-      setAsking(false);
-    }
-  }
-  function speak(reply: Reply) {
-    if (!reply.voice_configured || !reply.reply_id) {
-      notify(
-        "ElevenLabs voice needs an API key on the server. The text answer is available now.",
-      );
-      return;
-    }
-    audio.current?.pause();
-    const player = new Audio(`/api/voice/${reply.reply_id}`);
-    audio.current = player;
-    player.onplaying = () => setSpeaking(true);
-    player.onended = () => setSpeaking(false);
-    player.onerror = () => {
-      setSpeaking(false);
-      notify(
-        "Speech could not play. Check the ElevenLabs connection, or ask again if this response has expired.",
-      );
-    };
-    player.play().catch(() => {
-      setSpeaking(false);
-      notify("Audio playback was blocked. Use Listen again to start playback.");
-    });
-  }
-  function microphone() {
-    const Recognition =
-      (
-        window as Window & {
-          SpeechRecognition?: any;
-          webkitSpeechRecognition?: any;
-        }
-      ).SpeechRecognition ||
-      (window as Window & { webkitSpeechRecognition?: any })
-        .webkitSpeechRecognition;
-    if (!Recognition) {
-      notify(
-        "Microphone transcription is unavailable in this browser. Type your question below.",
-      );
-      return;
-    }
-    const recognition = new Recognition();
-    recognition.lang = "en-US";
-    recognition.onresult = (e: any) => setQuestion(e.results[0][0].transcript);
-    recognition.onerror = () =>
-      notify("Microphone input was unavailable. You can type your question.");
-    recognition.start();
   }
   const isDemo = status === "offline" || session?.demo;
   const prediction = state?.prediction?.curve.length
@@ -683,7 +627,9 @@ export default function App() {
               {status === "offline"
                 ? "Offline replay"
                 : isDemo
-                  ? "Synthetic demo"
+                  ? state?.provenance_banner === "synthetic"
+                    ? "Synthetic demo"
+                    : "Live demo (real data)"
                   : status === "online"
                     ? "Twin connected"
                     : "Connecting"}
@@ -807,7 +753,10 @@ export default function App() {
           {isDemo && status !== "offline" && (
             <div className="demo-banner">
               <span>
-                <i />A working preview with synthetic wearable data.
+                <i />
+                {state?.provenance_banner === "synthetic"
+                  ? "A working preview with synthetic wearable data."
+                  : "Live wearable data — not yet saved to your own account."}
               </span>
               <button onClick={() => setAuth(true)}>
                 Connect your own story <ArrowRight size={14} />
@@ -867,7 +816,11 @@ export default function App() {
                   }
                   unit="h"
                   icon={Moon}
-                  detail={sleepDetail}
+                  detail={
+                    latest?.sleep?.score != null
+                      ? `${sleepDetail} · Score ${latest.sleep.score}`
+                      : sleepDetail
+                  }
                   data={sleep.map((s) => ({
                     time: s.time,
                     value: s.value.total_minutes / 60,
@@ -886,107 +839,17 @@ export default function App() {
                   source={source("resting_hr_bpm")}
                 />
               </div>
-              <div className="stage">
-                <div className="stage-left">
-                  <p className="stage-label">Your recent measurements</p>
-                  <MetricCard
-                    name="Respiration"
-                    reading={latest?.respiration_brpm}
-                    unit="br/min"
-                    icon={Wind}
-                    detail="Breaths per minute · measured"
-                    data={metrics.respiration_brpm ?? []}
-                    source={source("respiration_brpm")}
-                  />
-                  <MetricCard
-                    name="Blood oxygen"
-                    reading={latest?.spo2_pct}
-                    unit="%"
-                    icon={Activity}
-                    detail="Pulse oximetry · overnight"
-                    data={metrics.spo2_pct ?? []}
-                    source={source("spo2_pct")}
-                  />
-                  <p className="stage-label divider">
-                    Garmin&rsquo;s own summaries
-                  </p>
-                  <MetricCard
-                    name="Body Battery drained"
-                    reading={latest?.body_battery_drained}
-                    unit=""
-                    icon={BatteryCharging}
-                    detail={
-                      latest?.body_battery_charged != null
-                        ? `Charged +${latest.body_battery_charged} · drained −${latest?.body_battery_drained ?? 0}`
-                        : "Garmin's own energy estimate"
-                    }
-                    data={metrics.body_battery_drained ?? []}
-                    source={source("body_battery_drained")}
-                  />
-                  <MetricCard
-                    name="Stress"
-                    reading={latest?.stress_avg}
-                    unit="/100"
-                    icon={Gauge}
-                    detail={
-                      latest?.stress_max != null
-                        ? `Daily average · peaked at ${latest.stress_max}`
-                        : "Garmin's own daily average"
-                    }
-                    data={metrics.stress_avg ?? []}
-                    source={source("stress_avg")}
-                  />
-                  <MetricCard
-                    name="Active energy"
-                    reading={latest?.active_calories}
-                    unit="kcal"
-                    icon={Flame}
-                    detail={
-                      [
-                        latest?.active_seconds != null
-                          ? `${Math.round(latest.active_seconds / 60)} min active`
-                          : null,
-                        latest?.highly_active_seconds != null
-                          ? `${Math.round(latest.highly_active_seconds / 60)} min intense`
-                          : null,
-                        latest?.floors_climbed != null
-                          ? `${Math.round(latest.floors_climbed)} floors`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "Recorded movement"
-                    }
-                    data={metrics.active_calories ?? []}
-                    source={source("active_calories")}
-                  />
-                  <MetricCard
-                    name="Sleep score"
-                    reading={latest?.sleep?.score}
-                    unit="/100"
-                    icon={Moon}
-                    detail="Garmin's own score · not used in readiness"
-                    data={sleep
-                      .filter((x) => x.value.score != null)
-                      .map((x) => ({
-                        time: x.time,
-                        value: x.value.score as number,
-                        provenance: x.provenance,
-                        confidence: 1,
-                      }))}
-                    source={source("sleep")}
-                  />
-                </div>
-                <div className="stage-center">
-                  <Avatar
-                    live={live}
-                    overlay={overlay}
-                    state={state}
-                    reduced={reduced}
-                    speaking={speaking}
-                  />
-                </div>
-                <div className="stage-right">
-                  <p className="stage-label">Predictions and modelling</p>
+              <div className="hero-grid">
+                <Avatar
+                  live={live}
+                  overlay={overlay}
+                  state={state}
+                  reduced={reduced}
+                  speaking={speaking}
+                  listening={listening}
+                  thinking={asking}
+                />
+                <div className="hero-panels">
                   <ReadinessPanel
                     state={state}
                     onSignals={() => navigate("Signals")}
@@ -1088,6 +951,98 @@ export default function App() {
                   </Card>
                 </div>
               </div>
+              <div className="vitals-strip">
+                {[
+                  {
+                    name: "Respiration",
+                    field: "respiration_brpm",
+                    unit: "br/min",
+                    icon: Wind,
+                  },
+                  {
+                    name: "Blood oxygen",
+                    field: "spo2_pct",
+                    unit: "%",
+                    icon: Activity,
+                  },
+                  {
+                    name: "Recorded steps",
+                    field: "steps",
+                    unit: "steps",
+                    icon: Footprints,
+                  },
+                  {
+                    name: "Stress level",
+                    field: "stress_level",
+                    unit: "",
+                    icon: Gauge,
+                  },
+                  {
+                    name: "Body battery",
+                    field: "body_battery_pct",
+                    unit: "%",
+                    icon: Battery,
+                  },
+                  {
+                    name: "Distance",
+                    field: "distance_meters",
+                    unit: "m",
+                    icon: MapPin,
+                  },
+                  {
+                    name: "Floors climbed",
+                    field: "floors_ascended",
+                    unit: "",
+                    icon: Building2,
+                  },
+                  {
+                    name: "Active calories",
+                    field: "active_kcal",
+                    unit: "kcal",
+                    icon: Flame,
+                  },
+                  {
+                    name: "Max heart rate",
+                    field: "max_hr_bpm",
+                    unit: "bpm",
+                    icon: Heart,
+                  },
+                  {
+                    name: "Min heart rate",
+                    field: "min_hr_bpm",
+                    unit: "bpm",
+                    icon: Heart,
+                  },
+                ].map((m) => (
+                  <div key={m.field}>
+                    <m.icon size={18} />
+                    <span>
+                      {m.name}
+                      <small>
+                        {quality[m.field]
+                          ? new Date(
+                              quality[m.field].event_time,
+                            ).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "No measurement"}
+                      </small>
+                    </span>
+                    <b>
+                      {value(
+                        latest?.[m.field as keyof typeof latest] as
+                          number | null,
+                        1,
+                      )}
+                      <small>{m.unit}</small>
+                    </b>
+                    <ProvenanceChip source={source(m.field)} />
+                  </div>
+                ))}
+              </div>
               {Object.values(quality).some((q) => q.contested) && (
                 <div className="notice">
                   Connected sources disagree on some measurements. See Signals
@@ -1166,32 +1121,83 @@ export default function App() {
                     unit: "br/min",
                   },
                   { field: "spo2_pct", title: "Blood oxygen", unit: "%" },
-                  { field: "steps", title: "Recorded steps", unit: "steps" },
                   {
-                    field: "body_battery_drained",
-                    title: "Body Battery drained",
+                    field: "steps",
+                    title: "Recorded steps",
+                    unit: "steps",
+                    detail: [
+                      {
+                        label: "Moderate activity",
+                        field: "moderate_intensity_min",
+                        unit: "min",
+                      },
+                      {
+                        label: "Vigorous activity",
+                        field: "vigorous_intensity_min",
+                        unit: "min",
+                      },
+                    ],
+                  },
+                  {
+                    field: "stress_level",
+                    title: "Stress level",
+                    unit: "",
+                    detail: [
+                      { label: "High", field: "stress_high_min", unit: "min" },
+                      {
+                        label: "Medium",
+                        field: "stress_medium_min",
+                        unit: "min",
+                      },
+                      { label: "Low", field: "stress_low_min", unit: "min" },
+                    ],
+                  },
+                  {
+                    field: "body_battery_pct",
+                    title: "Body battery",
+                    unit: "%",
+                    detail: [
+                      {
+                        label: "At wake",
+                        field: "body_battery_at_wake",
+                        unit: "%",
+                      },
+                      {
+                        label: "Charged",
+                        field: "body_battery_charged",
+                        unit: "",
+                      },
+                      {
+                        label: "Drained",
+                        field: "body_battery_drained",
+                        unit: "",
+                      },
+                    ],
+                  },
+                  {
+                    field: "distance_meters",
+                    title: "Distance",
+                    unit: "m",
+                  },
+                  {
+                    field: "floors_ascended",
+                    title: "Floors climbed",
                     unit: "",
                   },
                   {
-                    field: "body_battery_charged",
-                    title: "Body Battery charged",
-                    unit: "",
-                  },
-                  { field: "stress_avg", title: "Stress", unit: "/100" },
-                  {
-                    field: "active_calories",
-                    title: "Active energy",
+                    field: "active_kcal",
+                    title: "Active calories",
                     unit: "kcal",
                   },
                   {
-                    field: "highly_active_seconds",
-                    title: "Intense minutes",
-                    unit: "s",
+                    field: "max_hr_bpm",
+                    title: "Max heart rate",
+                    unit: "bpm",
                   },
                   {
-                    field: "floors_climbed",
-                    title: "Floors climbed",
-                    unit: "",
+                    field: "min_hr_bpm",
+                    title: "Min heart rate",
+                    unit: "bpm",
                   },
                 ].map((m) => (
                   <Card key={m.field}>
@@ -1211,6 +1217,27 @@ export default function App() {
                           ?.map((a: any) => `${humanize(a.source)}: ${a.value}`)
                           .join(" · ")}
                       </p>
+                    )}
+                    {"detail" in m && m.detail && (
+                      <details className="signal-detail">
+                        <summary>Breakdown</summary>
+                        <div className="signal-detail-stats">
+                          {m.detail.map((d) => (
+                            <div key={d.field}>
+                              <span>{d.label}</span>
+                              <b>
+                                {value(
+                                  latest?.[d.field as keyof typeof latest] as
+                                    | number
+                                    | null,
+                                  0,
+                                )}
+                                <small>{d.unit}</small>
+                              </b>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     )}
                   </Card>
                 ))}
@@ -1530,7 +1557,71 @@ export default function App() {
                 <X size={19} />
               </button>
             </div>
-            <div className="chat-messages">
+            {state && (narrow || page !== "Overview") && (
+              <div className="chat-twin" aria-label="Speaking digital twin">
+                <Avatar
+                  compact
+                  live={live}
+                  overlay={conversationOverlay}
+                  state={state}
+                  reduced={reduced}
+                  speaking={speaking}
+                  listening={listening}
+                  thinking={asking}
+                />
+              </div>
+            )}
+            <div className="chat-scroll">
+              <div className="voice-stage">
+                <button
+                  type="button"
+                  className={`mic-primary${listening ? " is-listening" : ""}${speaking ? " is-speaking" : ""}${asking ? " is-thinking" : ""}`}
+                  aria-pressed={listening}
+                  aria-label={
+                    listening ? "Stop listening" : "Start listening"
+                  }
+                  disabled={asking}
+                  onClick={microphone}
+                >
+                  <span className="mic-rings" aria-hidden="true" />
+                  <Mic size={30} />
+                </button>
+                <p className="voice-caption">
+                  {listening
+                    ? "Listening… tap to stop"
+                    : asking
+                      ? transcribing
+                        ? "Transcribing…"
+                        : "Thinking…"
+                      : speaking
+                        ? "Speaking…"
+                        : "Tap to talk to your twin"}
+                </p>
+                {needsTap && !conversation.voiceError && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={resumeSpeech}
+                  >
+                    <Volume2 size={13} />
+                    Tap to hear your twin
+                  </button>
+                )}
+                {conversation.voiceNotice && (
+                  <p
+                    className={`conversation-status ${conversation.voiceError ? "error" : ""}`}
+                    role={conversation.voiceError ? "alert" : "status"}
+                  >
+                    {conversation.voiceNotice}
+                  </p>
+                )}
+                {speaking && (
+                  <button className="text-button" onClick={stopSpeaking}>
+                    <Pause size={14} />
+                    Stop speaking
+                  </button>
+                )}
+              </div>
               <div className="chat-welcome">
                 <Sparkles size={24} />
                 <h2>
@@ -1552,46 +1643,66 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {messages.map((m, i) => (
-                <div key={i} className={`message ${m.role}`}>
-                  <small>{m.role === "user" ? "YOU" : "YOUR TWIN"}</small>
-                  <p>{m.text}</p>
-                  {m.reply && (
+              <details className="chat-transcript">
+                <summary>
+                  <span>Transcript</span>
+                  <ChevronDown size={14} />
+                </summary>
+                <div className="chat-messages">
+                  {conversation.historyBusy && (
+                    <p className="conversation-status" role="status">
+                      Loading saved conversations…
+                    </p>
+                  )}
+                  {conversation.historyError && (
+                    <p className="conversation-status error" role="alert">
+                      {conversation.historyError}
+                    </p>
+                  )}
+                  {conversation.nextBefore && (
                     <button
-                      className="listen-button"
-                      onClick={() => speak(m.reply!)}
+                      className="text-button"
+                      disabled={conversation.historyBusy}
+                      onClick={() =>
+                        conversation.loadHistory(conversation.nextBefore!)
+                      }
                     >
-                      <Volume2 size={13} />
-                      Listen with ElevenLabs
+                      Load earlier conversations
                     </button>
                   )}
+                  {messages.map((m) => (
+                    <div key={m.key} className={`message ${m.role}`}>
+                      <small>
+                        {m.role === "user" ? "YOU" : "YOUR TWIN"} ·{" "}
+                        <time dateTime={m.created_at}>
+                          {new Date(m.created_at).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </time>
+                      </small>
+                      <p>{m.text}</p>
+                      {m.reply?.notice && (
+                        <p className="message-notice">{m.reply.notice}</p>
+                      )}
+                    </div>
+                  ))}
+                  <div ref={messagesEnd} />
                 </div>
-              ))}
-              {asking && (
-                <div className="thinking">
-                  <LoaderCircle size={15} className="spin" />
-                  Reading your computed context…
-                </div>
-              )}
-              <div ref={messagesEnd} />
+              </details>
             </div>
             <div className="chat-input-area">
-              {speaking && (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    audio.current?.pause();
-                    setSpeaking(false);
-                  }}
-                >
-                  <Pause size={14} />
-                  Stop speaking
-                </button>
-              )}
               <form
                 className="chat-input"
                 onSubmit={(e: FormEvent) => {
                   e.preventDefault();
+                  if (WORKOUT_TIMING_INTENT.test(question)) {
+                    setQuestion("");
+                    setLiveSchedule(true);
+                    return;
+                  }
                   ask(question);
                 }}
               >
@@ -1600,16 +1711,8 @@ export default function App() {
                   value={question}
                   maxLength={1000}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ask your twin something…"
+                  placeholder="Or type a question…"
                 />
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label="Dictate a question"
-                  onClick={microphone}
-                >
-                  <Mic size={17} />
-                </button>
                 <button
                   className="send-button"
                   aria-label="Send question"
@@ -1618,12 +1721,23 @@ export default function App() {
                   <Send size={17} />
                 </button>
               </form>
-              <p>Computed insights, expressed in words. No diagnoses.</p>
+              <p>
+                {status === "offline"
+                  ? "Public offline example · reconnect for your saved conversations."
+                  : "Questions and answers are saved to your transcript. Gemini explains your computed data; ElevenLabs provides the voice."}
+              </p>
             </div>
           </aside>
         </div>
       )}
       {auth && <AuthModal onClose={() => setAuth(false)} onDone={changed} />}
+      {liveSchedule && (
+        <LiveSchedule
+          plan={plan}
+          onBook={addEvent}
+          onClose={() => setLiveSchedule(false)}
+        />
+      )}
       {toast && (
         <div className="toast" role="status">
           <span>{toast}</span>

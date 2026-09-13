@@ -248,7 +248,7 @@ def test_forecast_refuses_a_stale_body_battery_reading():
 
     def level(minutes_ago, value):
         return TwinFrame(user_id="u", event_time=now - timedelta(minutes=minutes_ago),
-                         provenance=Provenance.GARMIN_FIT_REPLAY, body_battery_level=value)
+                         provenance=Provenance.GARMIN_FIT_REPLAY, body_battery_pct=value)
 
     stale = predict([level(45, 60)], now, "UTC", params)
     assert stale["available"] is False

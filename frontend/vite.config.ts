@@ -32,7 +32,7 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 8000000,
-        globPatterns: ["**/*.{js,css,html,svg,glb,json,woff2}"],
+        globPatterns: ["**/*.{js,css,html,svg,json,woff2}"],
         navigateFallbackDenylist: [
           /^\/api\//,
           /^\/auth\//,
@@ -45,6 +45,9 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Bind all interfaces, not just loopback, so teammates on the same
+    // WiFi can open http://<this machine's LAN IP>:5173 (see README).
+    host: true,
     port: 5173,
     proxy: {
       "/api": "http://127.0.0.1:8000",

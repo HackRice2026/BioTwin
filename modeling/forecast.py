@@ -63,10 +63,10 @@ def features(history, now, timezone="UTC"):
     }
     missing = []
 
-    level = _latest(history, "body_battery_level", now, MAX_LEVEL_AGE)
+    level = _latest(history, "body_battery_pct", now, MAX_LEVEL_AGE)
     if level is None:
-        return None, ["body_battery_level"], None
-    values["bb_current_measured"] = float(level.body_battery_level)
+        return None, ["body_battery_pct"], None
+    values["bb_current_measured"] = float(level.body_battery_pct)
     age = now - level.event_time
 
     # Change over the last hour, from the reading closest to an hour before the
@@ -74,7 +74,7 @@ def features(history, now, timezone="UTC"):
     # what the training data did when the column was missing.
     earlier, target = None, level.event_time - timedelta(hours=1)
     for frame in history:
-        if frame.body_battery_level is None:
+        if frame.body_battery_pct is None:
             continue
         gap = abs(frame.event_time - target)
         if CHANGE_WINDOW[0] <= level.event_time - frame.event_time <= CHANGE_WINDOW[1]:
@@ -85,7 +85,7 @@ def features(history, now, timezone="UTC"):
         missing.append("bb_current_change_1h")
     else:
         values["bb_current_change_1h"] = float(
-            level.body_battery_level - earlier.body_battery_level)
+            level.body_battery_pct - earlier.body_battery_pct)
 
     heart = _latest(history, "heart_rate_bpm", now, timedelta(hours=6))
     if heart is None:

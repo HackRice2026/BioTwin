@@ -21,6 +21,8 @@ export type Provenance =
   | "garmin_ciq_live"
   | "garmin_live"
   | "garmin_fit_replay"
+  | "garmin_influx_backfill"
+  | "garmin_influx_live"
   | "replay"
   | "synthetic";
 export type DedupeKey = string;
@@ -47,15 +49,26 @@ export type StressLevel = number | null;
 export type TotalCalories = number | null;
 export type DistanceM = number | null;
 export type AccelerationMg = number | null;
-export type BodyBatteryLevel = number | null;
+export type MaxHrBpm = number | null;
+export type MinHrBpm = number | null;
+export type DistanceMeters = number | null;
+export type BodyBatteryPct = number | null;
 export type BodyBatteryCharged = number | null;
 export type BodyBatteryDrained = number | null;
+export type BodyBatteryAtWake = number | null;
 export type StressAvg = number | null;
 export type StressMax = number | null;
+export type StressHighMin = number | null;
+export type StressMediumMin = number | null;
+export type StressLowMin = number | null;
 export type ActiveCalories = number | null;
+export type ActiveKcal = number | null;
 export type ActiveSeconds = number | null;
 export type HighlyActiveSeconds = number | null;
 export type FloorsClimbed = number | null;
+export type FloorsAscended = number | null;
+export type ModerateIntensityMin = number | null;
+export type VigorousIntensityMin = number | null;
 export type Confidence1 = number;
 export type UserId2 = string;
 export type ComputedAt1 = string;
@@ -123,6 +136,16 @@ export type Facts = string[];
 export type Answer = string;
 export type Mode = "template" | "language_service" | "guard_fallback";
 export type Grounded = boolean;
+export type Notice = string | null;
+export type Model = string | null;
+export type Id2 = string;
+export type Question = string;
+export type Answer1 = string | null;
+export type CreatedAt = string;
+export type CompletedAt = string | null;
+export type Mode1 = string;
+export type Notice1 = string | null;
+export type Model1 = string | null;
 export type IssuedAt1 = string;
 export type Timezone1 = string;
 export type Curve2 = CurvePoint[];
@@ -139,6 +162,7 @@ export interface BioTwinContracts {
   DailyPlan: DailyPlan;
   NarrationContext: NarrationContext;
   NarrationResponse: NarrationResponse;
+  Conversation: Conversation;
   SimulationOverlay: SimulationOverlay;
   DayOutlook: DayOutlook;
 }
@@ -191,15 +215,26 @@ export interface TwinFrame {
   total_calories?: TotalCalories;
   distance_m?: DistanceM;
   acceleration_mg?: AccelerationMg;
-  body_battery_level?: BodyBatteryLevel;
+  max_hr_bpm?: MaxHrBpm;
+  min_hr_bpm?: MinHrBpm;
+  distance_meters?: DistanceMeters;
+  body_battery_pct?: BodyBatteryPct;
   body_battery_charged?: BodyBatteryCharged;
   body_battery_drained?: BodyBatteryDrained;
+  body_battery_at_wake?: BodyBatteryAtWake;
   stress_avg?: StressAvg;
   stress_max?: StressMax;
+  stress_high_min?: StressHighMin;
+  stress_medium_min?: StressMediumMin;
+  stress_low_min?: StressLowMin;
   active_calories?: ActiveCalories;
+  active_kcal?: ActiveKcal;
   active_seconds?: ActiveSeconds;
   highly_active_seconds?: HighlyActiveSeconds;
   floors_climbed?: FloorsClimbed;
+  floors_ascended?: FloorsAscended;
+  moderate_intensity_min?: ModerateIntensityMin;
+  vigorous_intensity_min?: VigorousIntensityMin;
   confidence?: Confidence1;
 }
 export interface SleepSummary {
@@ -312,11 +347,28 @@ export interface NarrationContext {
   plan?: DailyPlan | null;
   prediction?: RecoveryPrediction | null;
   facts?: Facts;
+  provenance?: Provenance | null;
+  quality?: Quality1;
+}
+export interface Quality1 {
+  [k: string]: MetricQuality;
 }
 export interface NarrationResponse {
   answer: Answer;
   mode: Mode;
   grounded?: Grounded;
+  notice?: Notice;
+  model?: Model;
+}
+export interface Conversation {
+  id: Id2;
+  question: Question;
+  answer?: Answer1;
+  created_at: CreatedAt;
+  completed_at?: CompletedAt;
+  mode: Mode1;
+  notice?: Notice1;
+  model?: Model1;
 }
 export interface DayOutlook {
   issued_at: IssuedAt1;

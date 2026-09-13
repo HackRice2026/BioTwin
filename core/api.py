@@ -1,11 +1,12 @@
 import asyncio
+import hashlib
 import hmac
 import json
 import secrets
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
@@ -18,6 +19,7 @@ from fastapi import (
     WebSocketDisconnect,
     UploadFile,
     File,
+    Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
@@ -38,6 +40,7 @@ from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
 from narration.service import narrate
+from narration.transcription import transcribe
 
 
 class AuthInput(BaseModel):
@@ -57,7 +60,9 @@ class ProfileInput(BaseModel):
 
 
 class Question(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=1, max_length=1000)
+    request_id: str = Field(default_factory=lambda: secrets.token_hex(16), pattern=r"^[a-zA-Z0-9_-]{16,64}$")
 
 
 class Scenario(BaseModel):
@@ -96,9 +101,12 @@ def create_app(config=None):
             await runtime.close()
 
     app = FastAPI(title="BioTwin", version="1.0.0", lifespan=lifespan)
+    cors_origins = [config.frontend_origin, config.public_url]
+    if config.lan_origin:
+        cors_origins.append(config.lan_origin)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[config.frontend_origin, config.public_url],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type"],
@@ -109,7 +117,10 @@ def create_app(config=None):
     async def protections(request, call_next):
         if request.method in ["POST", "PUT", "DELETE"] and not request.url.path.startswith("/webhooks/"):
             origin = request.headers.get("origin")
-            if origin and origin not in [config.frontend_origin, config.public_url]:
+            allowed = [config.frontend_origin, config.public_url]
+            if config.lan_origin:
+                allowed.append(config.lan_origin)
+            if origin and origin not in allowed:
                 return Response("Origin not allowed", 403)
         if request.url.path.startswith(("/auth/session", "/api/twin/", "/api/voice")):
             key = (request.client.host if request.client else "unknown", request.url.path)
@@ -188,6 +199,7 @@ def create_app(config=None):
             "user": public_user(u),
             "demo": u["id"] == "demo",
             "voice_configured": bool(config.elevenlabs_api_key),
+            "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
         }
 
@@ -398,36 +410,127 @@ def create_app(config=None):
         rt().store.put(u["id"], "added_event", result, proposal.id)
         return result
 
-    @app.post("/api/twin/ask")
-    async def ask(data: Question, request: Request):
+    @app.post("/api/calendar/seed")
+    async def calendar_seed(request: Request):
+        u = user(request, True)
+        return await rt().calendar.seed_if_empty(u)
+
+    def conversation_owner(request, response=None):
         u = user(request)
+        if u["id"] != "demo":
+            return u["id"]
+        token = request.cookies.get("biotwin_conversation", "")
+        if len(token) != 64 or any(c not in "0123456789abcdef" for c in token):
+            if response is None:
+                return None
+            token = secrets.token_hex(32)
+            response.set_cookie(
+                "biotwin_conversation",
+                token,
+                httponly=True,
+                secure=config.cookie_secure,
+                samesite="lax",
+                max_age=604800,
+            )
+        # The public demo's measurements are shared; visitors' questions never are.
+        return "guest:" + hashlib.sha256(token.encode()).hexdigest()
+
+    def transcript(row):
+        return {
+            **{key: row[key] for key in ["id", "question", "answer", "mode", "notice", "model"]},
+            "created_at": datetime.fromtimestamp(row["created_at"], timezone.utc).isoformat(),
+            "completed_at": datetime.fromtimestamp(row["completed_at"], timezone.utc).isoformat()
+            if row["completed_at"]
+            else None,
+        }
+
+    def speech_ticket(owner, row):
+        if not row or not row["answer"]:
+            raise HTTPException(404, "This conversation has no completed answer to speak.")
+        reply_id = secrets.token_hex(16)
+        rt().store.put(
+            owner, "speech", {"answer": row["answer"], "expires": utcnow().timestamp() + 300}, reply_id
+        )
+        return {"reply_id": reply_id, "voice_configured": bool(config.elevenlabs_api_key)}
+
+    @app.post("/api/twin/transcribe")
+    async def transcribe_question(request: Request, audio: UploadFile = File(...)):
+        user(request)
+        recording = await audio.read(5 * 1024 * 1024 + 1)
+        mime_type = (audio.content_type or "").split(";", 1)[0]
+        try:
+            question = await transcribe(recording, mime_type, config, rt().http)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        return {"question": question}
+
+    @app.get("/api/twin/conversations")
+    async def conversation_history(
+        request: Request, limit: int = Query(30, ge=1, le=100), before: str | None = None
+    ):
+        owner = conversation_owner(request)
+        rows = rt().store.conversation_history(owner, limit + 1, before) if owner else []
+        more = len(rows) > limit
+        rows = rows[-limit:]
+        return {
+            "conversations": [transcript(row) for row in rows],
+            "next_before": rows[0]["id"] if more else None,
+        }
+
+    @app.post("/api/twin/conversations/{conversation_id}/speech")
+    async def replay_speech(conversation_id: str, request: Request):
+        owner = conversation_owner(request)
+        row = rt().store.conversation(owner, conversation_id) if owner else None
+        return speech_ticket(owner, row)
+
+    @app.post("/api/twin/ask")
+    async def ask(data: Question, request: Request, response: Response):
+        u = user(request)
+        owner = conversation_owner(request, response)
+        question = data.question.strip()
+        if not question:
+            raise HTTPException(422, "Enter a question for your twin.")
         current = await state(request)
+        if current.prediction:
+            stored_prediction = rt().store.get(u["id"], "prediction", current.prediction.id)
+            if stored_prediction:
+                stored_score = rt().store.get(u["id"], "prediction_score", current.prediction.id) or {}
+                current = current.model_copy(
+                    update={
+                        "prediction": RecoveryPrediction.model_validate({**stored_prediction, **stored_score})
+                    }
+                )
         stored = rt().store.get(u["id"], "plan")
         ctx = narration_context(
             current,
             DailyPlan.model_validate(stored) if stored else None,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
         )
-        answer = await narrate(data.question, ctx, config, rt().http)
-        reply_id = secrets.token_hex(16)
-        rt().store.put(
-            u["id"], "speech", {"answer": answer.answer, "expires": utcnow().timestamp() + 300}, reply_id
+        row, created = rt().store.begin_conversation(
+            owner, data.request_id, question, ctx.model_dump(mode="json")
         )
+        if created:
+            answer = await narrate(question, ctx, config, rt().http)
+            row = rt().store.complete_conversation(owner, data.request_id, answer)
+        elif row["mode"] == "pending":
+            raise HTTPException(409, "Your twin is still answering this question. Try again shortly.")
+        if row is None:
+            raise HTTPException(410, "This account or conversation was deleted.")
         return {
-            **answer.model_dump(),
-            "reply_id": reply_id,
-            "voice_configured": bool(config.elevenlabs_api_key),
+            **transcript(row),
+            "grounded": True,
+            **speech_ticket(owner, row),
         }
 
     @app.get("/api/voice/{reply_id}")
     async def voice(reply_id: str, request: Request):
-        uid = user(request)["id"]
+        uid = conversation_owner(request)
         if not config.elevenlabs_api_key:
             raise HTTPException(
                 503,
                 "ElevenLabs needs ELEVENLABS_API_KEY in the server .env. Your text answer is still available.",
             )
-        speech = rt().store.take(uid, "speech", reply_id)
+        speech = rt().store.take(uid, "speech", reply_id) if uid else None
         if not speech or speech["expires"] < utcnow().timestamp():
             raise HTTPException(404, "Speech expired. Ask the twin again.")
         upstream = rt().http.build_request(
@@ -437,17 +540,36 @@ def create_app(config=None):
             headers={"xi-api-key": config.elevenlabs_api_key},
             json={"text": speech["answer"], "model_id": config.elevenlabs_model_id},
         )
-        response = await rt().http.send(upstream, stream=True)
+        try:
+            response = await rt().http.send(upstream, stream=True)
+        except httpx.HTTPError:
+            raise HTTPException(
+                502, "ElevenLabs is unavailable. Your text answer is saved; try Listen again."
+            ) from None
         if response.status_code != 200:
             await response.aclose()
             raise HTTPException(
                 502,
-                "ElevenLabs could not generate speech. Check your API key, voice access, and credit balance.",
+                "The selected ElevenLabs voice requires a paid plan or more credits. Choose a voice available to your account. Your text answer is saved."
+                if response.status_code == 402
+                else "ElevenLabs could not generate speech. Check your API key, voice access, and credit balance. Your text answer is saved.",
             )
+
+        stream = response.aiter_bytes()
+        try:
+            first = await anext(stream)
+            if not first:
+                raise StopAsyncIteration
+        except (httpx.HTTPError, StopAsyncIteration):
+            await response.aclose()
+            raise HTTPException(
+                502, "ElevenLabs returned no usable audio. Your text answer is saved."
+            ) from None
 
         async def chunks():
             try:
-                async for chunk in response.aiter_bytes():
+                yield first
+                async for chunk in stream:
                     yield chunk
             finally:
                 await response.aclose()
@@ -458,7 +580,7 @@ def create_app(config=None):
     async def sources(request: Request):
         u = user(request)
         result = []
-        for provider in ["garmin", "fitbit", "google-calendar"]:
+        for provider in ["garmin", "fitbit", "google-calendar", "microsoft-calendar"]:
             connection = rt().store.get(u["id"], "connection", provider)
             cid, secret = rt().oauth.credentials(provider)
             history = [f for f in rt().history(u["id"]) if f.provenance.value.startswith(provider)]
@@ -493,8 +615,10 @@ def create_app(config=None):
         if provider in rt().adapters:
             rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
             rt().wakeup.set()
-        else:
-            # Fetch the primary calendar timezone after consent.
+        elif provider == "google-calendar":
+            # Fetch the primary calendar timezone after consent. Google's
+            # calendar timeZone is a real IANA name, the same shape stored
+            # in profile.timezone and fed straight into ZoneInfo() elsewhere.
             r = await rt().http.get(
                 "https://www.googleapis.com/calendar/v3/calendars/primary",
                 headers={"Authorization": f"Bearer {rt().oauth.token(uid, provider)}"},
@@ -503,6 +627,11 @@ def create_app(config=None):
             profile = rt().store.user(uid)["profile"]
             if r.json().get("timeZone"):
                 rt().store.save_profile(uid, {**profile, "timezone": r.json()["timeZone"]})
+        # microsoft-calendar: deliberately not auto-detected. Graph's own
+        # mailboxSettings.timeZone comes back as a Windows timezone name
+        # ("Pacific Standard Time"), not IANA -- saving that into
+        # profile.timezone would break every ZoneInfo(...) call downstream
+        # instead of just leaving the existing/default zone in place.
         return RedirectResponse(config.frontend_origin + "/?connected=" + provider)
 
     @app.delete("/auth/{provider}")
@@ -583,6 +712,50 @@ def create_app(config=None):
             "duplicates": len(records) - added,
             "sequence": rt().store.user(uid)["sequence"],
         }
+
+    @app.post("/api/connect/garmin-influx/sync")
+    async def sync_garmin_influx(request: Request):
+        # A local database pull, not an OAuth provider -- runs inline
+        # (like /api/ingest/file) rather than through the OAuth-oriented
+        # outbox queue sync_source() above, which requires a vendor token
+        # this source doesn't have.
+        uid = user(request, True)["id"]
+        await rt().sync(uid, "garmin_influx")
+        return rt().store.get(uid, "sync", "garmin_influx")
+
+    @app.get("/api/connect/garmin-influx/health")
+    async def garmin_influx_health():
+        return await rt().adapters["garmin_influx"].health()
+
+    @app.post("/api/connect/garmin-influx/live/start")
+    async def start_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_influx_live_sync(uid)
+
+    @app.post("/api/connect/garmin-influx/live/stop")
+    async def stop_garmin_influx_live(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_influx_live_sync(uid)
+
+    @app.get("/api/connect/garmin-influx/live/status")
+    async def garmin_influx_live_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().influx_sync_status.get(uid, {"status": "stopped"})
+
+    @app.post("/api/connect/garmin-ble-bridge/start")
+    async def start_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().start_ble_bridge(uid)
+
+    @app.post("/api/connect/garmin-ble-bridge/stop")
+    async def stop_garmin_ble_bridge(request: Request):
+        uid = user(request, True)["id"]
+        return await rt().stop_ble_bridge(uid)
+
+    @app.get("/api/connect/garmin-ble-bridge/status")
+    async def garmin_ble_bridge_status(request: Request):
+        uid = user(request, True)["id"]
+        return rt().ble_bridge_status.get(uid, {"status": "stopped"})
 
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):
@@ -710,7 +883,12 @@ def create_app(config=None):
     async def export(request: Request):
         uid = user(request, True)["id"]
         return Response(
-            json.dumps({"frames": [f.model_dump(mode="json") for f in rt().history(uid)]}),
+            json.dumps(
+                {
+                    "frames": [f.model_dump(mode="json") for f in rt().history(uid)],
+                    "conversations": [transcript(row) for row in rt().store.conversation_history(uid)],
+                }
+            ),
             media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=biotwin-data.json"},
         )
@@ -749,7 +927,10 @@ def create_app(config=None):
 
     @app.websocket("/ws/live")
     async def websocket(ws: WebSocket):
-        if ws.headers.get("origin") not in [config.frontend_origin, config.public_url]:
+        allowed = [config.frontend_origin, config.public_url]
+        if config.lan_origin:
+            allowed.append(config.lan_origin)
+        if ws.headers.get("origin") not in allowed:
             await ws.close(code=1008)
             return
         u = rt().store.session_user(ws.cookies.get("biotwin_session"))
