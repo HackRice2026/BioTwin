@@ -13,6 +13,11 @@ hour-of-day climatology. Both of the latter two need that climatology -- the mea
 Body Battery this person reaches at each hour of the day -- so it is computed
 here on the TRAIN split only and written out as 24 numbers per horizon.
 
+The 1-hour entry is exported too, even though the ridge wins there. It is the
+fallback for when the current Body Battery reading is too old for the ridge to
+use: the hour-of-day rhythm needs nothing but the clock, so it can still answer
+when the model cannot, at its own honestly worse error.
+
 Every MAE is recomputed on the validation split rather than copied from the
 stage tables, so a number in the shipped file cannot drift from the data.
 
@@ -27,7 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TRAINING = ROOT / "processed_data" / "garmin_5min_training.csv"
 OUT = ROOT / "matlab" / "params_trajectory.json"
-HORIZONS = [("3h", 180), ("6h", 360)]
+HORIZONS = [("1h", 60), ("3h", 180), ("6h", 360)]
 BB_MIN, BB_MAX = 0.0, 100.0
 
 

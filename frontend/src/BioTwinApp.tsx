@@ -890,7 +890,7 @@ export default function BioTwinApp() {
               <>
                 <div className="broadcast-chart">
                   <TrajectoryChart
-                    current={data.trajectory.current}
+                    measured={data.trajectory.measured}
                     points={data.trajectory.points}
                   />
                 </div>
@@ -910,14 +910,13 @@ export default function BioTwinApp() {
                     </div>
                   ))}
                 </div>
-                {/* The reason the three points come from three predictors, said
-                    once, where someone reading the chart will see it. */}
+                {/* Which predictor answered, and why -- said once, where
+                    someone reading the chart will see it. */}
                 <small className="setup-note">
-                  The ridge model fitted in MATLAB wins at one hour: 1.9 against
-                  2.4 for the best simple rule. Past that your own hour-of-day
-                  rhythm predicts better than anything fitted here, so the later
-                  points come from it and the band widens to match. Predicts
-                  Garmin&rsquo;s Body Battery, not clinically validated.
+                  {data.trajectory.basis === "model"
+                    ? "Solid is measured, dashed is predicted. The ridge model fitted in MATLAB wins at one hour: 1.9 against 2.4 for the best simple rule. Past that your own hour-of-day rhythm predicts better than anything fitted here, so the later points come from it and the band widens to match."
+                    : data.trajectory.reason}{" "}
+                  Predicts Garmin&rsquo;s Body Battery, not clinically validated.
                 </small>
                 {data.trajectory.imputed_inputs.length > 0 && (
                   <small className="setup-note">

@@ -304,6 +304,56 @@ def test_the_trajectory_uses_the_predictor_that_wins_at_each_horizon():
     assert errors == sorted(errors) and errors[0] < errors[-1]
     assert all(0 <= p["value"] <= 100 for p in result["points"])
 
-    # A stale reading refuses for the whole trajectory, not just the first point.
+    # A stale reading no longer blanks the chart: the model still refuses, and
+    # the hour-of-day rhythm answers in its place under a different basis. The
+    # dedicated test below covers that path.
     stale = trajectory(history, now + timedelta(hours=5), "America/Chicago")
-    assert stale["available"] is False and "points" not in stale
+    assert stale["basis"] == "rhythm"
+    assert all(p["method"] == "time_of_day" for p in stale["points"])
+
+
+def test_the_trajectory_still_draws_when_the_reading_is_too_old_for_the_model():
+    """An empty panel was the old behaviour: the ridge refuses on a stale level,
+    and the whole chart went with it. The hour-of-day rhythm needs only the
+    clock, so it can still answer -- at its own honestly worse error, and
+    labelled as a different basis rather than passed off as the model."""
+    from datetime import datetime, timedelta, timezone as tzmod
+    from modeling.forecast import trajectory
+    from shared.schemas import TwinFrame, Provenance
+
+    now = datetime(2026, 9, 12, 18, 0, tzinfo=tzmod.utc)
+    history = [
+        TwinFrame(
+            user_id="u",
+            event_time=now - timedelta(minutes=m),
+            provenance=Provenance.GARMIN_FIT_REPLAY,
+            body_battery_pct=float(60 - m // 20),
+        )
+        for m in range(0, 240, 5)
+    ]
+
+    fresh = trajectory(history, now + timedelta(minutes=5), "America/Chicago")
+    assert fresh["basis"] == "model"
+    assert [p["method"] for p in fresh["points"]][0] == "ridge"
+    assert fresh["measured"], "the measured past belongs on the chart too"
+
+    # Four hours later the newest reading is far outside the 20-minute window.
+    stale = trajectory(history, now + timedelta(hours=4), "America/Chicago")
+    assert stale["available"] is True, "a stale reading must not blank the chart"
+    assert stale["basis"] == "rhythm"
+    assert {p["method"] for p in stale["points"]} == {"time_of_day"}
+    assert "hours old" in stale["reason"]
+    assert stale["measured"] and stale["points"]
+    # The fallback must not claim the model's accuracy.
+    assert min(p["validation_mae"] for p in stale["points"]) > max(
+        p["validation_mae"] for p in fresh["points"][:1]
+    )
+    assert all(0 <= p["value"] <= 100 for p in stale["points"])
+
+    # With no Body Battery at all there is nothing to draw, and it says so.
+    nothing = trajectory(
+        [f.model_copy(update={"body_battery_pct": None}) for f in history],
+        now,
+        "America/Chicago",
+    )
+    assert nothing["available"] is False

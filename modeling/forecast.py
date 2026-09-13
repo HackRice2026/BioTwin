@@ -155,59 +155,111 @@ def load_trajectory_params(path=TRAJECTORY_PATH):
     return json.loads(Path(path).read_text())
 
 
+MEASURED_WINDOW = timedelta(hours=12)
+
+
 def trajectory(history, now, timezone="UTC", params=None, extra=None):
-    """Body Battery at 1, 3 and 6 hours, each from whichever predictor measured
-    best at that horizon rather than from one model applied everywhere.
+    """The measured Body Battery behind, and a prediction ahead, always drawable.
 
-    The ridge wins at an hour and loses past it. At three hours a linear
-    extrapolation averaged with this person's hour-of-day rhythm is better
-    (5.20 against 6.32), and at six hours the rhythm alone is better (7.37
-    against 9.21). Plotting the ridge across all three would draw the worse
-    curve twice, so each point carries the method that produced it and that
-    method's validation error -- the chart is honest about widening, and about
-    the model's reach ending after the first hour.
+    Two things get decided here.
+
+    Which predictor per horizon. The ridge wins at an hour and loses past it: at
+    three hours a linear extrapolation averaged with this person's hour-of-day
+    rhythm scores 5.20 against its 6.32, and at six the rhythm alone scores 7.37
+    against its 9.21. Each point carries the method that drew it and that
+    method's validation error, so the band widens because the predictors
+    genuinely get worse.
+
+    What to do when the current reading is stale. The ridge leans on the current
+    level hard enough that extrapolating from an old one would be confidently
+    wrong, so it refuses -- but the hour-of-day rhythm needs nothing except the
+    clock, and can still answer. Rather than showing an empty panel, the
+    trajectory falls back to that rhythm, says so, and reports its honestly
+    worse error (8.91 at an hour, against the ridge's 1.91). The chart is never
+    blank while there is history to draw, and never implies model precision it
+    does not have.
     """
-    first = predict(history, now, timezone, params)
-    if not first["available"]:
-        return first
-
     spec = extra or load_trajectory_params()
     local = now.astimezone(ZoneInfo(timezone))
-    current = first["current"]
-    change = _change_per_hour(history, now)
 
-    points = [{
-        "horizon_minutes": first["horizon_minutes"],
-        "value": first["forecast"],
-        "validation_mae": first["validation_mae"],
-        "method": "ridge",
-        "beats_baseline": True,
-    }]
-    for name, horizon in sorted(spec["horizons"].items(), key=lambda kv: kv[1]["minutes"]):
-        minutes = horizon["minutes"]
+    measured = [
+        {"minutes_ago": round((now - f.event_time).total_seconds() / 60, 1),
+         "value": round(float(f.body_battery_pct), 1)}
+        for f in sorted(history, key=lambda f: f.event_time)
+        if getattr(f, "body_battery_pct", None) is not None
+        and timedelta(0) <= now - f.event_time <= MEASURED_WINDOW
+    ]
+
+    def clock_at(name, minutes):
         target_hour = (local.hour + (local.minute + minutes) // 60) % 24
-        clock = horizon["climatology_by_target_hour"][target_hour]
-        if horizon["method"] == "time_of_day":
-            value = clock
-        else:
-            extrapolated = _clip(current + change / 60 * minutes)
-            value = _clip((extrapolated + clock) / 2)
-        points.append({
-            "horizon_minutes": minutes,
-            "value": round(value, 1),
-            "validation_mae": horizon["validation_mae"],
-            "method": horizon["method"],
-            "beats_baseline": False,
-        })
+        return spec["horizons"][name]["climatology_by_target_hour"][target_hour]
 
+    first = predict(history, now, timezone, params)
+    if first["available"]:
+        current, change = first["current"], _change_per_hour(history, now)
+        points = [{
+            "horizon_minutes": first["horizon_minutes"],
+            "value": first["forecast"],
+            "validation_mae": first["validation_mae"],
+            "method": "ridge",
+            "beats_baseline": True,
+        }]
+        for name, horizon in _ordered(spec):
+            if horizon["minutes"] <= first["horizon_minutes"]:
+                continue
+            minutes, clock = horizon["minutes"], clock_at(name, horizon["minutes"])
+            value = clock if horizon["method"] == "time_of_day" else (
+                _clip((_clip(current + change / 60 * minutes) + clock) / 2))
+            points.append({
+                "horizon_minutes": minutes,
+                "value": round(value, 1),
+                "validation_mae": horizon["validation_mae"],
+                "method": horizon["method"],
+                "beats_baseline": False,
+            })
+        return {
+            "available": True,
+            "basis": "model",
+            "current": current,
+            "measured_age_minutes": first["measured_age_minutes"],
+            "imputed_inputs": first["imputed_inputs"],
+            "measured": measured,
+            "points": points,
+            "note": spec["note"],
+        }
+
+    # Stale, or never measured. The rhythm still applies to the clock.
+    if not measured:
+        return first
+    last = measured[-1]
+    points = [{
+        "horizon_minutes": horizon["minutes"],
+        "value": round(clock_at(name, horizon["minutes"]), 1),
+        "validation_mae": horizon["alternatives"]["time_of_day"],
+        "method": "time_of_day",
+        "beats_baseline": False,
+    } for name, horizon in _ordered(spec)]
+    hours = last["minutes_ago"] / 60
     return {
         "available": True,
-        "current": current,
-        "measured_age_minutes": first["measured_age_minutes"],
-        "imputed_inputs": first["imputed_inputs"],
+        "basis": "rhythm",
+        "current": last["value"],
+        "measured_age_minutes": last["minutes_ago"],
+        "imputed_inputs": [],
+        "measured": measured,
         "points": points,
+        "reason": (
+            f"Your last Body Battery reading is {hours:.1f} hours old, and the "
+            f"fitted model leans on the current level too heavily to extrapolate "
+            f"from it. This is your own hour-of-day rhythm instead, which needs "
+            f"only the clock -- and is less accurate."
+        ),
         "note": spec["note"],
     }
+
+
+def _ordered(spec):
+    return sorted(spec["horizons"].items(), key=lambda kv: kv[1]["minutes"])
 
 
 def _clip(value, low=0.0, high=100.0):

@@ -117,9 +117,14 @@ export type Trajectory =
   | { available: false; reason: string; missing: string[] }
   | {
       available: true;
+      /** "model" when the ridge could run; "rhythm" when the current reading was
+          too old for it and the hour-of-day climatology answered instead. */
+      basis: "model" | "rhythm";
       current: number;
       measured_age_minutes: number;
       imputed_inputs: string[];
+      measured: { minutes_ago: number; value: number }[];
       points: TrajectoryPoint[];
+      reason?: string;
       note: string;
     };
