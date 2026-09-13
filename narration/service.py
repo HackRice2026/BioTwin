@@ -38,6 +38,10 @@ def resolve_evidence(context, path):
         if part in {"user_id", "id", "schema_version", "model_version"}:
             raise ValueError("Identity and version fields are not physiological evidence")
         value = value[int(part)] if isinstance(value, list) else value[part]
+    if path == "coach_brief.why" and isinstance(value, list) and all(
+        isinstance(item, (str, int, float)) for item in value
+    ):
+        return " ".join(str(item) for item in value)
     if value is None or isinstance(value, (dict, list, bool)):
         raise ValueError("Evidence must point to an available scalar or fact")
     return str(value)

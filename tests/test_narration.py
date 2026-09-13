@@ -87,6 +87,14 @@ def test_coach_brief_does_not_turn_driver_names_into_day_labels(context):
     assert any("HRV" in reason for reason in context.coach_brief["why"])
 
 
+def test_coach_brief_why_list_is_allowed_as_curated_evidence(context):
+    assert guard(
+        "Readiness is 54.9, which looks like a balanced day for your pattern.",
+        context,
+        ["coach_brief.why"],
+    )
+
+
 @pytest.mark.parametrize(
     "answer,evidence",
     [
