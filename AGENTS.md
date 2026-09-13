@@ -128,6 +128,13 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — BioTwin 2.0 speech supports optional timestamped NDJSON on
+  the existing account-scoped, single-use ticket endpoint. Caption timing
+  follows audio currentTime; only the ended event triggers automatic return.
+  Microphone questions use the existing recorded-audio transcription endpoint
+  so the Vertex path is exercised in every supported recording browser.
+  Topic detection consumes the question before the provider request.
+
 - 2026-09-12 — Shivendra authorized recording the full BioTwin 2.0 redesign
   in `global context.md`; it is now the central plan. User overrides the
   default dev workflow: implement on `biotwin2.0` (base `ccfe601` from dev),

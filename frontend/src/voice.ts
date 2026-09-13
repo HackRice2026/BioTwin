@@ -1,4 +1,5 @@
 /** Streams MP3 when supported; keeps completed audio in memory for gesture/replay retries. */
+import { CaptionTimeline, type Alignment, type CaptionWord } from "./captions";
 import { emitAvatarAudio } from "./avatar/avatarBus";
 
 export type VoiceEvents = {
@@ -6,6 +7,8 @@ export type VoiceEvents = {
   status: (message: string) => void;
   error: (message: string) => void;
   blocked?: () => void;
+  ended?: () => void;
+  captions?: (words: CaptionWord[], currentTime: number) => void;
 };
 function event(
   target: EventTarget,
@@ -52,6 +55,7 @@ export class TwinVoice {
   private urls: string[] = [];
   private cached?: string;
   private events?: VoiceEvents;
+  private timeline = new CaptionTimeline();
   conversationId?: string;
 
   stop() {
@@ -60,6 +64,7 @@ export class TwinVoice {
       this.player.onended =
       this.player.onerror =
       this.player.onpause =
+      this.player.ontimeupdate =
         null;
     this.player.pause();
     this.player.removeAttribute("src");
@@ -70,6 +75,7 @@ export class TwinVoice {
     this.conversationId = undefined;
     this.events?.speaking(false);
     this.events = undefined;
+    this.timeline = new CaptionTimeline();
   }
 
   async resume() {
@@ -105,7 +111,9 @@ export class TwinVoice {
     this.player.onended = () => {
       events.speaking(false);
       events.status("");
+      events.ended?.();
     };
+    this.player.ontimeupdate = () => events.captions?.(this.timeline.words(), this.player.currentTime);
     this.player.onpause = () => events.speaking(false);
     this.player.onerror = () => {
       if (!signal.aborted) {
@@ -127,7 +135,8 @@ export class TwinVoice {
             : "ElevenLabs is unavailable. Your text answer is saved.",
         );
       }
-      if (!response.headers.get("content-type")?.startsWith("audio/"))
+      const timed = response.headers.get("content-type")?.includes("ndjson");
+      if (!timed && !response.headers.get("content-type")?.startsWith("audio/"))
         throw new Error(
           "No usable speech was returned. Your text answer is saved.",
         );
@@ -135,53 +144,65 @@ export class TwinVoice {
         typeof MediaSource !== "undefined" &&
         MediaSource.isTypeSupported("audio/mpeg") &&
         response.body;
-      if (!canStream) {
-        const blob = await response.blob();
-        if (!blob.size)
-          throw new Error(
-            "ElevenLabs returned empty audio. Your text answer is saved.",
-          );
-        if (signal.aborted) return;
-        this.cached = URL.createObjectURL(blob);
-        this.urls.push(this.cached);
-        this.player.src = this.cached;
-        await this.resume();
-        return;
-      }
-      const media = new MediaSource();
-      const opened = event(media, "sourceopen", signal);
-      const mediaUrl = URL.createObjectURL(media);
-      this.urls.push(mediaUrl);
-      this.player.src = mediaUrl;
-      await opened;
-      const buffer = media.addSourceBuffer("audio/mpeg");
-      const reader = response.body!.getReader();
       const chunks: ArrayBuffer[] = [];
+      let media: MediaSource | undefined;
+      let buffer: SourceBuffer | undefined;
+      if (canStream) {
+        media = new MediaSource();
+        const opened = event(media, "sourceopen", signal);
+        const mediaUrl = URL.createObjectURL(media);
+        this.urls.push(mediaUrl);
+        this.player.src = mediaUrl;
+        await opened;
+        buffer = media.addSourceBuffer("audio/mpeg");
+      }
       let started = false;
+      const append = async (bytes: ArrayBuffer) => {
+        if (signal.aborted || !bytes.byteLength) return;
+        chunks.push(bytes);
+        emitAvatarAudio(bytes.slice(0));
+        if (buffer) {
+          await event(buffer, "updateend", signal, () => buffer!.appendBuffer(bytes));
+          if (!started) { started = true; void this.resume(); }
+        }
+      };
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No speech stream was returned. Your text answer is saved.");
+      const decoder = new TextDecoder();
+      let pending = "";
+      const processLine = async (line: string) => {
+        if (!line.trim()) return;
+        const chunk = JSON.parse(line) as { audio_base64?: string; alignment?: Alignment; normalized_alignment?: Alignment };
+        this.timeline.append(chunk.normalized_alignment ?? chunk.alignment);
+        if (chunk.audio_base64) {
+          const bytes = Uint8Array.from(atob(chunk.audio_base64), c => c.charCodeAt(0));
+          await append(bytes.buffer);
+        }
+      };
       while (true) {
         const { value, done } = await reader.read();
         if (signal.aborted) return;
         if (done) break;
-        const bytes = new Uint8Array(value).buffer;
-        chunks.push(bytes);
-        emitAvatarAudio(bytes.slice(0));
-        await event(buffer, "updateend", signal, () =>
-          buffer.appendBuffer(bytes),
-        );
-        if (!started) {
-          started = true;
-          void this.resume();
-        }
+        if (timed) {
+          pending += decoder.decode(value, { stream: true });
+          let index: number;
+          while ((index = pending.indexOf("\n")) >= 0) {
+            const line = pending.slice(0, index); pending = pending.slice(index + 1);
+            await processLine(line);
+          }
+        } else await append(new Uint8Array(value).buffer);
       }
+      if (timed) await processLine(pending + decoder.decode());
       if (!chunks.length)
         throw new Error(
           "ElevenLabs returned empty audio. Your text answer is saved.",
         );
-      if (media.readyState === "open") media.endOfStream();
+      if (media?.readyState === "open") media.endOfStream();
       this.cached = URL.createObjectURL(
         new Blob(chunks, { type: "audio/mpeg" }),
       );
       this.urls.push(this.cached);
+      if (!canStream) { this.player.src = this.cached; await this.resume(); }
     } catch (error) {
       if (signal.aborted) return;
       this.player.pause();
