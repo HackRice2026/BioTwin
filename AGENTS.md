@@ -148,6 +148,13 @@ This file is a living document. The agent MUST:
   if the screen looks connected. Dashboard metric cards/details now hide
   unpopulated latest fields instead of rendering dashes as if they were data.
 
+- 2026-09-13 — Voice loop behavior: the coach flow is now meant to be
+  conversational (`record question -> Gemini -> ElevenLabs -> re-arm mic`) once
+  voice mode is activated. Space activates voice mode only when focus is not in
+  an editable/control element. "Hey twin" wake listening uses browser speech
+  recognition only after microphone permission is already granted; browsers do
+  not allow a reliable always-on hotword before that.
+
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The
