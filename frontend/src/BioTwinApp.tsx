@@ -443,44 +443,44 @@ export default function BioTwinApp() {
         >
           <Leaf size={22} />
         </button>
-        {battery != null && (
-          <div
-            className="body-battery"
-            title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
-            aria-label={`Body Battery ${battery} percent`}
-          >
-            <div>
-              <b>Body Battery</b>
-              <small>
-                {status === "offline"
-                  ? "Offline example"
+        <div
+          className="body-battery"
+          title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
+          aria-label={`Body Battery ${battery == null ? "awaiting a reading" : `${battery} percent`}`}
+        >
+          <div>
+            <b>Body Battery</b>
+            <small>
+              {status === "offline"
+                ? "Offline example"
+                : battery == null
+                  ? "Awaiting a reading"
                   : batteryAt
                     ? `Current · ${new Date(batteryAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
                     : "Current"}
-              </small>
-            </div>
-            <div
-              className={`battery-cell ${battery < 30 ? "low" : ""}`}
-              role="meter"
-              aria-label="Body Battery, measured"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={battery}
-            >
-              <span style={{ width: `${battery}%` }} />
-              <b>{battery}%</b>
-            </div>
-            <button
-              className="bar-twin battery-forecast"
-              onClick={() => setForecastOpen(true)}
-              aria-label="Battery Forecast: where the model expects this to go"
-              title="Battery Forecast"
-            >
-              <Radio size={16} />
-              <span>Battery Forecast</span>
-            </button>
+            </small>
           </div>
-        )}
+          <div
+            className={`battery-cell ${battery != null && battery < 30 ? "low" : ""}`}
+            role="meter"
+            aria-label="Body Battery, measured"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={battery ?? undefined}
+          >
+            <span style={{ width: `${battery ?? 0}%` }} />
+            <b>{battery == null ? "—" : `${battery}%`}</b>
+          </div>
+          <button
+            className="bar-twin battery-forecast"
+            onClick={() => setForecastOpen(true)}
+            aria-label="Battery Forecast: where the model expects this to go"
+            title="Battery Forecast"
+          >
+            <Radio size={16} />
+            <span>Battery Forecast</span>
+          </button>
+        </div>
       </header>
       <main className="workspace" id="main-content">
         <div className="page-intro">

@@ -128,6 +128,13 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — The persistent Body Battery header must still render before a
+  Garmin reading is available: it uses an em dash and “Awaiting a reading,”
+  while retaining the Battery Forecast control. Browser checks cover the
+  product contract rather than obsolete presentation details: the current
+  coach-mascot hero, Battery Forecast naming, and only metrics present in the
+  account’s data.
+
 - 2026-09-13 — After merging a shared-schema change, CI caught stale generated
   `frontend/src/contracts.ts` even though the local build passed. Run
   `npm run types` from `frontend/`, then `bash scripts/check_schema.sh` from the
