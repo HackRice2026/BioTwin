@@ -173,7 +173,14 @@ export default function BioTwinApp() {
       }
     },
   });
-  const { speaking, listening, asking, transcribing } = conversation;
+  const {
+    speaking,
+    listening,
+    asking,
+    transcribing,
+    voiceLoop,
+    wakeListening,
+  } = conversation;
   const phase = listening
     ? "Listening"
     : transcribing
@@ -182,13 +189,45 @@ export default function BioTwinApp() {
         ? "Thinking"
         : speaking
           ? "Speaking"
-          : "Here with you";
+          : voiceLoop
+            ? "Waiting for you"
+            : wakeListening
+              ? "Say Hey twin"
+              : "Here with you";
   useEffect(() => {
     setAdded([]);
     setEventEditor(null);
     setTakeover(null);
     autoTopic.current = false;
   }, [data.accountKey]);
+  useEffect(() => {
+    const editable = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      return (
+        element?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
+          element?.tagName ?? "",
+        )
+      );
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (
+        e.code !== "Space" ||
+        e.repeat ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        editable(e.target)
+      )
+        return;
+      e.preventDefault();
+      setPage("Overview");
+      setHistoryOpen(false);
+      conversation.microphone();
+    };
+    document.addEventListener("keydown", keydown);
+    return () => document.removeEventListener("keydown", keydown);
+  }, [conversation]);
   useEffect(() => {
     if (!historyOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -317,6 +356,12 @@ export default function BioTwinApp() {
         <button className="text-button" onClick={conversation.stopSpeaking}>
           <Pause size={14} />
           Stop speaking
+        </button>
+      )}
+      {voiceLoop && (
+        <button className="text-button" onClick={conversation.deactivateVoice}>
+          <X size={14} />
+          End voice chat
         </button>
       )}
     </div>
@@ -527,7 +572,11 @@ export default function BioTwinApp() {
                           ? "Answering out loud"
                           : asking || transcribing
                             ? "Reading the room"
-                            : "Tap the mic"}
+                            : wakeListening
+                              ? "Say Hey twin"
+                              : voiceLoop
+                                ? "Waiting for you"
+                                : "Tap the mic"}
                     </span>
                   </div>
                 </div>
