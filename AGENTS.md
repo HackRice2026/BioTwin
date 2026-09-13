@@ -770,6 +770,16 @@ This file is a living document. The agent MUST:
   expecting a different answer; the blocker is the output format, not
   the environment setup (that part now works fine and is documented
   in docs/AVATAR_IMPLEMENTATION_PLAN.md).
+- The two avatar GPU services (`avatar-face`, `avatar-body`) now have a
+  watchdog on the SCC box, per explicit "keep it running always"
+  request: `services/ensure_avatar_services.sh` (checks each service's
+  `/health`, recreates its tmux session from scratch if it's not
+  responding) runs via `saurav`'s crontab every 2 minutes and once at
+  `@reboot` (after a 30s delay for drivers/networking). Logs to
+  `/data/saurav/ensure_avatar_services.log`. This covers the box
+  rebooting or a service process dying -- it does NOT cover the local
+  SSH tunnels (8765/8766) from your own Mac to the box, which are a
+  per-developer thing you still open yourself each session.
 
 ---
 
