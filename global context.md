@@ -55,11 +55,12 @@ missing-data states, and honest labels for estimates and scenarios.
 - [x] Build distinct mobile/desktop layouts and all five sections.
 - [x] Wire Body Battery, live charts, twin hero and topic takeovers.
 - [x] Rebuild Connections and transcript UI; preserve every existing action.
-- [ ] Verify real recorded question → transcription → Vertex → ElevenLabs →
+- [x] Verify real recorded question → transcription → Vertex → ElevenLabs →
   captions/audio → Overview; test missing/failed provider states too.
-- [ ] Verify mobile/desktop navigation, calendar actions, simulations, history,
+- [x] Verify mobile/desktop navigation, calendar actions, simulations, history,
   account isolation, PWA manifest/icons/service worker and offline behavior.
-- [ ] Remove the old UI after verification, finish checks, commit and push.
+- [x] Remove the old UI after verification and finish local checks.
+- [ ] Push the logical commits and verify the remote branch.
 
 ## Verification baseline
 

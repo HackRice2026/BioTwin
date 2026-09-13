@@ -1,4 +1,4 @@
-# BioTwin
+# BioTwin 2.0
 
 A working Garmin-first wearable recovery app: an articulated 3D twin, physiological charts, personal recovery fitting, daily planning, Google Calendar events and reminders, and ElevenLabs speech.
 
@@ -31,9 +31,26 @@ hostname -I
 ipconfig
 ```
 
-Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — voice, live updates and API calls all work the same as on `localhost`. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
+Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — live updates and API calls work as on `localhost`. Microphone recording requires a secure browser context: use HTTPS for phone/LAN voice capture; plain HTTP LAN addresses can still use typed chat. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
 
-Create an adult account from “Connect your own story.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
+Create an adult account from “Connect your own data.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
+
+## BioTwin 2.0 interface
+
+The central plan is [global context.md](global%20context.md). This branch replaces
+all previous app pages with a dark glass interface: Overview, Signals, Daily plan,
+What-if lab and Connections. Desktop has persistent side navigation; phones have
+bottom tabs. Body Battery stays in the top bar and is a labeled BioTwin estimate,
+not Garmin’s proprietary score: 80% computed readiness plus 20% live recovery
+progress, or readiness alone when the pulse is stale. It stays missing without
+readiness data.
+
+Questions open a topic panel before the narration request completes. The same
+recorded-audio transcription route handles microphone input. ElevenLabs HTTP
+stream alignments drive captions against actual audio playback time. Completed
+speech returns to Overview; manual dismissal, text fallback, playback retry and
+private transcript history remain available. Calendar questions use this same
+voice loop; adding an event always requires the user's explicit button action.
 
 ## Features
 
@@ -60,10 +77,10 @@ Fill in the ignored `.env` file using [the integration guide](docs/INTEGRATIONS.
 | Garmin cloud | Approved Connect Developer access, client ID/secret, configured webhook | FIT/JSON imports and supported Bluetooth broadcast remain available |
 | Fitbit / Google Health | OAuth client, enabled API, test users/approval, webhook setup | Clear setup error; no invented live data |
 | Google Calendar | Google OAuth client and Calendar API enabled | Calendar proposals remain unavailable for real accounts |
-| Gemini | API key, narration endpoint/model, and external narration enabled | Clearly labeled deterministic context explanation |
+| Gemini / Vertex AI | Vertex ADC + project/model (or AI Studio key), external narration enabled | Clearly labeled deterministic context explanation |
 | ElevenLabs | API key and accessible voice ID | Grounded text works; speech reports setup required |
 
-Gemini and ElevenLabs were exercised together in Chrome using a temporary account with generated test measurements: an answer was saved, spoken, and restored after reload. The current local voice is **George**, selected with user approval after the original library voice required a paid plan. **Live Garmin cloud sync and real Google Calendar consent/writes still require verification.**
+Gemini and ElevenLabs were exercised together in Chrome using a temporary account with generated test measurements: an answer was saved, spoken, and restored after reload. The current local voice is **George**, selected with user approval after the original library voice required a paid plan. The redesign’s recorded-audio check used **Vertex `gemini-2.5-flash`**, timed ElevenLabs speech and history reload. Physical iPhone microphone capture and actual calendar writes were not repeated in this redesign; the calendar request/reminder contract was tested without creating real events.
 
 ## Team accounts
 
@@ -87,7 +104,7 @@ node scripts/browser-check.mjs
 node scripts/account-check.mjs
 node scripts/voice-check.mjs
 # Optional live provider test using the configured local keys:
-BIOTWIN_LIVE_VOICE=true node scripts/voice-check.mjs
+BIOTWIN_QUESTION_WAV=/path/to/spoken-steps-question.wav node scripts/redesign-voice-check.mjs
 node scripts/performance-check.mjs
 ```
 

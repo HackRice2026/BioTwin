@@ -128,11 +128,38 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — PWA now precaches the existing 15 MB ARKit model and its
+  formerly remote lighting HDRI as content-versioned public assets; the
+  cache limit is 20 MB for that model. Health endpoints remain excluded.
+  Supplied iOS/PNG/maskable icons are committed and referenced by manifest.
+  Existing unused calendar-test import removed because it blocked required
+  repository Ruff verification. UI account/import checks now run in CI too.
+
+- 2026-09-12 — VERIFIED live HTTP ElevenLabs stream timings are ABSOLUTE
+  within the utterance (observed successive starts 0, 0.917, 5.004 seconds),
+  not chunk-relative like some WebSocket variants. Do not add chunk offsets
+  to HTTP alignments: that desynchronizes long answers. Audio-only chunks
+  legitimately have null alignment. Captions use audio currentTime.
+- 2026-09-12 — End-to-end voice check: recorded spoken steps question passed
+  browser MediaRecorder -> Vertex transcription -> vertex:gemini-2.5-flash
+  -> ElevenLabs George -> timed captions -> automatic Overview -> history
+  reload. Topic panel opened within 60ms of the question request. This used
+  a generated spoken recording and isolated test account, not an iPhone mic.
+  A second complete loop verified a 25.94-second answer with 49 caption-word
+  changes and zero browser errors, including return and transcript reload.
+  Layout/navigation verified at 360/390/1024/1440px; calendar request/reminder
+  contract, simulations, offline PWA and real FIT/account flows passed.
+  Old App.tsx/style.css/LiveSchedule.tsx removed after those checks. Planning
+  questions now use the same narration/speech loop and explicit Add buttons.
+- 2026-09-12 — Account/import verification caught an R3F asynchronous Canvas
+  startup race: its onCreated can run after an account switch unmounts the
+  event-source div. Wrap the standard pointer event manager to ignore null
+  or detached targets. Regression reproduced before and passed after.
+
 - 2026-09-12 — New UI entry is `BioTwinApp.tsx` with `biotwin.css`; data
   loading lives in `useDashboard`, reusable page content in `DashboardPanels`.
   Connections stays mounted across tabs so direct Bluetooth does not drop
-  when leaving its page. Old App/style remain temporarily for comparison
-  until the real voice and navigation checks pass, then must be removed.
+  when leaving its page. The old UI has been removed after verification.
   Product diagnostics removed; avatar movement/view controls and both GPU
   audio fan-outs remain. Verified renders at 1440px and 390px: no page errors
   or horizontal overflow. The two viewports use distinct navigation/layouts.

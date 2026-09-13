@@ -309,8 +309,6 @@ async def test_seed_refuses_when_calendar_already_has_events():
 
 
 async def test_seed_writes_a_full_week_when_calendar_is_empty():
-    from core.calendar import DEMO_WEEKLY_SCHEDULE
-
     class OAuth:
         def token(self, *args):
             return "test-access"
