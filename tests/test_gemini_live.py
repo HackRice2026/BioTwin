@@ -138,23 +138,31 @@ def test_both_sides_of_the_conversation_are_transcribed():
     assert spoken["inputAudioTranscription"] == {}
 
 
-def test_the_voice_can_prepare_an_event_but_never_book_one():
-    """Booking by voice goes through the same draft the typed flow uses, so a
-    misheard time is a discarded draft rather than a meeting in the calendar."""
+def test_the_voice_can_both_book_and_merely_prepare():
+    """Two tools, deliberately. add_calendar_event writes; draft_calendar_event is
+    for when the model is unsure, so a wrong guess costs a discarded draft rather
+    than a meeting. Verified against the live model and the real calendar:
+    "It's on your calendar now", and the event was there."""
     tools = live_config(Config(), "x")["tools"][0]["functionDeclarations"]
-    assert [f["name"] for f in tools] == ["draft_calendar_event"]
-    declared = tools[0]
-    assert "Does not book anything" in declared["description"]
-    params = declared["parameters"]["properties"]
-    # The voice speaks in lengths; the server turns that into an end time.
-    assert set(declared["parameters"]["required"]) == {"title", "start", "duration_minutes"}
-    assert params["duration_minutes"]["type"] == "integer"
+    by_name = {f["name"]: f for f in tools}
+    assert set(by_name) == {"add_calendar_event", "draft_calendar_event"}
+    assert "Book an event" in by_name["add_calendar_event"]["description"]
+    assert "Does not book anything" in by_name["draft_calendar_event"]["description"]
+    for declared in tools:
+        params = declared["parameters"]
+        # The voice speaks in lengths; the server turns that into an end time.
+        assert set(params["required"]) == {"title", "start", "duration_minutes"}
+        assert params["properties"]["duration_minutes"]["type"] == "integer"
 
     flat = " ".join(RULES_TEXT().split())
-    assert "never say it is booked, added or done" in flat
-    # Verified against the live model: with the calendar unavailable it said "I ran
-    # into a problem trying to set that up" instead of claiming success.
-    assert "If it comes back not ok, read the reason it gives" in flat
+    # The request was already explicit, so a second "sound good?" is friction --
+    # the first version of this instruction did exactly that and stalled.
+    assert "Do not ask for permission" in flat
+    # Preparing must never be described as booking.
+    assert "never that it is booked" in flat
+    # A refusal has to be spoken, not swallowed.
+    assert "read the reason it gives" in flat
+    assert "offer the nearest free time" in flat
 
 
 def RULES_TEXT():
