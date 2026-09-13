@@ -16,6 +16,7 @@ export type Reply = {
   reply_id?: string;
   voice_configured?: boolean;
   calendar_draft?: CalendarDraft | null;
+  calendar_event?: { id: string; url?: string; status: string } | null;
 };
 type Turn = {
   id: string;
@@ -36,6 +37,7 @@ export function useTwinConversation({
   onSpeechEnd,
   calendarRange,
   onCalendarDraft,
+  onCalendarEvent,
 }: {
   open: boolean;
   online: boolean;
@@ -46,17 +48,20 @@ export function useTwinConversation({
   onSpeechEnd?: () => void;
   calendarRange?: { start: string; end: string };
   onCalendarDraft?: (draft: CalendarDraft) => void;
+  onCalendarEvent?: (event: { id: string; url?: string; status: string }) => void;
 }) {
   const callbacks = useRef({
     onQuestion,
     onSpeechEnd,
     onCalendarDraft,
+    onCalendarEvent,
     calendarRange,
   });
   callbacks.current = {
     onQuestion,
     onSpeechEnd,
     onCalendarDraft,
+    onCalendarEvent,
     calendarRange,
   };
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
@@ -328,6 +333,8 @@ export function useTwinConversation({
       setActiveAnswer(reply.answer);
       if (reply.calendar_draft)
         callbacks.current.onCalendarDraft?.(reply.calendar_draft);
+      if (reply.calendar_event)
+        callbacks.current.onCalendarEvent?.(reply.calendar_event);
       setTurns((rows) =>
         rows.map((row) =>
           row.id === id

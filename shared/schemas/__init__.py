@@ -216,30 +216,6 @@ class DailyPlan(Contract):
     explanation: str
 
 
-class HarnessMetric(Contract):
-    key: str
-    label: str
-    value: str
-    status: Literal["good", "watch", "limited", "unknown"] = "unknown"
-
-
-class HarnessDecision(Contract):
-    key: str
-    label: str
-    value: str
-    reason: str
-
-
-class FitnessHarness(Contract):
-    issued_at: AwareDatetime
-    state_metrics: list[HarnessMetric]
-    forecast_summary: list[HarnessMetric]
-    policy: list[HarnessDecision]
-    evaluations: list[HarnessDecision]
-    next_actions: list[str]
-    confidence: float = Field(ge=0, le=1)
-
-
 class SimulationOverlay(Contract):
     scenario: Literal["rest", "light", "exercise"]
     label: str = "SIMULATED · illustrative assumptions, not a measured forecast"
@@ -274,12 +250,12 @@ class TwinState(Contract):
 
 class NarrationContext(Contract):
     calendar: dict[str, Any] | None = None
+    coach_brief: dict[str, Any] = Field(default_factory=dict)
     readiness: Readiness
     baseline_summary: Baseline
     recent_trend: tuple[str, ...] = ()
     plan: DailyPlan | None = None
     prediction: RecoveryPrediction | None = None
-    harness: FitnessHarness | None = None
     facts: tuple[str, ...] = ()
     provenance: Provenance | None = None
     quality: dict[str, MetricQuality] = Field(default_factory=dict)

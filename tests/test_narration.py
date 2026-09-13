@@ -6,7 +6,7 @@ import pytest
 
 from core.config import Settings
 from modeling.explanations import narration_context
-from narration.service import guard, narrate
+from narration.service import guard, narrate, template
 from shared.schemas import TwinState
 
 
@@ -52,6 +52,31 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
     assert result.answer == answer
     assert result.mode == "language_service"
     assert result.notice is None
+
+
+def test_plan_time_claims_must_match_coach_evidence(context):
+    context = context.model_copy(
+        update={"coach_brief": {"recommendation": "Try light movement at 17:00 UTC."}}
+    )
+
+    assert guard(
+        "Your best window is 17:00.",
+        context,
+        ["coach_brief.recommendation"],
+    )
+    assert not guard(
+        "Your best window is 18:30.",
+        context,
+        ["coach_brief.recommendation"],
+    )
+
+
+def test_coach_brief_keeps_fallback_conversational(context):
+    answer = template("How am I doing today?", context)
+
+    assert context.coach_brief["recommendation"] in answer
+    assert "standardized units" not in answer
+    assert "harness output" not in answer.lower()
 
 
 @pytest.mark.parametrize(

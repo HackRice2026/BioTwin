@@ -132,21 +132,6 @@ export type End2 = string;
 export type Title1 = string;
 export type Busy = BusyInterval[];
 export type Explanation = string;
-export type IssuedAt1 = string;
-export type Key = string;
-export type Label1 = string;
-export type Value1 = string;
-export type Status = "good" | "watch" | "limited" | "unknown";
-export type StateMetrics = HarnessMetric[];
-export type ForecastSummary = HarnessMetric[];
-export type Key1 = string;
-export type Label2 = string;
-export type Value2 = string;
-export type Reason1 = string;
-export type Policy = HarnessDecision[];
-export type Evaluations = HarnessDecision[];
-export type NextActions = string[];
-export type Confidence3 = number;
 export type Calendar = {
   [k: string]: unknown;
 } | null;
@@ -179,7 +164,6 @@ export interface BioTwinContracts {
   Readiness: Readiness;
   RecoveryPrediction: RecoveryPrediction;
   DailyPlan: DailyPlan;
-  FitnessHarness: FitnessHarness;
   NarrationContext: NarrationContext;
   NarrationResponse: NarrationResponse;
   Conversation: Conversation;
@@ -361,35 +345,14 @@ export interface BusyInterval {
   end: End2;
   title?: Title1;
 }
-export interface FitnessHarness {
-  issued_at: IssuedAt1;
-  state_metrics: StateMetrics;
-  forecast_summary: ForecastSummary;
-  policy: Policy;
-  evaluations: Evaluations;
-  next_actions: NextActions;
-  confidence: Confidence3;
-}
-export interface HarnessMetric {
-  key: Key;
-  label: Label1;
-  value: Value1;
-  status?: Status;
-}
-export interface HarnessDecision {
-  key: Key1;
-  label: Label2;
-  value: Value2;
-  reason: Reason1;
-}
 export interface NarrationContext {
   calendar?: Calendar;
+  coach_brief?: { [k: string]: unknown };
   readiness: Readiness;
   baseline_summary: Baseline;
   recent_trend?: RecentTrend;
   plan?: DailyPlan | null;
   prediction?: RecoveryPrediction | null;
-  harness?: FitnessHarness | null;
   facts?: Facts;
   provenance?: Provenance | null;
   quality?: Quality1;

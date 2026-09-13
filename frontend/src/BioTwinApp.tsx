@@ -153,6 +153,15 @@ export default function BioTwinApp() {
       setPage("Daily plan");
       setEventEditor(draft);
     },
+    onCalendarEvent: () => {
+      autoTopic.current = false;
+      setTakeover(null);
+      setEventEditor(null);
+      setPage("Daily plan");
+      void data.calendar.refresh();
+      void data.refreshPlan();
+      data.notify("Added to your Google Calendar. Your agenda is updating.");
+    },
     onQuestion: (text, calendarMode) => {
       const topic = calendarMode ? "plan" : questionTopic(text);
       setPage("Overview");

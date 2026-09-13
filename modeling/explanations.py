@@ -1,9 +1,45 @@
 from shared.schemas import NarrationContext
-from modeling.harness import build_harness
 from zoneinfo import ZoneInfo
 
 
-def narration_context(state, plan=None, readiness_history=(), outlook=None):
+def _coach_brief(state, plan, trajectory=None):
+    readiness = state.readiness
+    label = readiness.state.value.replace("_", " ")
+    score = f"{readiness.score:g}" if readiness.score is not None else "unknown"
+    recommendation = "Keep the next step simple and check the plan."
+    if plan and plan.proposals:
+        recommendation = plan.proposals[0].reason
+    elif trajectory and trajectory.get("available") and trajectory.get("points"):
+        recommendation = "Time your effort around where your Body Battery is headed."
+    strongest = sorted(readiness.contributions.items(), key=lambda x: abs(x[1]), reverse=True)[:2]
+    why = []
+    if readiness.score is not None:
+        why.append(f"Readiness is {score}, which is {label} for your pattern.")
+    for signal, value in strongest:
+        why.append(f"{signal.replace('_', ' ')} is one of the stronger drivers at {value:g}.")
+    if plan and plan.proposals:
+        p = plan.proposals[0]
+        local_start = p.start.astimezone(ZoneInfo(plan.timezone))
+        why.append(f"The current plan option is {p.title.lower()} at {local_start.strftime('%H:%M %Z')}.")
+    if trajectory and trajectory.get("available") and trajectory.get("points"):
+        first = trajectory["points"][0]
+        why.append(
+            f"Body Battery is {trajectory['current']:g} now and projects to {first['value']:g} in {first['horizon_minutes']} minutes."
+        )
+    return {
+        "role": "friendly data-backed fitness coach",
+        "voice": (
+            "casual, concise, warm, and useful; avoid dashboard language, field names, "
+            "medical claims, and long metric lists"
+        ),
+        "headline": f"Readiness is {score} and feels like a {label} day.",
+        "recommendation": recommendation,
+        "why": why[:4],
+        "confidence": f"Readiness confidence is {readiness.confidence:g}.",
+    }
+
+
+def narration_context(state, plan=None, readiness_history=(), outlook=None, trajectory=None):
     r, b = state.readiness, state.baseline_summary
     facts = []
     if state.energy_reserve_pct is not None:
@@ -57,14 +93,19 @@ def narration_context(state, plan=None, readiness_history=(), outlook=None):
             facts.append(
                 f"Your plan suggests {p.title.lower()} at {local_start.strftime('%H:%M %Z')}. {p.reason}"
             )
-    harness = build_harness(state, plan, outlook)
-    facts.append(
-        f"The fitness harness confidence is {harness.confidence:g}; it combines signal confidence, forecast confidence, and calendar availability."
-    )
-    for decision in harness.policy:
-        facts.append(f"Harness policy: {decision.label} is {decision.value}. {decision.reason}")
-    for action in harness.next_actions[:2]:
-        facts.append(f"Harness next action: {action}")
+    if trajectory:
+        if trajectory.get("available"):
+            facts.append(
+                f"Body Battery trajectory basis is {trajectory['basis']}; current value is {trajectory['current']:g}, measured {trajectory['measured_age_minutes']:g} minutes ago."
+            )
+            for point in trajectory.get("points", [])[:3]:
+                facts.append(
+                    f"Body Battery forecast at {point['horizon_minutes']} minutes is {point['value']:g}, with validation MAE {point['validation_mae']:g}; method {point['method']}."
+                )
+            if trajectory.get("reason"):
+                facts.append(trajectory["reason"])
+        else:
+            facts.append(trajectory.get("reason", "Body Battery trajectory is unavailable."))
     trend = []
     scores = [
         x for x in sorted(readiness_history, key=lambda x: x["computed_at"]) if x.get("score") is not None
@@ -76,11 +117,11 @@ def narration_context(state, plan=None, readiness_history=(), outlook=None):
         )
         facts.extend(trend)
     return NarrationContext(
+        coach_brief=_coach_brief(state, plan, trajectory),
         readiness=r,
         baseline_summary=b,
         plan=plan,
         prediction=state.prediction,
-        harness=harness,
         facts=tuple(facts),
         recent_trend=tuple(trend),
         provenance=state.provenance_banner,

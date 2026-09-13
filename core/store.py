@@ -414,7 +414,14 @@ class Store:
                 c.execute(
                     select(documents).where(
                         documents.c.kind.in_(
-                            ["speech", "oauth_state", "calendar_draft", "conversation_draft"]
+                            [
+                                "speech",
+                                "oauth_state",
+                                "calendar_draft",
+                                "conversation_draft",
+                                "conversation_calendar_event",
+                                "pending_calendar_draft",
+                            ]
                         )
                     )
                 )
