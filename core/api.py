@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import contextlib
 import json
+import logging
 import re
 import secrets
 import time
@@ -193,12 +194,17 @@ class BroadcastSample(BaseModel):
     contact: bool | None = None
 
 
-async def _live_tool(u, args):
-    """Prepare a calendar event the person still has to confirm.
+log = logging.getLogger("biotwin")
 
-    Returns what the voice may say back, and never books: confirm() is a separate
-    call the person makes on screen. A bad time or length comes back as a reason
-    the model can read aloud rather than an exception nobody hears.
+
+async def _live_tool(runtime, u, args, *, book=False):
+    """Prepare a calendar event, and book it too when the voice asked to.
+
+    Both paths go through AgendaService: draft validates the slot, and confirm
+    re-checks freeBusy, refuses a past event, and is idempotent through a derived
+    event id, so a repeated tool call cannot double-book. A bad time or length
+    comes back as a reason the model can read aloud rather than an exception
+    nobody hears.
     """
     title = str(args.get("title") or "").strip()[:120]
     start = str(args.get("start") or "").strip()
@@ -206,6 +212,7 @@ async def _live_tool(u, args):
         minutes = int(args.get("duration_minutes") or 0)
     except (TypeError, ValueError):
         minutes = 0
+    log.info('{"event":"live_tool_called","book":%s,"args":"%s"}', str(book).lower(), str(args)[:200])
     if not title or not start:
         return {"ok": False, "reason": "I need a title and a start time before I can prepare it."}
     if not 10 <= minutes <= 180:
@@ -217,7 +224,7 @@ async def _live_tool(u, args):
     except ValueError:
         return {"ok": False, "reason": "I could not read that start time."}
     try:
-        draft = await AgendaService(rt().calendar).draft(
+        draft = await AgendaService(runtime.calendar).draft(
             u,
             {
                 "title": title,
@@ -227,8 +234,9 @@ async def _live_tool(u, args):
             },
         )
     except Exception as exc:
+        log.warning('{"event":"live_draft_failed","start":"%s","reason":"%s"}', start, str(exc)[:200])
         return {"ok": False, "reason": str(exc)[:180]}
-    return {
+    result = {
         "ok": True,
         "draft_id": draft.get("id"),
         "title": title,
@@ -236,6 +244,23 @@ async def _live_tool(u, args):
         "duration_minutes": minutes,
         "status": "prepared, awaiting the person's confirmation on screen",
     }
+    if not book:
+        return result
+    # The voice was asked to book, so finish it here rather than leaving a draft
+    # nobody presses. confirm() is what re-checks availability.
+    try:
+        created = await AgendaService(runtime.calendar).confirm(u, draft["id"])
+    except Exception as exc:
+        log.warning('{"event":"live_book_failed","reason":"%s"}', str(exc)[:200])
+        # The draft still stands, so the person can confirm on screen instead.
+        result["status"] = f"prepared but not booked: {str(exc)[:140]}"
+        result["booked"] = False
+        return result
+    log.info('{"event":"live_tool_booked","title":"%s","start":"%s"}', title, result["start"])
+    result["booked"] = True
+    result["status"] = "booked on their calendar"
+    result["link"] = created.get("htmlLink")
+    return result
 
 
 def create_app(config=None):
@@ -1298,7 +1323,12 @@ def create_app(config=None):
                             # are validated by the same draft path the typed flow uses.
                             responses = []
                             for call in calls:
-                                result = await _live_tool(u, call.get("args") or {})
+                                result = await _live_tool(
+                                    rt(),
+                                    u,
+                                    call.get("args") or {},
+                                    book=call.get("name") == "add_calendar_event",
+                                )
                                 responses.append(
                                     {
                                         "id": call.get("id"),
@@ -1308,7 +1338,9 @@ def create_app(config=None):
                                 )
                                 # Tell the page as well, so a draft can be confirmed
                                 # without hunting for it.
-                                if result.get("draft_id"):
+                                if result.get("booked"):
+                                    await ws.send_json({"booked": result})
+                                elif result.get("draft_id"):
                                     await ws.send_json({"draft": result})
                             await upstream.send(
                                 json.dumps({"toolResponse": {"functionResponses": responses}})

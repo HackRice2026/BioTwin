@@ -160,6 +160,12 @@ export default function BioTwinApp() {
         turnOpen.current = false;
       },
       onDraft: setLiveDraft,
+      onBooked: (event) => {
+        setLiveDraft(null);
+        data.notify(`Added to your calendar: ${event.title}`);
+        void data.calendar.refresh();
+        void data.refreshPlan();
+      },
     });
   }
   const [scenarioId, setScenarioId] =

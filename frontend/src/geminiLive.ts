@@ -40,6 +40,8 @@ type Handlers = {
   onState: (state: LiveState, detail?: string) => void;
   /** The voice prepared an event. It is not booked until the person confirms. */
   onDraft?: (draft: LiveDraft) => void;
+  /** The voice booked one outright, so there is nothing left to confirm. */
+  onBooked?: (event: LiveDraft & { link?: string }) => void;
   /**
    * Transcript of what was said, as it is said. `who` separates the two sides so
    * the caller can show them differently; text arrives in fragments and should be
@@ -169,6 +171,10 @@ export class GeminiLive {
     if (message.ready) {
       this.session = message.ready as Session;
       void this.openMicrophone(this.session);
+      return;
+    }
+    if (message.booked) {
+      this.handlers.onBooked?.(message.booked as LiveDraft & { link?: string });
       return;
     }
     if (message.draft) {
