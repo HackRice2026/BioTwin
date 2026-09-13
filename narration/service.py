@@ -37,6 +37,10 @@ def resolve_evidence(context, path):
     for part in path.split("."):
         if part in {"user_id", "id", "schema_version", "model_version"}:
             raise ValueError("Identity and version fields are not physiological evidence")
+        if part == "briefing":
+            # A pre-written narrative from another model is not itself a fact:
+            # every cited number still has to trace back to facts/coach_brief/plan.
+            raise ValueError("The briefing is reading material, not a citable evidence source")
         value = value[int(part)] if isinstance(value, list) else value[part]
     if path == "coach_brief.why" and isinstance(value, list) and all(
         isinstance(item, (str, int, float)) for item in value
@@ -97,11 +101,17 @@ voice-conversation length, not a report. Give a number only when it actually hel
 directly; otherwise describe the shape of things ("recovering well", "a much cleaner window later") instead of
 listing values. It can be lightly warm and encouraging, but never cheesy, flippant, or falsely certain.
 Use ONLY the supplied NarrationContext, including calendar and recent_conversation when present. No web, general
-medical knowledge, assumptions, or data from the question. context.decision (if present) already IS the current
-best training window, forecast, calendar and workout duration combined -- that's your main source for "when should
-I train", "should I still do X", "why did you move it", and "what if" questions; you don't need coach_brief AND
-decision both spelled out, just answer from whichever actually carries the fact asked about.
-Use context.coach_brief as the preferred conversational plan when there's no more specific decision fact: lead with
+medical knowledge, assumptions, or data from the question. context.facts already carries the current best training
+window, forecast, calendar and workout duration combined when relevant -- that's your main source for "when should
+I train", "should I still do X", "why did you move it", and "what if" questions.
+context.briefing, when present, is a short orientation someone else already wrote by reading these same facts --
+read it first so you already know the shape of the day (state, forecast, best window, any what-if, anything to
+flag) instead of scanning raw facts cold. It is reading material only, never itself an answer or a citable source:
+every number you actually say still has to come from facts/coach_brief/plan, exactly as if briefing didn't exist.
+It also carries a short description of how BioTwin's own features work (Best Training Window, Simulate My Day,
+the forecast); use that freely to explain "how" or "why" the app does something, since that's how the feature
+behaves in general, not a claim about this person's specific numbers.
+Use context.coach_brief as the preferred conversational plan when there's no more specific fact: lead with
 its recommendation or headline, then at most 1-2 of the strongest reasons, only if asked why or if they add real
 value -- do not always enumerate every reason. Cite coach_brief paths when you use it.
 recent_conversation is prior turns in THIS conversation, oldest first, for resolving references like "earlier",

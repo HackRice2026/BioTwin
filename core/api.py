@@ -39,7 +39,6 @@ from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
-from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
 from narration.service import narrate
@@ -652,25 +651,20 @@ def create_app(config=None):
         # from the dashboard's own polling (see Runtime.turn_context). The agent is
         # meant to already know this on every turn, not just training-flavored ones.
         turn = await rt().turn_context(u)
-        current = turn["state"]
+        current, ctx = turn["state"], turn["ctx"]
         if current.prediction:
+            # turn_context's cached state carries a trimmed prediction (no curve/observed,
+            # see Runtime.publish); refill it here rather than in the cached context itself,
+            # since this read is cheap and account-specific either way.
             stored_prediction = rt().store.get(u["id"], "prediction", current.prediction.id)
             if stored_prediction:
                 stored_score = rt().store.get(u["id"], "prediction_score", current.prediction.id) or {}
-                current = current.model_copy(
+                ctx = ctx.model_copy(
                     update={
                         "prediction": RecoveryPrediction.model_validate({**stored_prediction, **stored_score})
                     }
                 )
         recent_turns = _recent_turns(rt().store.conversation_history(owner, limit=3)) if owner else ()
-        ctx = narration_context(
-            current,
-            turn["plan"],
-            [p for _, p in rt().store.docs(u["id"], "readiness")],
-            turn["outlook"],
-            turn["trajectory"],
-            turn["decision"],
-        )
         agenda = None
         if data.calendar_mode or calendar_question(question):
             agenda = await AgendaService(rt().calendar).list(u, data.calendar_start, data.calendar_end)
