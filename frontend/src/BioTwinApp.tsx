@@ -36,9 +36,9 @@ import {
   Range,
   ReadinessDetails,
   ReadinessPanel,
-  RecoveryPanel,
   SignalDetail,
   signalDefinitions,
+  TomorrowPanel,
   topicSignal,
 } from "./DashboardPanels";
 import type { CaptionWord } from "./captions";
@@ -614,7 +614,7 @@ export default function BioTwinApp() {
                 ) : (
                   <>
                     <ReadinessPanel data={data} />
-                    <RecoveryPanel data={data} />
+                    <TomorrowPanel data={data} />
                   </>
                 )}
               </div>
@@ -655,7 +655,7 @@ export default function BioTwinApp() {
               </div>
               <div className="overview-insights">
                 <ReadinessPanel data={data} />
-                <RecoveryPanel data={data} />
+                <TomorrowPanel data={data} />
               </div>
               <div className="section-label">
                 <h2>A little room for yourself</h2>

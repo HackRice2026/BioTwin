@@ -23,6 +23,7 @@ import {
   SignalChart,
   SleepChart,
   Sparkline,
+  TrajectoryChart,
 } from "./Charts";
 import type { Topic } from "./topics";
 export const signalDefinitions = [
@@ -394,6 +395,43 @@ export function RecoveryPanel({ data }: { data: Dashboard }) {
         <span>┄ Estimated</span>
         <small>Model estimate</small>
       </div>
+    </Panel>
+  );
+}
+export function TomorrowPanel({ data }: { data: Dashboard }) {
+  const trajectory = data.trajectory;
+  return (
+    <Panel>
+      <PanelTitle title="Ready for tomorrow" note="Forecasted body battery">
+        <Battery size={18} className="green" />
+      </PanelTitle>
+      {trajectory?.available ? (
+        <>
+          <div className="forecast-chart">
+            <TrajectoryChart
+              measured={trajectory.measured}
+              points={trajectory.points}
+            />
+          </div>
+          <div className="chart-key">
+            <span className="green">━ Observed</span>
+            <span>┄ Predicted</span>
+            <small>
+              {trajectory.basis === "model"
+                ? "Ridge model · your daily rhythm"
+                : "Your daily rhythm"}
+            </small>
+          </div>
+        </>
+      ) : (
+        <div className="empty-state">
+          <Battery size={22} />
+          <p>
+            {trajectory?.reason ??
+              "Waiting for a Body Battery reading from your watch."}
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }
