@@ -1871,6 +1871,9 @@ button.primary:hover:not(:disabled) {
   box-shadow: 0 25px 100px #0008 !important;
   background: #17221ef2 !important;
 }
+.forecast-dialog {
+  overflow-y: auto;
+}
 .history-scroll {
   overflow: auto;
   padding-right: 8px;
@@ -1910,6 +1913,10 @@ button.primary:hover:not(:disabled) {
 .history-dialog > .primary {
   align-self: start;
   margin-top: 18px;
+}
+.forecast-dialog > .primary {
+  bottom: 0;
+  position: sticky;
 }
 .toast {
   position: fixed;

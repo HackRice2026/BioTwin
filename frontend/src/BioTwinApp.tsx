@@ -941,7 +941,7 @@ export default function BioTwinApp() {
           onClick={() => setForecastOpen(false)}
         >
           <section
-            className="history-dialog glass"
+            className="history-dialog forecast-dialog glass"
             role="dialog"
             aria-modal="true"
             aria-label="Battery Forecast"

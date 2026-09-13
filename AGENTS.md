@@ -135,6 +135,8 @@ This file is a living document. The agent MUST:
   training-window decision, so both cards and the coach retain their separate
   sources of truth. Scenario effects are planning estimates, not measured or
   causal physiology; the UI and `docs/SIMULATE_MY_DAY.md` say so.
+  The Battery Forecast modal scrolls internally and keeps its Close control
+  available when scenario controls make the content taller than the viewport.
 
 - 2026-09-13 — Best Training Window leads the Overview: `modeling/training_window.py`
   decides one window from readiness + `forecast.trajectory` + calendar busy time +
