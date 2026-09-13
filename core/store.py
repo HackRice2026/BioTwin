@@ -93,21 +93,59 @@ outbox = Table(
 )
 
 
+POSTGRES_CONNECT_ARGS = {
+    "connect_timeout": 5,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+    "tcp_user_timeout": 5000,
+}
+POSTGRES_SESSION_SETTINGS = (
+    "SET statement_timeout = 10000",
+    "SET lock_timeout = 5000",
+    "SET idle_in_transaction_session_timeout = 10000",
+)
+
+
+def engine_options(url):
+    options = {"pool_pre_ping": True}
+    if url.startswith("sqlite"):
+        options["connect_args"] = {"check_same_thread": False}
+    elif url.startswith("postgresql"):
+        options.update(
+            connect_args=POSTGRES_CONNECT_ARGS,
+            pool_recycle=300,
+            pool_timeout=5,
+        )
+    return options
+
+
+def configure_postgres_connection(dbapi, _connection_record):
+    """Bound every server-side wait on each newly opened pooled session."""
+    previous_autocommit = dbapi.autocommit
+    try:
+        dbapi.autocommit = True
+        with dbapi.cursor() as cursor:
+            for statement in POSTGRES_SESSION_SETTINGS:
+                cursor.execute(statement)
+    finally:
+        dbapi.autocommit = previous_autocommit
+
+
 class Store:
     def __init__(self, url: str):
         if url.startswith("sqlite:///./"):
             Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-        self.engine = create_engine(
-            url,
-            connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
-            pool_pre_ping=True,
-        )
+        self.engine = create_engine(url, **engine_options(url))
         if url.startswith("sqlite"):
 
             @event.listens_for(self.engine, "connect")
             def configure(dbapi, _):
                 dbapi.execute("PRAGMA journal_mode=WAL")
                 dbapi.execute("PRAGMA busy_timeout=10000")
+        elif url.startswith("postgresql"):
+            event.listen(self.engine, "connect", configure_postgres_connection)
 
         self.lock = RLock()
         metadata.create_all(self.engine)

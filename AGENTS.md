@@ -128,6 +128,27 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Diagnosed a backend process that still listened on port 8000
+  and accepted WebSockets while every HTTP route, including the database-free
+  `/healthz`, hung indefinitely. A macOS process sample showed the uvloop main
+  thread blocked inside Psycopg `wait_c` polling the existing Supabase session
+  pooler connection. A fresh, timeout-bounded connection to the same database
+  succeeded immediately, and `pg_stat_activity` showed no long-running query or
+  lock wait. This isolates the failure to a stuck/stale client-side pooler socket,
+  not an executing database query. `Store` currently performs synchronous
+  SQLAlchemy/Psycopg calls directly in async request/WebSocket paths and configures
+  `pool_pre_ping` but no connection/query/socket timeout, so one stuck database
+  operation blocks the entire event loop and even prevents `/healthz` responses.
+  Fixed on `testing`: PostgreSQL sessions now have bounded connect, TCP, query,
+  lock, idle-transaction and pool waits; dead connections are pre-pinged and
+  connections recycle after five minutes. The always-on outbox poll and
+  maintenance database work run through `asyncio.to_thread` instead of occupying
+  the event loop. Two regression tests deliberately make those Store calls slow
+  and verify the event loop remains responsive. VERIFIED against the real
+  Supabase pooler (`statement_timeout=10s`, `lock_timeout=5s`) and the running
+  backend: warm `/readyz` 0.23s, `/api/session` 0.16s, and `/healthz` 0.001s;
+  full backend suite 112 passed / 3 skipped.
+
 - 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
   correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
   during this fix that process was running from a Claude scratchpad cwd, so
