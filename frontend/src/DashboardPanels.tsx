@@ -26,6 +26,27 @@ import {
   TrajectoryChart,
 } from "./Charts";
 import type { Topic } from "./topics";
+
+export function currentMetricValue(
+  field: string,
+  data: Dashboard,
+): number | null {
+  const latest = data.state?.latest;
+  if (!latest) return null;
+  if (field === "sleep") {
+    return latest.sleep?.total_minutes == null
+      ? null
+      : latest.sleep.total_minutes / 60;
+  }
+  return (
+    (latest[field as keyof typeof latest] as number | null | undefined) ?? null
+  );
+}
+
+export function hasCurrentMetric(field: string, data: Dashboard) {
+  return currentMetricValue(field, data) != null;
+}
+
 export const signalDefinitions = [
   {
     field: "heart_rate_bpm",
@@ -180,13 +201,8 @@ export function Metric({
   onClick: () => void;
 }) {
   const def = signalDefinitions.find((s) => s.field === field)!;
-  const latest = data.state?.latest;
-  const n =
-    field === "sleep"
-      ? latest?.sleep?.total_minutes == null
-        ? null
-        : latest.sleep.total_minutes / 60
-      : (latest?.[field as keyof typeof latest] as number | null);
+  const n = currentMetricValue(field, data);
+  if (n == null) return null;
   const rows =
     field === "sleep"
       ? data.sleep.map((s) => ({
@@ -253,6 +269,9 @@ export function SignalDetail({
       ["body_battery_drained", "Drained"],
     ],
   };
+  const breakdown = (extras[field] ?? []).filter(
+    ([key]) => latest?.[key as keyof typeof latest] != null,
+  );
   return (
     <div className={`signal-detail ${def.tone}`}>
       <div className="signal-heading">
@@ -314,11 +333,11 @@ export function SignalDetail({
             .join(" · ")}
         </p>
       )}
-      {extras[field] && (
+      {breakdown.length > 0 && (
         <details className="disclosure">
           <summary>View breakdown</summary>
           <div className="signal-stats">
-            {extras[field].map(([key, label]) => (
+            {breakdown.map(([key, label]) => (
               <div key={key}>
                 <small>{label}</small>
                 <b>

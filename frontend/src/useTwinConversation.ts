@@ -73,6 +73,8 @@ export function useTwinConversation({
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [voiceLoop, setVoiceLoop] = useState(false);
+  const [wakeListening, setWakeListening] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [nextBefore, setNextBefore] = useState<string | null>(null);
@@ -83,11 +85,129 @@ export function useTwinConversation({
   const epoch = useRef(0);
   const busy = useRef(false);
   const speechRequest = useRef(0);
-  const recognition = useRef<any>(null);
+  const wakeRecognition = useRef<any>(null);
+  const wakeRestart = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const followUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recording = useRef<ReturnType<typeof recordQuestion> | null>(null);
   const askController = useRef<AbortController | null>(null);
+  const voiceLoopNow = useRef(false);
+  const live = useRef({ online, listening, speaking, asking, transcribing });
   const openNow = useRef(open);
   openNow.current = open;
+  live.current = { online, listening, speaking, asking, transcribing };
+
+  function setVoiceLoopActive(active: boolean) {
+    voiceLoopNow.current = active;
+    setVoiceLoop(active);
+  }
+  function clearFollowUp() {
+    if (followUpTimer.current) clearTimeout(followUpTimer.current);
+    followUpTimer.current = null;
+  }
+  function stopWakeListening() {
+    if (wakeRestart.current) clearTimeout(wakeRestart.current);
+    wakeRestart.current = null;
+    wakeRecognition.current?.abort();
+    wakeRecognition.current = null;
+    setWakeListening(false);
+  }
+  async function canStartWakeListener() {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition || !navigator.permissions?.query) return null;
+    try {
+      const permission = await navigator.permissions.query({
+        name: "microphone" as PermissionName,
+      });
+      return permission.state === "granted" ? SpeechRecognition : null;
+    } catch {
+      return null;
+    }
+  }
+  function scheduleWakeListener(delay = 900) {
+    if (wakeRestart.current) clearTimeout(wakeRestart.current);
+    wakeRestart.current = setTimeout(() => {
+      const current = live.current;
+      if (
+        !openNow.current ||
+        !current.online ||
+        voiceLoopNow.current ||
+        current.listening ||
+        current.speaking ||
+        current.asking ||
+        current.transcribing ||
+        wakeRecognition.current
+      )
+        return;
+      void startWakeListener();
+    }, delay);
+  }
+  async function startWakeListener() {
+    const Recognition = await canStartWakeListener();
+    const current = live.current;
+    if (
+      !Recognition ||
+      !openNow.current ||
+      !current.online ||
+      voiceLoopNow.current ||
+      current.listening ||
+      current.speaking ||
+      current.asking ||
+      current.transcribing ||
+      wakeRecognition.current
+    )
+      return;
+    const listener = new Recognition();
+    wakeRecognition.current = listener;
+    listener.continuous = true;
+    listener.interimResults = true;
+    listener.lang = "en-US";
+    listener.onstart = () => setWakeListening(true);
+    listener.onresult = (event: any) => {
+      const heard = Array.from(event.results)
+        .slice(event.resultIndex)
+        .map((result: any) => result[0]?.transcript ?? "")
+        .join(" ");
+      if (/\bhey[\s,]+twin\b/i.test(heard)) {
+        stopWakeListening();
+        activateVoice();
+      }
+    };
+    listener.onerror = () => {
+      wakeRecognition.current = null;
+      setWakeListening(false);
+    };
+    listener.onend = () => {
+      const shouldRestart = wakeRecognition.current === listener;
+      if (shouldRestart) wakeRecognition.current = null;
+      setWakeListening(false);
+      if (shouldRestart) scheduleWakeListener(1400);
+    };
+    try {
+      listener.start();
+    } catch {
+      wakeRecognition.current = null;
+      setWakeListening(false);
+    }
+  }
+  function scheduleFollowUpListen(delay = 650) {
+    clearFollowUp();
+    followUpTimer.current = setTimeout(() => {
+      const current = live.current;
+      if (
+        !voiceLoopNow.current ||
+        !openNow.current ||
+        !current.online ||
+        current.listening ||
+        current.speaking ||
+        current.asking ||
+        current.transcribing
+      )
+        return;
+      startRecording();
+    }, delay);
+  }
 
   function stopSpeaking() {
     speechRequest.current++;
@@ -106,9 +226,10 @@ export function useTwinConversation({
     epoch.current++;
     busy.current = false;
     askController.current?.abort();
-    recognition.current?.abort();
-    recognition.current = null;
+    stopWakeListening();
+    clearFollowUp();
     recording.current?.abort();
+    setVoiceLoopActive(false);
     stopSpeaking();
     setTurns([]);
     setActiveAnswer("");
@@ -128,7 +249,8 @@ export function useTwinConversation({
       epoch.current++;
       speechRequest.current++;
       askController.current?.abort();
-      recognition.current?.abort();
+      stopWakeListening();
+      clearFollowUp();
       recording.current?.abort();
       voice.current?.stop();
     },
@@ -137,12 +259,24 @@ export function useTwinConversation({
   useEffect(() => {
     if (!open) {
       stopSpeaking();
-      recognition.current?.abort();
+      stopWakeListening();
+      clearFollowUp();
       recording.current?.abort();
       setListening(false);
       setTranscribing(false);
+      setVoiceLoopActive(false);
     }
   }, [open]);
+  useEffect(() => {
+    if (!open || !online) {
+      stopWakeListening();
+      return;
+    }
+    scheduleWakeListener();
+    return () => {
+      if (wakeRestart.current) clearTimeout(wakeRestart.current);
+    };
+  }, [open, online, listening, speaking, asking, transcribing, voiceLoop]);
 
   async function loadHistory(before?: string) {
     if (!online || !session) return;
@@ -235,7 +369,10 @@ export function useTwinConversation({
             setVoiceNotice(message);
           },
           blocked: () => setNeedsTap(true),
-          ended: () => callbacks.current.onSpeechEnd?.(),
+          ended: () => {
+            callbacks.current.onSpeechEnd?.();
+            scheduleFollowUpListen();
+          },
           captions: (words, time) => {
             setCaptionWords(words);
             setAudioTime(time);
@@ -255,8 +392,15 @@ export function useTwinConversation({
   }
 
   async function ask(text: string, calendarMode = false) {
-    text = text.trim();
-    if (!text || busy.current) return;
+    text = text
+      .trim()
+      .replace(/^hey[\s,]+twin[\s,;:.-]*/i, "")
+      .trim();
+    if (!text) {
+      if (voiceLoopNow.current) scheduleFollowUpListen(250);
+      return;
+    }
+    if (busy.current) return;
     if (/exhausted|tired|four hours|4 hours|depleted|drained/i.test(text)) {
       emitAvatarSemantic({
         emotion: {
@@ -282,8 +426,9 @@ export function useTwinConversation({
     }
     busy.current = true;
     const currentEpoch = epoch.current;
+    clearFollowUp();
     stopSpeaking();
-    recognition.current?.abort();
+    stopWakeListening();
     recording.current?.abort();
     setListening(false);
     setTranscribing(false);
@@ -356,6 +501,7 @@ export function useTwinConversation({
             ? "ElevenLabs is unavailable. Your text answer is saved."
             : "Voice needs an internet connection.",
         );
+        if (voiceLoopNow.current) scheduleFollowUpListen(1200);
       }
     } catch (error) {
       if (currentEpoch !== epoch.current) return;
@@ -369,6 +515,7 @@ export function useTwinConversation({
             : row,
         ),
       );
+      if (voiceLoopNow.current) scheduleFollowUpListen(1200);
     } finally {
       clearTimeout(timeout);
       if (currentEpoch === epoch.current) {
@@ -379,7 +526,14 @@ export function useTwinConversation({
   }
 
   function startRecording() {
+    if (!online) {
+      setVoiceError(true);
+      setVoiceNotice("Voice questions need an internet connection.");
+      return;
+    }
     const currentEpoch = epoch.current;
+    clearFollowUp();
+    stopWakeListening();
     recording.current?.abort();
     recording.current = recordQuestion({
       recording: (active) => {
@@ -405,13 +559,24 @@ export function useTwinConversation({
   }
   function microphone() {
     if (listening) {
-      recognition.current?.stop();
       recording.current?.stop();
       return;
     }
+    activateVoice();
+  }
+  function activateVoice() {
+    setVoiceLoopActive(true);
     stopSpeaking();
     setVoiceError(false);
     startRecording();
+  }
+  function deactivateVoice() {
+    setVoiceLoopActive(false);
+    recording.current?.abort();
+    setListening(false);
+    setTranscribing(false);
+    clearFollowUp();
+    scheduleWakeListener();
   }
 
   const messages = turns.flatMap((turn) => [
@@ -445,6 +610,8 @@ export function useTwinConversation({
     transcribing,
     speaking,
     listening,
+    voiceLoop,
+    wakeListening,
     historyBusy,
     historyError,
     nextBefore,
@@ -454,6 +621,8 @@ export function useTwinConversation({
     ask,
     speak,
     microphone,
+    activateVoice,
+    deactivateVoice,
     stopSpeaking,
     resumeSpeech,
     reset,

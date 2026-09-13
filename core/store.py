@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+import time
 from datetime import timedelta, datetime
 from pathlib import Path
 from threading import RLock
@@ -110,6 +111,15 @@ class Store:
                 dbapi.execute("PRAGMA busy_timeout=10000")
 
         self.lock = RLock()
+        # Every request calls session_user() to authenticate, so on a networked
+        # (Supabase/Postgres) database this was one blocking round-trip per
+        # request minimum -- a single voice turn fires several requests (ask,
+        # speech ticket, audio stream, history poll) back to back, and each one
+        # froze the whole event loop waiting on the network. A session token is
+        # immutable once issued, so a few seconds of staleness costs nothing;
+        # this cache turns a burst of requests into one DB hit.
+        self._session_cache: dict[str, tuple[dict | None, float]] = {}
+        self._session_cache_ttl = 4.0
         metadata.create_all(self.engine)
 
     def user(self, user_id):
@@ -164,6 +174,9 @@ class Store:
     def session_user(self, token):
         if not token:
             return None
+        cached = self._session_cache.get(token)
+        if cached and cached[1] > time.monotonic():
+            return cached[0]
         with self.engine.connect() as c:
             row = c.execute(
                 select(sessions.c.user_id).where(
@@ -171,9 +184,12 @@ class Store:
                     sessions.c.expires > utcnow().timestamp(),
                 )
             ).first()
-        return self.user(row[0]) if row else None
+        found = self.user(row[0]) if row else None
+        self._session_cache[token] = (found, time.monotonic() + self._session_cache_ttl)
+        return found
 
     def end_session(self, token):
+        self._session_cache.pop(token, None)
         with self.engine.begin() as c:
             c.execute(delete(sessions).where(sessions.c.hash == hashlib.sha256(token.encode()).hexdigest()))
 

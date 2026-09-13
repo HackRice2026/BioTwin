@@ -29,6 +29,7 @@ import { useTwinConversation } from "./useTwinConversation";
 import { questionTopic, type Topic } from "./topics";
 import {
   CalendarDay,
+  hasCurrentMetric,
   Metric,
   Panel,
   PanelTitle,
@@ -172,7 +173,14 @@ export default function BioTwinApp() {
       }
     },
   });
-  const { speaking, listening, asking, transcribing } = conversation;
+  const {
+    speaking,
+    listening,
+    asking,
+    transcribing,
+    voiceLoop,
+    wakeListening,
+  } = conversation;
   const phase = listening
     ? "Listening"
     : transcribing
@@ -181,13 +189,45 @@ export default function BioTwinApp() {
         ? "Thinking"
         : speaking
           ? "Speaking"
-          : "Here with you";
+          : voiceLoop
+            ? "Waiting for you"
+            : wakeListening
+              ? "Say Hey twin"
+              : "Here with you";
   useEffect(() => {
     setAdded([]);
     setEventEditor(null);
     setTakeover(null);
     autoTopic.current = false;
   }, [data.accountKey]);
+  useEffect(() => {
+    const editable = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      return (
+        element?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
+          element?.tagName ?? "",
+        )
+      );
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (
+        e.code !== "Space" ||
+        e.repeat ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        editable(e.target)
+      )
+        return;
+      e.preventDefault();
+      setPage("Overview");
+      setHistoryOpen(false);
+      conversation.microphone();
+    };
+    document.addEventListener("keydown", keydown);
+    return () => document.removeEventListener("keydown", keydown);
+  }, [conversation]);
   useEffect(() => {
     if (!historyOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -264,6 +304,18 @@ export default function BioTwinApp() {
   // rescaled by recovery progress, an estimate, and this tile says "current".
   const battery = state?.latest?.body_battery_pct ?? null;
   const batteryAt = state?.quality?.body_battery_pct?.event_time;
+  const visibleSignals = signalDefinitions.filter((m) =>
+    hasCurrentMetric(m.field, data),
+  );
+  const overviewTopics: Record<string, Topic> = {
+    heart_rate_bpm: "heart",
+    sleep: "sleep",
+    active_kcal: "calories",
+    steps: "steps",
+  };
+  const overviewSignals = signalDefinitions
+    .filter((m) => m.field in overviewTopics)
+    .filter((m) => hasCurrentMetric(m.field, data));
   const recentReply = conversation.messages
     .filter((m) => m.role === "twin")
     .at(-1);
@@ -304,6 +356,12 @@ export default function BioTwinApp() {
         <button className="text-button" onClick={conversation.stopSpeaking}>
           <Pause size={14} />
           Stop speaking
+        </button>
+      )}
+      {voiceLoop && (
+        <button className="text-button" onClick={conversation.deactivateVoice}>
+          <X size={14} />
+          End voice chat
         </button>
       )}
     </div>
@@ -385,44 +443,44 @@ export default function BioTwinApp() {
         >
           <Leaf size={22} />
         </button>
-        <div
-          className="body-battery"
-          title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
-          aria-label={`Body Battery ${battery == null ? "awaiting a reading" : battery + " percent"}`}
-        >
-          <div>
-            <b>Body Battery</b>
-            <small>
-              {status === "offline"
-                ? "Offline example"
-                : battery == null
-                  ? "Awaiting a reading"
+        {battery != null && (
+          <div
+            className="body-battery"
+            title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
+            aria-label={`Body Battery ${battery} percent`}
+          >
+            <div>
+              <b>Body Battery</b>
+              <small>
+                {status === "offline"
+                  ? "Offline example"
                   : batteryAt
                     ? `Current · ${new Date(batteryAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
                     : "Current"}
-            </small>
+              </small>
+            </div>
+            <div
+              className={`battery-cell ${battery < 30 ? "low" : ""}`}
+              role="meter"
+              aria-label="Body Battery, measured"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={battery}
+            >
+              <span style={{ width: `${battery}%` }} />
+              <b>{battery}%</b>
+            </div>
+            <button
+              className="bar-twin battery-forecast"
+              onClick={() => setForecastOpen(true)}
+              aria-label="Battery Forecast: where the model expects this to go"
+              title="Battery Forecast"
+            >
+              <Radio size={16} />
+              <span>Battery Forecast</span>
+            </button>
           </div>
-          <div
-            className={`battery-cell ${battery != null && battery < 30 ? "low" : ""}`}
-            role="meter"
-            aria-label="Body Battery, measured"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={battery ?? undefined}
-          >
-            <span style={{ width: `${battery ?? 0}%` }} />
-            <b>{battery == null ? "—" : `${battery}%`}</b>
-          </div>
-          <button
-            className="bar-twin battery-forecast"
-            onClick={() => setForecastOpen(true)}
-            aria-label="Battery Forecast: where the model expects this to go"
-            title="Battery Forecast"
-          >
-            <Radio size={16} />
-            <span>Battery Forecast</span>
-          </button>
-        </div>
+        )}
       </header>
       <main className="workspace" id="main-content">
         <div className="page-intro">
@@ -514,7 +572,11 @@ export default function BioTwinApp() {
                           ? "Answering out loud"
                           : asking || transcribing
                             ? "Reading the room"
-                            : "Tap the mic"}
+                            : wakeListening
+                              ? "Say Hey twin"
+                              : voiceLoop
+                                ? "Waiting for you"
+                                : "Tap the mic"}
                     </span>
                   </div>
                 </div>
@@ -640,18 +702,22 @@ export default function BioTwinApp() {
                 </button>
               </div>
               <div className="essentials-grid">
-                {signalDefinitions.slice(0, 4).map((m, i) => (
+                {overviewSignals.map((m) => (
                   <Metric
                     key={m.field}
                     field={m.field}
                     data={data}
                     onClick={() =>
-                      explore(
-                        (["heart", "sleep", "calories", "steps"] as Topic[])[i],
-                      )
+                      explore(overviewTopics[m.field] ?? "heart")
                     }
                   />
                 ))}
+                {!overviewSignals.length && (
+                  <div className="empty-state">
+                    <Activity size={22} />
+                    <p>Connect wearable data to fill this overview.</p>
+                  </div>
+                )}
               </div>
               <div className="overview-insights">
                 <ReadinessPanel data={data} />
@@ -673,11 +739,19 @@ export default function BioTwinApp() {
               <Range data={data} />
             </div>
             <div className="signals-grid">
-              {signalDefinitions.map((m) => (
+              {visibleSignals.map((m) => (
                 <Panel key={m.field}>
                   <SignalDetail field={m.field} data={data} />
                 </Panel>
               ))}
+              {!visibleSignals.length && (
+                <Panel>
+                  <div className="empty-state">
+                    <Activity size={22} />
+                    <p>Connect wearable data to show your measurements.</p>
+                  </div>
+                </Panel>
+              )}
             </div>
             <ReadinessDetails data={data} />
           </>
