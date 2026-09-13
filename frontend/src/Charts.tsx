@@ -382,3 +382,79 @@ export function ReadinessChart({
     </ResponsiveContainer>
   );
 }
+
+export function TrajectoryChart({
+  current,
+  points,
+}: {
+  current: number;
+  points: {
+    horizon_minutes: number;
+    value: number;
+    validation_mae: number;
+    method: string;
+    beats_baseline: boolean;
+  }[];
+}) {
+  // The measured level is hour zero with no error; every later point carries the
+  // validation error of the predictor that drew it, so the band widens because
+  // the predictors genuinely get worse rather than for decoration.
+  const rows = [
+    { hours: 0, value: current, low: current, high: current, band: 0 },
+    ...points.map((p) => ({
+      hours: p.horizon_minutes / 60,
+      value: p.value,
+      low: Math.max(0, p.value - p.validation_mae),
+      high: Math.min(100, p.value + p.validation_mae),
+      band: p.validation_mae,
+    })),
+  ];
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={rows} margin={{ top: 12, right: 8, left: -22, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke={grid} />
+        <XAxis
+          dataKey="hours"
+          type="number"
+          domain={[0, 6]}
+          ticks={[0, 1, 3, 6]}
+          tickFormatter={(h: number) => (h === 0 ? "now" : `+${h}h`)}
+          tick={tick}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis tick={tick} domain={[0, 100]} axisLine={false} tickLine={false} />
+        <Tooltip
+          contentStyle={tooltip}
+          labelFormatter={(h) => (h === 0 ? "Measured now" : `In ${h} hour${h === 1 ? "" : "s"}`)}
+          formatter={(v, name) =>
+            name === "value"
+              ? [`${v}%`, "Body Battery"]
+              : [`${v}%`, name === "high" ? "Upper" : "Lower"]
+          }
+        />
+        <Area
+          dataKey="high"
+          stroke="none"
+          fill="var(--green)"
+          fillOpacity={0.14}
+          isAnimationActive={false}
+        />
+        <Area
+          dataKey="low"
+          stroke="none"
+          fill="#17221e"
+          fillOpacity={1}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="value"
+          stroke="var(--green)"
+          strokeWidth={2}
+          dot={{ r: 3, fill: "var(--green)", stroke: "none" }}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}

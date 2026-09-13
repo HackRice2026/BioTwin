@@ -36,7 +36,6 @@ from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
-from modeling.engine import simulate
 from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
@@ -65,10 +64,6 @@ class Question(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     request_id: str = Field(default_factory=lambda: secrets.token_hex(16), pattern=r"^[a-zA-Z0-9_-]{16,64}$")
 
-
-class Scenario(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    scenario: str
 
 
 class AddEvent(BaseModel):
@@ -335,6 +330,24 @@ def create_app(config=None):
             u["profile"].get("timezone", "UTC"),
         )
 
+    @app.get("/api/forecast/trajectory")
+    async def forecast_trajectory(request: Request):
+        """Body Battery at 1, 3 and 6 hours ahead.
+
+        Each point comes from whichever predictor measured best at that horizon
+        -- the ridge only at an hour, this person's own hour-of-day rhythm
+        beyond it -- and carries the method and validation error that produced
+        it, so the widening uncertainty is on the chart rather than implied.
+        """
+        u = user(request)
+        from modeling.forecast import trajectory
+
+        return trajectory(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+        )
+
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
         return (await state(request)).baseline_summary
@@ -362,12 +375,6 @@ def create_app(config=None):
             for p in sorted(values, key=lambda p: p.issued_at, reverse=True)
             if not scored or p.rmse is not None
         ][:30]
-
-    @app.post("/api/simulate")
-    async def what_if(data: Scenario, request: Request):
-        if data.scenario not in ["rest", "light", "exercise"]:
-            raise ValueError("Select rest, light, or exercise")
-        return simulate(data.scenario, await state(request), utcnow())
 
     @app.get("/api/plan/today")
     async def plan(request: Request):

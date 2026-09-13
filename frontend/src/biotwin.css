@@ -2831,3 +2831,10 @@ button.primary:hover:not(:disabled) {
     font-size: 26px;
   }
 }
+/* The broadcast chart needs an explicit height: recharts' ResponsiveContainer
+   measures its parent, and inside a flex-column dialog that parent would
+   otherwise collapse to nothing. Same 220px the signal charts use. */
+.broadcast-chart {
+  height: 220px;
+  margin: 4px 0 14px;
+}

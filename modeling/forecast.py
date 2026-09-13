@@ -146,3 +146,90 @@ def predict(history, now, timezone="UTC", params=None):
         "model": f'{params["model"]} on {len(params["features"])} inputs, '
                  f'{params["fitted_on"]["days"]} days',
     }
+
+
+TRAJECTORY_PATH = Path(__file__).resolve().parents[1] / "matlab" / "params_trajectory.json"
+
+
+def load_trajectory_params(path=TRAJECTORY_PATH):
+    return json.loads(Path(path).read_text())
+
+
+def trajectory(history, now, timezone="UTC", params=None, extra=None):
+    """Body Battery at 1, 3 and 6 hours, each from whichever predictor measured
+    best at that horizon rather than from one model applied everywhere.
+
+    The ridge wins at an hour and loses past it. At three hours a linear
+    extrapolation averaged with this person's hour-of-day rhythm is better
+    (5.20 against 6.32), and at six hours the rhythm alone is better (7.37
+    against 9.21). Plotting the ridge across all three would draw the worse
+    curve twice, so each point carries the method that produced it and that
+    method's validation error -- the chart is honest about widening, and about
+    the model's reach ending after the first hour.
+    """
+    first = predict(history, now, timezone, params)
+    if not first["available"]:
+        return first
+
+    spec = extra or load_trajectory_params()
+    local = now.astimezone(ZoneInfo(timezone))
+    current = first["current"]
+    change = _change_per_hour(history, now)
+
+    points = [{
+        "horizon_minutes": first["horizon_minutes"],
+        "value": first["forecast"],
+        "validation_mae": first["validation_mae"],
+        "method": "ridge",
+        "beats_baseline": True,
+    }]
+    for name, horizon in sorted(spec["horizons"].items(), key=lambda kv: kv[1]["minutes"]):
+        minutes = horizon["minutes"]
+        target_hour = (local.hour + (local.minute + minutes) // 60) % 24
+        clock = horizon["climatology_by_target_hour"][target_hour]
+        if horizon["method"] == "time_of_day":
+            value = clock
+        else:
+            extrapolated = _clip(current + change / 60 * minutes)
+            value = _clip((extrapolated + clock) / 2)
+        points.append({
+            "horizon_minutes": minutes,
+            "value": round(value, 1),
+            "validation_mae": horizon["validation_mae"],
+            "method": horizon["method"],
+            "beats_baseline": False,
+        })
+
+    return {
+        "available": True,
+        "current": current,
+        "measured_age_minutes": first["measured_age_minutes"],
+        "imputed_inputs": first["imputed_inputs"],
+        "points": points,
+        "note": spec["note"],
+    }
+
+
+def _clip(value, low=0.0, high=100.0):
+    return max(low, min(high, value))
+
+
+def _change_per_hour(history, now):
+    """Body Battery change per hour, from the same 45-90 minute lookback the
+    ridge uses, so the two horizons cannot disagree about the recent trend."""
+    level = _latest(history, "body_battery_pct", now, MAX_LEVEL_AGE)
+    if level is None:
+        return 0.0
+    earliest, latest = CHANGE_WINDOW
+    earlier = None
+    for frame in sorted(history, key=lambda f: f.event_time, reverse=True):
+        if getattr(frame, "body_battery_pct", None) is None:
+            continue
+        gap = level.event_time - frame.event_time
+        if earliest <= gap <= latest:
+            earlier = frame
+            break
+    if earlier is None:
+        return 0.0
+    hours = (level.event_time - earlier.event_time).total_seconds() / 3600
+    return (level.body_battery_pct - earlier.body_battery_pct) / (hours or 1.0)

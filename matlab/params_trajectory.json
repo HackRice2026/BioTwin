@@ -1,0 +1,92 @@
+{
+  "source": "processed_data/garmin_5min_training.csv",
+  "note": "Per-horizon predictors chosen by measured validation error, not by preferring one model. The ridge in params_forecast.json wins at 1 hour; beyond it this person's own hour-of-day rhythm wins.",
+  "horizons": {
+    "3h": {
+      "minutes": 180,
+      "method": "trend_plus_clock",
+      "validation_mae": 5.2048,
+      "alternatives": {
+        "trend_plus_clock": 5.2048,
+        "time_of_day": 8.5797
+      },
+      "climatology_by_target_hour": [
+        28.0244,
+        38.4516,
+        48.6287,
+        62.5086,
+        73.8771,
+        82.7667,
+        88.15,
+        90.0944,
+        90.4278,
+        88.2655,
+        82.3614,
+        77.237,
+        71.4807,
+        65.7135,
+        60.712,
+        55.3564,
+        50.2102,
+        45.759,
+        42.7394,
+        38.0152,
+        35.0558,
+        31.4237,
+        30.7778,
+        30.1946
+      ],
+      "fitted_on": {
+        "rows": 4180,
+        "days": 23
+      },
+      "validated_on": {
+        "rows": 716,
+        "days": 5
+      }
+    },
+    "6h": {
+      "minutes": 360,
+      "method": "time_of_day",
+      "validation_mae": 7.3682,
+      "alternatives": {
+        "trend_plus_clock": 8.3413,
+        "time_of_day": 7.3682
+      },
+      "climatology_by_target_hour": [
+        28.7941,
+        34.835,
+        44.4872,
+        53.9667,
+        72.5419,
+        81.8024,
+        88.4057,
+        90.1788,
+        90.4278,
+        88.1056,
+        82.1412,
+        76.9556,
+        71.9492,
+        66.3657,
+        60.8889,
+        55.1098,
+        49.4839,
+        45.5839,
+        40.882,
+        37.3905,
+        33.9886,
+        31.0824,
+        28.358,
+        28.9766
+      ],
+      "fitted_on": {
+        "rows": 3865,
+        "days": 23
+      },
+      "validated_on": {
+        "rows": 601,
+        "days": 5
+      }
+    }
+  }
+}

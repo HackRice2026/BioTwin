@@ -268,3 +268,42 @@ def test_forecast_refuses_a_stale_body_battery_reading():
     falling = predict([level(2, 60), level(62, 80)], now, "UTC", params)
     rising = predict([level(2, 60), level(62, 40)], now, "UTC", params)
     assert falling["forecast"] < rising["forecast"]
+
+
+def test_the_trajectory_uses_the_predictor_that_wins_at_each_horizon():
+    """One model does not win everywhere. The ridge beats the rules at an hour
+    and loses past it, so plotting it across all three horizons would draw the
+    worse curve twice. Each point must name the method behind it."""
+    from datetime import datetime, timedelta, timezone as tzmod
+    from modeling.forecast import trajectory
+    from shared.schemas import TwinFrame, Provenance
+
+    now = datetime(2026, 9, 12, 18, 0, tzinfo=tzmod.utc)
+    history = [
+        TwinFrame(
+            user_id="u",
+            event_time=now - timedelta(minutes=m),
+            provenance=Provenance.GARMIN_FIT_REPLAY,
+            body_battery_pct=float(60 - m // 10),
+        )
+        for m in range(0, 120, 5)
+    ]
+    result = trajectory(history, now + timedelta(minutes=5), "America/Chicago")
+    assert result["available"] is True
+    horizons = [p["horizon_minutes"] for p in result["points"]]
+    assert horizons == [60, 180, 360]
+
+    methods = {p["horizon_minutes"]: p["method"] for p in result["points"]}
+    assert methods[60] == "ridge"
+    assert methods[180] != "ridge" and methods[360] != "ridge"
+
+    # Only the first horizon claims to beat a naive baseline, and the error must
+    # widen with distance -- a flat band across six hours would be a lie.
+    assert [p["beats_baseline"] for p in result["points"]] == [True, False, False]
+    errors = [p["validation_mae"] for p in result["points"]]
+    assert errors == sorted(errors) and errors[0] < errors[-1]
+    assert all(0 <= p["value"] <= 100 for p in result["points"])
+
+    # A stale reading refuses for the whole trajectory, not just the first point.
+    stale = trajectory(history, now + timedelta(hours=5), "America/Chicago")
+    assert stale["available"] is False and "points" not in stale

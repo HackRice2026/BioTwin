@@ -8,15 +8,10 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 await page.goto(process.env.BIOTWIN_TEST_URL || "http://localhost:8000");
-await page
-  .getByRole("navigation", { name: "Main navigation", exact: true })
-  .getByRole("button", { name: "What-if lab", exact: true })
-  .click();
-await page.getByRole("button", { name: "Get moving", exact: false }).click();
-await page
-  .getByRole("heading", { name: "Possible heart-rate trajectory" })
-  .waitFor();
-console.log("Measuring a 60-second exercise simulation at desktop resolution.");
+// The what-if lab that used to drive this measurement is gone; the animated
+// twin on the overview is what actually costs frames now.
+await page.locator(".twin-hero canvas").waitFor();
+console.log("Measuring 60 seconds of the animated twin at desktop resolution.");
 const stats = await page.evaluate(
   () =>
     new Promise((resolve) => {

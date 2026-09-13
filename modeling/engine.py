@@ -11,8 +11,6 @@ from shared.schemas import (
     EnergyState,
     AvatarDrivers,
     MetricQuality,
-    SimulationOverlay,
-    CurvePoint,
 )
 from modeling.recovery import fit_history, decay
 
@@ -291,30 +289,3 @@ def drivers(latest, ready, base, quality, now):
     )
 
 
-def simulate(scenario, state, now):
-    if state.latest is None or state.latest.heart_rate_bpm is None:
-        raise ValueError("A measured heart rate is needed to start a simulation")
-    base = state.baseline_summary
-    tau = base.recovery_tau_s or 120
-    start = state.latest.heart_rate_bpm
-    offset = {"rest": 0, "light": 20, "exercise": 65}[scenario]
-    curve = []
-    for t in range(0, 1801, 30):
-        value = float(decay(t, base.resting_hr.median + offset, start, tau))
-        curve.append(CurvePoint(time=now + timedelta(seconds=t), value=round(value, 2)))
-    assumption = f"Illustrative scenario: {scenario}. Activity response is an engineering assumption, not a learned treatment effect. "
-    assumption += (
-        "Uses your fitted recovery time." if base.recovery_tau_s else "Uses an uncalibrated recovery prior."
-    )
-    return SimulationOverlay(
-        scenario=scenario,
-        curve=curve,
-        assumption=assumption,
-        drivers=state.drivers.model_copy(
-            update={
-                "exertion": {"rest": 0, "light": 0.35, "exercise": 0.8}[scenario],
-                "pulse_hz": curve[-1].value / 60,
-                "recovery_progress": 1 if scenario == "rest" else 0.2,
-            }
-        ),
-    )

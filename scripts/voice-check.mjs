@@ -178,7 +178,6 @@ try {
     ["How many calories?", "calories"],
     ["How many steps?", "steps"],
     ["What is my plan?", "plan"],
-    ["What if I rest?", "what-if"],
   ]) {
     const ended = await page.evaluate(() => window.__ended);
     await ask(question, topic);

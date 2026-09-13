@@ -106,3 +106,20 @@ export function value(value: number | null | undefined, digits = 0) {
     ? "—"
     : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
+export type TrajectoryPoint = {
+  horizon_minutes: number;
+  value: number;
+  validation_mae: number;
+  method: string;
+  beats_baseline: boolean;
+};
+export type Trajectory =
+  | { available: false; reason: string; missing: string[] }
+  | {
+      available: true;
+      current: number;
+      measured_age_minutes: number;
+      imputed_inputs: string[];
+      points: TrajectoryPoint[];
+      note: string;
+    };
