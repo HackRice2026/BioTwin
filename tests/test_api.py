@@ -36,7 +36,9 @@ def test_auth_requires_adult_and_private_data_is_authenticated(client):
     state = client.get("/api/state").json()
     assert state["latest"] is None
     assert state["readiness"]["score"] is None
-    assert "password" not in client.get("/api/session").text
+    session = client.get("/api/session")
+    assert "password" not in session.text
+    assert session.json()["data_source"] == "sqlite"
 
 
 def test_import_idempotence_and_late_event_recompute(client):

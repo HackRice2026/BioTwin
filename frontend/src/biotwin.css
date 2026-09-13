@@ -1235,6 +1235,9 @@ button.primary:hover:not(:disabled) {
   color: #84a18e;
   padding: 30px;
 }
+.essentials-grid > .empty-state {
+  grid-column: 1 / -1;
+}
 .empty-state p {
   font-size: 12px;
 }
