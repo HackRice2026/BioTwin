@@ -1,18 +1,19 @@
 import json
-from datetime import date
+from datetime import date, timedelta
+from types import SimpleNamespace
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from core.agenda import AgendaService
-from core.api import create_app
+from core.api import approve_pending_calendar_event, create_app, propose_coach_calendar_draft
 from core.calendar import CalendarService
 from core.config import Settings
 from core.store import Store
 from narration.calendar import calendar_context, prepare_event
 from narration.service import guard
-from shared.schemas import NarrationContext
+from shared.schemas import DailyPlan, NarrationContext, Proposal, utcnow
 
 
 CAL = {
@@ -195,14 +196,25 @@ async def test_draft_confirmation_idempotency_and_conflicts(store):
             )
 
 
-async def test_ai_prepares_but_does_not_write_an_event(store):
+async def test_ai_adds_event_after_extracting_a_valid_draft(store):
     config = Settings(_env_file=None, allow_external_narration=True, narration_api_key="test")
     calls = []
+    writes = []
 
     def handler(req):
         calls.append(req)
         if req.url.path.endswith("calendarList"):
             return httpx.Response(200, json={"items": [CAL]})
+        if req.url.path.endswith("freeBusy"):
+            return httpx.Response(200, json={"calendars": {CAL["id"]: {"busy": []}}})
+        if req.method == "GET" and "/events/" in req.url.path:
+            return httpx.Response(404)
+        if req.method == "POST" and req.url.path.endswith("/events"):
+            writes.append(json.loads(req.content))
+            return httpx.Response(
+                200,
+                json={"id": writes[-1]["id"], "htmlLink": "https://calendar.google.com/event"},
+            )
         result = {
             "intent": "create",
             "draft": {
@@ -229,11 +241,65 @@ async def test_ai_prepares_but_does_not_write_an_event(store):
             ],
             "timezone": "America/Chicago",
         }
-        answer, draft = await prepare_event(
+        answer, draft, event = await prepare_event(
             "Add a study session October 5 at 3 pm for 30 minutes", agenda, USER, service, config, http
         )
-    assert "not been added" in answer.answer and draft["title"] == "Study session"
-    assert not any(r.url.path.endswith("/events") for r in calls)
+    assert "Added Study session to your Google Calendar" in answer.answer
+    assert draft is None
+    assert event == {"id": writes[0]["id"], "url": "https://calendar.google.com/event", "status": "created"}
+    assert len(writes) == 1 and writes[0]["summary"] == "Study session"
+
+
+async def test_coach_recommendation_drafts_then_voice_approval_confirms(store):
+    writes = []
+
+    def handler(req):
+        if req.url.path.endswith("calendarList"):
+            return httpx.Response(200, json={"items": [CAL]})
+        if req.url.path.endswith("freeBusy"):
+            return httpx.Response(200, json={"calendars": {CAL["id"]: {"busy": []}}})
+        if req.method == "GET" and "/events/" in req.url.path:
+            return httpx.Response(404)
+        if req.method == "POST" and req.url.path.endswith("/events"):
+            writes.append(json.loads(req.content))
+            return httpx.Response(
+                200,
+                json={"id": writes[-1]["id"], "htmlLink": "https://calendar.google.com/event"},
+            )
+        raise AssertionError(str(req.url))
+
+    start = utcnow() + timedelta(days=1)
+    proposal = Proposal(
+        id="coach-draft",
+        kind="workout",
+        title="Light movement",
+        start=start,
+        end=start + timedelta(minutes=30),
+        intensity="light",
+        reason="Readiness supports an easy session in a free window.",
+        score=0.8,
+        terms={"free_slot": 1.0},
+    )
+    plan = DailyPlan(
+        date=str(start.date()),
+        timezone="America/Chicago",
+        calendar_status="connected",
+        proposals=[proposal],
+        busy=[],
+        explanation="Test plan",
+    )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        runtime = SimpleNamespace(store=store, calendar=CalendarService(OAuth(), http, store))
+        answer, draft = await propose_coach_calendar_draft(runtime, USER["id"], USER, "What workout should I do?", plan)
+        assert "Want me to add it" in answer.answer
+        assert draft["title"] == "BioTwin · Light movement"
+        assert store.get(USER["id"], "pending_calendar_draft")["id"] == draft["id"]
+        approved = await approve_pending_calendar_event(runtime, USER["id"], USER)
+
+    assert approved[1]["status"] == "created"
+    assert writes[0]["summary"] == "BioTwin · Light movement"
+    assert store.get(USER["id"], "pending_calendar_draft") is None
 
 
 def test_agenda_endpoint_account_isolation_and_calendar_context(tmp_path):

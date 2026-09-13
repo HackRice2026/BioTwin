@@ -20,7 +20,6 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
 import { api, post, value } from "./api";
 import { TrajectoryChart } from "./Charts";
@@ -44,7 +43,6 @@ import {
   topicSignal,
 } from "./DashboardPanels";
 import type { CaptionWord } from "./captions";
-import type { SimulationOverlay } from "./contracts";
 
 type Page =
   "Overview" | "Signals" | "Daily plan" | "Connections";
@@ -133,12 +131,8 @@ export default function BioTwinApp() {
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const [mobile, setMobile] = useState(
-    () => matchMedia("(max-width: 760px)").matches,
-  );
   const input = useRef<HTMLInputElement>(null);
   const transcript = useRef<HTMLDivElement>(null);
-  const noOverlay = useRef<SimulationOverlay | null>(null);
   const autoTopic = useRef(false);
   const conversation = useTwinConversation({
     open: true,
@@ -152,6 +146,15 @@ export default function BioTwinApp() {
       setTakeover(null);
       setPage("Daily plan");
       setEventEditor(draft);
+    },
+    onCalendarEvent: () => {
+      autoTopic.current = false;
+      setTakeover(null);
+      setEventEditor(null);
+      setPage("Daily plan");
+      void data.calendar.refresh();
+      void data.refreshPlan();
+      data.notify("Added to your Google Calendar. Your agenda is updating.");
     },
     onQuestion: (text, calendarMode) => {
       const topic = calendarMode ? "plan" : questionTopic(text);
@@ -180,12 +183,6 @@ export default function BioTwinApp() {
         : speaking
           ? "Speaking"
           : "Here with you";
-  useEffect(() => {
-    const query = matchMedia("(max-width: 760px)");
-    const update = () => setMobile(query.matches);
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
   useEffect(() => {
     setAdded([]);
     setEventEditor(null);
@@ -549,18 +546,37 @@ export default function BioTwinApp() {
               </div>
             </div>
             <div className="hero-avatar">
-              <Avatar
-                live={data.live}
-                overlay={
-                  noOverlay
-                }
-                state={state}
-                reduced={reduced}
-                speaking={speaking}
-                listening={listening}
-                thinking={asking}
-                compact={mobile || !!takeover}
-              />
+              <div
+                className={`coach-presence ${listening ? "listening" : ""}${speaking ? " speaking" : ""}${asking || transcribing ? " thinking" : ""}`}
+                aria-label={`BioTwin coach ${phase}`}
+              >
+                <div className="coach-portrait">
+                  <img src="/assets/coach-mascot.png" alt="" />
+                </div>
+                <button
+                  type="button"
+                  className={`coach-mic ${listening ? "listening" : ""}`}
+                  disabled={asking}
+                  aria-label={listening ? "Stop listening" : "Start listening"}
+                  aria-pressed={listening}
+                  onClick={conversation.microphone}
+                >
+                  <span aria-hidden="true" />
+                  <Mic size={26} />
+                </button>
+                <div className="coach-status">
+                  <b>{phase}</b>
+                  <span>
+                    {listening
+                      ? "Say it naturally"
+                      : speaking
+                        ? "Answering out loud"
+                        : asking || transcribing
+                          ? "Reading the room"
+                          : "Tap the mic"}
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="hero-composer">
               <form

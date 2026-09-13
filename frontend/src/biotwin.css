@@ -650,6 +650,8 @@ button.primary:hover:not(:disabled) {
   min-width: 0;
   min-height: 310px;
   align-self: stretch;
+  display: grid;
+  place-items: center;
 }
 .hero-avatar:before {
   content: "";
@@ -666,6 +668,134 @@ button.primary:hover:not(:disabled) {
     0 0 0 41px #99cdaa08,
     0 0 0 82px #99cdaa02,
     0 0 0 83px #99cdaa06;
+}
+.coach-presence {
+  position: relative;
+  width: min(100%, 390px);
+  height: 100%;
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+.coach-portrait {
+  width: min(82%, 285px);
+  aspect-ratio: 1;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid #e0ffe829;
+  background: #16251e;
+  box-shadow:
+    0 22px 60px #00000030,
+    inset 0 0 0 1px #ffffff10;
+  transition:
+    transform 0.28s ease,
+    opacity 0.28s ease,
+    filter 0.28s ease;
+}
+.coach-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.coach-presence.listening .coach-portrait,
+.coach-presence.speaking .coach-portrait,
+.coach-presence.thinking .coach-portrait {
+  transform: translateY(-8px) scale(0.92);
+  opacity: 0.38;
+  filter: saturate(0.75) blur(1px);
+}
+.coach-mic {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 3;
+  width: 74px;
+  height: 74px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #183220;
+  background: #a3d9af;
+  border: 1px solid #f0fff07d;
+  box-shadow:
+    0 18px 44px #00000033,
+    0 0 0 10px #9fdcaf19;
+  transition:
+    transform 0.22s ease,
+    background 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+.coach-mic:hover:not(:disabled) {
+  transform: translate(-50%, -50%) scale(1.04);
+}
+.coach-mic:disabled {
+  cursor: wait;
+}
+.coach-mic span {
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  border: 1px solid #bdebc64d;
+  opacity: 0;
+}
+.coach-presence.listening .coach-mic,
+.coach-presence.speaking .coach-mic,
+.coach-presence.thinking .coach-mic {
+  background: #eff8ee;
+  color: #1b2b22;
+  box-shadow:
+    0 18px 48px #00000038,
+    0 0 0 13px #d7ffdc18,
+    0 0 0 31px #d7ffdc09;
+}
+.coach-presence.listening .coach-mic span {
+  animation: voice-ring 1.35s ease-out infinite;
+  opacity: 1;
+}
+.coach-presence.speaking .coach-mic span {
+  animation: voice-ring 1.9s ease-out infinite;
+  opacity: 0.8;
+}
+.coach-status {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  z-index: 4;
+  transform: translateX(-50%);
+  min-width: 178px;
+  padding: 9px 13px;
+  border-radius: 16px;
+  border: 1px solid #d9ffe41f;
+  background: #102018d4;
+  color: #bfd6c6;
+  box-shadow: 0 12px 28px #00000024;
+  backdrop-filter: blur(14px);
+  text-align: center;
+}
+.coach-status b {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+}
+.coach-status span {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  color: #7f9a89;
+}
+@keyframes voice-ring {
+  from {
+    transform: scale(0.85);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(1.55);
+    opacity: 0;
+  }
 }
 .hero-composer {
   grid-column: 1/-1;
@@ -1509,6 +1639,29 @@ button.primary:hover:not(:disabled) {
   height: 135px;
   min-height: 0;
 }
+.focused .coach-presence {
+  min-height: 130px;
+}
+.focused .coach-portrait {
+  width: 118px;
+  border-radius: 20px;
+}
+.focused .coach-mic {
+  width: 50px;
+  height: 50px;
+  top: 54%;
+}
+.focused .coach-status {
+  bottom: 1px;
+  min-width: 132px;
+  padding: 6px 9px;
+}
+.focused .coach-status b {
+  font-size: 9px;
+}
+.focused .coach-status span {
+  display: none;
+}
 .focused .hero-avatar:before {
   width: 120px;
   height: 120px;
@@ -2199,6 +2352,22 @@ button.primary:hover:not(:disabled) {
     padding-top: 8px;
     margin-left: 32px;
   }
+  .coach-presence {
+    min-height: 245px;
+  }
+  .coach-portrait {
+    width: 180px;
+    border-radius: 22px;
+  }
+  .coach-mic {
+    width: 58px;
+    height: 58px;
+  }
+  .coach-status {
+    bottom: 19px;
+    min-width: 150px;
+    padding: 7px 10px;
+  }
   .hero-avatar:before {
     width: 170px;
     height: 170px;
@@ -2545,6 +2714,19 @@ button.primary:hover:not(:disabled) {
     padding-top: 0;
     margin-left: 56px;
     flex-shrink: 0;
+  }
+  .focused .coach-presence {
+    min-height: 138px;
+  }
+  .focused .coach-portrait {
+    width: 105px;
+  }
+  .focused .coach-mic {
+    width: 46px;
+    height: 46px;
+  }
+  .focused .coach-status {
+    bottom: 4px;
   }
   .focused .hero-avatar:before {
     height: 100px;

@@ -150,11 +150,11 @@ export type CompletedAt = string | null;
 export type Mode1 = string;
 export type Notice1 = string | null;
 export type Model1 = string | null;
-export type IssuedAt1 = string;
+export type IssuedAt2 = string;
 export type Timezone1 = string;
 export type Curve2 = CurvePoint[];
-export type Confidence3 = number;
-export type Label1 = string;
+export type Confidence4 = number;
+export type Label3 = string;
 export type Assumptions = string;
 
 export interface BioTwinContracts {
@@ -347,6 +347,7 @@ export interface BusyInterval {
 }
 export interface NarrationContext {
   calendar?: Calendar;
+  coach_brief?: { [k: string]: unknown };
   readiness: Readiness;
   baseline_summary: Baseline;
   recent_trend?: RecentTrend;
@@ -377,10 +378,10 @@ export interface Conversation {
   model?: Model1;
 }
 export interface DayOutlook {
-  issued_at: IssuedAt1;
+  issued_at: IssuedAt2;
   timezone: Timezone1;
   curve: Curve2;
-  confidence: Confidence3;
-  label?: Label1;
+  confidence: Confidence4;
+  label?: Label3;
   assumptions: Assumptions;
 }

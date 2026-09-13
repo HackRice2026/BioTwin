@@ -250,6 +250,7 @@ class TwinState(Contract):
 
 class NarrationContext(Contract):
     calendar: dict[str, Any] | None = None
+    coach_brief: dict[str, Any] = Field(default_factory=dict)
     readiness: Readiness
     baseline_summary: Baseline
     recent_trend: tuple[str, ...] = ()

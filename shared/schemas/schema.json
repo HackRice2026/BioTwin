@@ -460,6 +460,11 @@
           "default": null,
           "title": "Calendar"
         },
+        "coach_brief": {
+          "additionalProperties": true,
+          "title": "Coach Brief",
+          "type": "object"
+        },
         "readiness": {
           "$ref": "#/$defs/Readiness"
         },
