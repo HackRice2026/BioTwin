@@ -128,6 +128,12 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Hosted Chromium passed layout/PWA checks but exceeded a
+  voice-test-only 450ms paint deadline. Topic regression now explicitly holds
+  the narration response until the panel is visible, verifying causal order
+  independently of hosted CPU speed. Real-provider latency stays measured
+  separately by the recorded-question check.
+
 - 2026-09-12 — BioTwin 2.0 implementation and verification commits published
   to `origin/biotwin2.0`, with upstream tracking that feature branch. All
   redesign commits use Shivendra's existing configured author identity.

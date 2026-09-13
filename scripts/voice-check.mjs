@@ -127,8 +127,13 @@ try {
       json: { ...(await response.json()), voice_configured: true },
     });
   });
+  let answerGate = null;
   await context.route("**/api/twin/ask", async (route) => {
-    await new Promise((r) => setTimeout(r, 500));
+    const gate = answerGate;
+    if (gate) {
+      gate.entered();
+      await gate.released;
+    }
     const response = await route.fetch();
     await route.fulfill({
       response,
@@ -147,12 +152,26 @@ try {
   await page.goto(root);
   await page.locator(".twin-hero canvas").waitFor();
   const ask = async (question, topic) => {
-    await page.getByLabel("Ask your twin", { exact: true }).fill(question);
-    await page.getByLabel("Send question", { exact: true }).click();
-    await page.locator(`[data-topic="${topic}"]`).waitFor({ timeout: 450 });
-    report.instantTopics.push(topic);
+    let release, entered;
+    const requestEntered = new Promise((resolve) => (entered = resolve));
+    answerGate = {
+      entered,
+      released: new Promise((resolve) => (release = resolve)),
+    };
+    try {
+      await page.getByLabel("Ask your twin", { exact: true }).fill(question);
+      const request = page.waitForRequest("**/api/twin/ask");
+      await page.getByLabel("Send question", { exact: true }).click();
+      await request;
+      await requestEntered;
+      await page.locator(`[data-topic="${topic}"]`).waitFor();
+      report.instantTopics.push(topic);
+    } finally {
+      release();
+      answerGate = null;
+    }
   };
-  // All takeover routes must open while the delayed narration request is still pending.
+  // Hold narration until the panel is visible: prove ordering without a CPU-speed assumption.
   for (const [question, topic] of [
     ["How is my heart rate?", "heart"],
     ["How did I sleep?", "sleep"],
