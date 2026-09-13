@@ -128,6 +128,10 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — BioTwin 2.0 implementation and verification commits published
+  to `origin/biotwin2.0`, with upstream tracking that feature branch. All
+  redesign commits use Shivendra's existing configured author identity.
+
 - 2026-09-12 — PWA now precaches the existing 15 MB ARKit model and its
   formerly remote lighting HDRI as content-versioned public assets; the
   cache limit is 20 MB for that model. Health endpoints remain excluded.

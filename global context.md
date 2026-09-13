@@ -60,7 +60,7 @@ missing-data states, and honest labels for estimates and scenarios.
 - [x] Verify mobile/desktop navigation, calendar actions, simulations, history,
   account isolation, PWA manifest/icons/service worker and offline behavior.
 - [x] Remove the old UI after verification and finish local checks.
-- [ ] Push the logical commits and verify the remote branch.
+- [x] Push the logical commits and verify the remote branch.
 
 ## Verification baseline
 
