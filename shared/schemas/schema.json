@@ -447,6 +447,19 @@
     "NarrationContext": {
       "additionalProperties": false,
       "properties": {
+        "calendar": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calendar"
+        },
         "readiness": {
           "$ref": "#/$defs/Readiness"
         },

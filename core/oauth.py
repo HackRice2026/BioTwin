@@ -10,7 +10,8 @@ GOOGLE_SCOPES = " ".join(
     for s in ["activity_and_fitness", "sleep", "health_metrics_and_measurements"]
 )
 CALENDAR_SCOPES = (
-    "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events"
+    "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events "
+    "https://www.googleapis.com/auth/tasks.readonly"
 )
 # offline_access is what earns a refresh token from Microsoft's identity
 # platform -- there's no separate access_type=offline param like Google's.

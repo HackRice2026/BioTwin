@@ -9,6 +9,16 @@ Follow-up authorization: Shivendra requested merging the completed `biotwin2.0`
 branch into `dev`. Preserve both branches' history and publish the merge to
 `origin/dev`.
 
+## Calendar follow-up
+
+On `dev`, show the connected calendar's actual events and available Google Tasks
+in a clean, browsable agenda. Include every provider page in the displayed date
+range, calendar names, recurring instances, all-day entries and event details.
+The twin can read this calendar context and prepare new events; a visible draft
+lets the user review the title, calendar, time and reminder before adding it.
+Refresh after consent and writes. Tasks require their separate read permission;
+failure to grant it must not hide calendar events. Keep multiple logical commits.
+
 ## Product and scope
 
 Rebuild the BioTwin frontend entirely. Preserve the existing backend and

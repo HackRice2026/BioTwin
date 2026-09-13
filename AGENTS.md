@@ -128,6 +128,12 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Calendar follow-up authorized on dev: replace free/busy-only
+  display with named events and optional Google Tasks, plus calendar-grounded
+  twin answers and reviewable event drafts. Assumptions: show all readable
+  calendars in a browsable date range; retain explicit Add confirmation.
+  Tasks use a separate read scope and may need renewed Google consent.
+
 - 2026-09-12 — Shivendra explicitly requested merging `biotwin2.0` into
   `dev`, superseding the feature-only branch instruction. Normal merge
   preserves all redesign commits and dev's newer Audio2Face documentation
