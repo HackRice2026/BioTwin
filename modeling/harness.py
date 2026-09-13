@@ -1,9 +1,10 @@
 """Deterministic fitness coaching harness around forecast, plan, and policy."""
 
 from shared.schemas import (
-    FitnessHarness,
+    FitnessHarnessResult,
     HarnessDecision,
     HarnessMetric,
+    HarnessScenario,
     SimulationOverlay,
     utcnow,
 )
@@ -27,7 +28,41 @@ def _fmt_time(stamp, timezone):
     return stamp.astimezone(timezone).strftime("%H:%M")
 
 
+def _validate_plan_fits_calendar(plan):
+    if not plan:
+        return
+    for proposal in plan.proposals:
+        if proposal.end <= proposal.start:
+            raise ValueError("Harness rejected a proposal with non-positive duration")
+        if _overlaps(proposal.start, proposal.end, plan.busy):
+            raise ValueError("Harness rejected a proposal that overlaps a busy calendar window")
+
+
+def _scenario_result(simulation: SimulationOverlay | None):
+    if not simulation or not simulation.curve:
+        return None
+    values = [point.value for point in simulation.curve]
+    start = values[0]
+    peak = max(values)
+    end = values[-1]
+    delta = round(end - start, 1)
+    return HarnessScenario(
+        key=simulation.scenario,
+        label=f"{simulation.scenario.title()} path",
+        start_value=round(start, 1),
+        peak_value=round(peak, 1),
+        end_value=round(end, 1),
+        delta=delta,
+        explanation=(
+            f"{simulation.scenario.title()} changes the modeled heart-rate path "
+            f"from {start:.1f} bpm to {end:.1f} bpm ({delta:+.1f} bpm). "
+            f"{simulation.assumption}"
+        ),
+    )
+
+
 def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay | None = None):
+    _validate_plan_fits_calendar(plan)
     ready = state.readiness
     latest = state.latest
     state_metrics = [
@@ -133,11 +168,11 @@ def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay 
         ),
     ]
 
-    evaluations = []
+    plan_checks = []
     if plan and plan.proposals:
         for proposal in plan.proposals:
             duration = int((proposal.end - proposal.start).total_seconds() / 60)
-            evaluations.append(
+            plan_checks.append(
                 HarnessDecision(
                     key=f"{proposal.id}.calendar_fit",
                     label=f"{proposal.title} calendar fit",
@@ -145,7 +180,7 @@ def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay 
                     reason=f"{duration}-minute proposal checked against {len(plan.busy)} busy windows.",
                 )
             )
-            evaluations.append(
+            plan_checks.append(
                 HarnessDecision(
                     key=f"{proposal.id}.policy_fit",
                     label=f"{proposal.title} policy fit",
@@ -154,7 +189,7 @@ def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay 
                 )
             )
     elif plan:
-        evaluations.append(
+        plan_checks.append(
             HarnessDecision(
                 key="plan.empty",
                 label="Plan availability",
@@ -163,16 +198,7 @@ def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay 
             )
         )
 
-    if simulation and simulation.curve:
-        delta = simulation.curve[-1].value - simulation.curve[0].value
-        evaluations.append(
-            HarnessDecision(
-                key=f"scenario.{simulation.scenario}",
-                label=f"{simulation.scenario.title()} scenario",
-                value=f"{delta:+.1f} bpm over {len(simulation.curve)} points",
-                reason=simulation.assumption,
-            )
-        )
+    scenario = _scenario_result(simulation)
 
     next_actions = []
     if plan and plan.proposals:
@@ -194,12 +220,32 @@ def build_harness(state, plan=None, outlook=None, simulation: SimulationOverlay 
     else:
         confidence_parts.append(0.25)
 
-    return FitnessHarness(
+    evidence = [
+        "readiness.score",
+        "readiness.confidence",
+        "harness.forecast.0.value",
+        "harness.policy_decisions.0.value",
+    ]
+    if plan and plan.proposals:
+        evidence.append("harness.plan.0.value")
+    if scenario:
+        evidence.append("harness.scenarios.0.explanation")
+
+    return FitnessHarnessResult(
         issued_at=utcnow(),
-        state_metrics=state_metrics,
-        forecast_summary=forecast_summary,
-        policy=policy,
-        evaluations=evaluations[:8],
+        state=state_metrics,
+        forecast=forecast_summary,
+        policy_decisions=policy,
+        plan=plan_checks[:8],
+        scenarios=[scenario] if scenario else [],
+        evidence=evidence,
+        allowed_actions=[
+            "explain_readiness",
+            "explain_forecast",
+            "explain_plan",
+            "compare_scenario",
+            "request_calendar_event_review",
+        ],
         next_actions=next_actions,
         confidence=round(sum(confidence_parts) / len(confidence_parts), 2),
     )

@@ -59,12 +59,12 @@ def narration_context(state, plan=None, readiness_history=(), outlook=None):
             )
     harness = build_harness(state, plan, outlook)
     facts.append(
-        f"The fitness harness confidence is {harness.confidence:g}; it combines signal confidence, forecast confidence, and calendar availability."
+        f"My coaching confidence for this recommendation is {harness.confidence:g}, based on signal confidence, forecast confidence, and calendar availability."
     )
-    for decision in harness.policy:
-        facts.append(f"Harness policy: {decision.label} is {decision.value}. {decision.reason}")
+    for decision in harness.policy_decisions[:2]:
+        facts.append(f"Coaching guardrail: {decision.label} is {decision.value}. {decision.reason}")
     for action in harness.next_actions[:2]:
-        facts.append(f"Harness next action: {action}")
+        facts.append(f"Recommended next step: {action}")
     trend = []
     scores = [
         x for x in sorted(readiness_history, key=lambda x: x["computed_at"]) if x.get("score") is not None

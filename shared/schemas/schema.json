@@ -407,7 +407,7 @@
       "title": "EnergyState",
       "type": "string"
     },
-    "FitnessHarness": {
+    "FitnessHarnessResult": {
       "additionalProperties": false,
       "properties": {
         "issued_at": {
@@ -415,32 +415,53 @@
           "title": "Issued At",
           "type": "string"
         },
-        "state_metrics": {
+        "state": {
           "items": {
             "$ref": "#/$defs/HarnessMetric"
           },
-          "title": "State Metrics",
+          "title": "State",
           "type": "array"
         },
-        "forecast_summary": {
+        "forecast": {
           "items": {
             "$ref": "#/$defs/HarnessMetric"
           },
-          "title": "Forecast Summary",
+          "title": "Forecast",
           "type": "array"
         },
-        "policy": {
+        "policy_decisions": {
           "items": {
             "$ref": "#/$defs/HarnessDecision"
           },
-          "title": "Policy",
+          "title": "Policy Decisions",
           "type": "array"
         },
-        "evaluations": {
+        "plan": {
           "items": {
             "$ref": "#/$defs/HarnessDecision"
           },
-          "title": "Evaluations",
+          "title": "Plan",
+          "type": "array"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/HarnessScenario"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "allowed_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Actions",
           "type": "array"
         },
         "next_actions": {
@@ -459,14 +480,16 @@
       },
       "required": [
         "issued_at",
-        "state_metrics",
-        "forecast_summary",
-        "policy",
-        "evaluations",
+        "state",
+        "forecast",
+        "policy_decisions",
+        "plan",
+        "evidence",
+        "allowed_actions",
         "next_actions",
         "confidence"
       ],
-      "title": "FitnessHarness",
+      "title": "FitnessHarnessResult",
       "type": "object"
     },
     "HarnessDecision": {
@@ -531,6 +554,50 @@
         "value"
       ],
       "title": "HarnessMetric",
+      "type": "object"
+    },
+    "HarnessScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "start_value": {
+          "title": "Start Value",
+          "type": "number"
+        },
+        "peak_value": {
+          "title": "Peak Value",
+          "type": "number"
+        },
+        "end_value": {
+          "title": "End Value",
+          "type": "number"
+        },
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "start_value",
+        "peak_value",
+        "end_value",
+        "delta",
+        "explanation"
+      ],
+      "title": "HarnessScenario",
       "type": "object"
     },
     "MetricQuality": {
@@ -625,7 +692,7 @@
         "harness": {
           "anyOf": [
             {
-              "$ref": "#/$defs/FitnessHarness"
+              "$ref": "#/$defs/FitnessHarnessResult"
             },
             {
               "type": "null"
@@ -1769,8 +1836,8 @@
     "DailyPlan": {
       "$ref": "#/$defs/DailyPlan"
     },
-    "FitnessHarness": {
-      "$ref": "#/$defs/FitnessHarness"
+    "FitnessHarnessResult": {
+      "$ref": "#/$defs/FitnessHarnessResult"
     },
     "NarrationContext": {
       "$ref": "#/$defs/NarrationContext"
@@ -1795,7 +1862,7 @@
     "Readiness",
     "RecoveryPrediction",
     "DailyPlan",
-    "FitnessHarness",
+    "FitnessHarnessResult",
     "NarrationContext",
     "NarrationResponse",
     "Conversation",

@@ -6,6 +6,7 @@ import pytest
 
 from core.config import Settings
 from modeling.explanations import narration_context
+from modeling.outlook import daily_outlook
 from narration.service import guard, narrate
 from shared.schemas import TwinState
 
@@ -52,6 +53,24 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
     assert result.answer == answer
     assert result.mode == "language_service"
     assert result.notice is None
+
+
+def test_harness_time_claims_must_match_harness_evidence():
+    state = TwinState.model_validate_json(Path("fixtures/golden/twin-state.json").read_text())
+    outlook = daily_outlook(state, {"timezone": "UTC"}, state.server_time)
+    context = narration_context(state, outlook=outlook)
+    best_time = context.harness.forecast[0].value.split(" · ")[0]
+
+    assert guard(
+        f"Your best window is {best_time}.",
+        context,
+        ["harness.forecast.0.value"],
+    )
+    assert not guard(
+        "Your best window is 18:30.",
+        context,
+        ["harness.forecast.0.value"],
+    )
 
 
 @pytest.mark.parametrize(

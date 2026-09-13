@@ -9,6 +9,7 @@ import {
 import type {
   DailyPlan,
   DayOutlook,
+  FitnessHarnessResult,
   Readiness,
   RecoveryPrediction,
   SimulationOverlay,
@@ -46,6 +47,7 @@ export function useDashboard() {
   const [predictions, setPredictions] = useState<RecoveryPrediction[]>([]);
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [outlook, setOutlook] = useState<DayOutlook | null>(null);
+  const [harness, setHarness] = useState<FitnessHarnessResult | null>(null);
   const [notice, notify] = useState("");
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [simulation, setSimulation] = useState<SimulationOverlay | null>(null);
@@ -62,6 +64,7 @@ export function useDashboard() {
     setPredictions([]);
     setPlan(null);
     setOutlook(null);
+    setHarness(null);
     clearSimulation();
     setAccountKey((k) => k + 1);
   }
@@ -99,6 +102,7 @@ export function useDashboard() {
       setPredictions(bundle.predictions);
       setPlan(bundle.plan);
       setOutlook(bundle.outlook);
+      setHarness(null);
       return;
     }
     if (status !== "online") return;
@@ -112,6 +116,7 @@ export function useDashboard() {
         "/api/predictions",
         "/api/plan/today",
         "/api/outlook",
+        "/api/harness",
       ];
       const results = await Promise.allSettled(
         requests.map((path) =>
@@ -126,7 +131,7 @@ export function useDashboard() {
           next[m] = (r.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(metricNames.length);
+      const [s, h, p, pl, out, fh] = results.slice(metricNames.length);
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -134,6 +139,7 @@ export function useDashboard() {
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (fh.status === "fulfilled") setHarness(fh.value as FitnessHarnessResult);
       if (results.some((r) => r.status === "rejected"))
         notify(
           "Some measurements could not refresh. Please try again shortly.",
@@ -152,7 +158,14 @@ export function useDashboard() {
     setLoadingPlan(true);
     try {
       const p = await post<DailyPlan>("/api/plan/refresh");
-      if (current === revision.current) setPlan(p);
+      if (current === revision.current) {
+        setPlan(p);
+        api<FitnessHarnessResult>("/api/harness")
+          .then((next) => {
+            if (current === revision.current) setHarness(next);
+          })
+          .catch(() => {});
+      }
     } catch {
       notify(
         "Your calendar could not refresh. Check your connection and try again.",
@@ -219,6 +232,7 @@ export function useDashboard() {
     history,
     plan,
     outlook,
+    harness,
     prediction,
     notice,
     notify,

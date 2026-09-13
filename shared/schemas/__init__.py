@@ -230,14 +230,46 @@ class HarnessDecision(Contract):
     reason: str
 
 
-class FitnessHarness(Contract):
+class HarnessScenario(Contract):
+    key: str
+    label: str
+    start_value: float
+    peak_value: float
+    end_value: float
+    delta: float
+    explanation: str
+
+
+class FitnessHarnessResult(Contract):
     issued_at: AwareDatetime
-    state_metrics: list[HarnessMetric]
-    forecast_summary: list[HarnessMetric]
-    policy: list[HarnessDecision]
-    evaluations: list[HarnessDecision]
+    state: list[HarnessMetric]
+    forecast: list[HarnessMetric]
+    policy_decisions: list[HarnessDecision]
+    plan: list[HarnessDecision]
+    scenarios: list[HarnessScenario] = Field(default_factory=list)
+    evidence: list[str]
+    allowed_actions: list[str]
     next_actions: list[str]
     confidence: float = Field(ge=0, le=1)
+
+    @property
+    def state_metrics(self):
+        return self.state
+
+    @property
+    def forecast_summary(self):
+        return self.forecast
+
+    @property
+    def policy(self):
+        return self.policy_decisions
+
+    @property
+    def evaluations(self):
+        return self.plan
+
+
+FitnessHarness = FitnessHarnessResult
 
 
 class SimulationOverlay(Contract):
@@ -279,7 +311,7 @@ class NarrationContext(Contract):
     recent_trend: tuple[str, ...] = ()
     plan: DailyPlan | None = None
     prediction: RecoveryPrediction | None = None
-    harness: FitnessHarness | None = None
+    harness: FitnessHarnessResult | None = None
     facts: tuple[str, ...] = ()
     provenance: Provenance | None = None
     quality: dict[str, MetricQuality] = Field(default_factory=dict)

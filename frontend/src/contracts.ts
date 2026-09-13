@@ -137,14 +137,24 @@ export type Key = string;
 export type Label1 = string;
 export type Value1 = string;
 export type Status = "good" | "watch" | "limited" | "unknown";
-export type StateMetrics = HarnessMetric[];
-export type ForecastSummary = HarnessMetric[];
+export type State = HarnessMetric[];
+export type Forecast = HarnessMetric[];
 export type Key1 = string;
 export type Label2 = string;
 export type Value2 = string;
 export type Reason1 = string;
-export type Policy = HarnessDecision[];
-export type Evaluations = HarnessDecision[];
+export type PolicyDecisions = HarnessDecision[];
+export type Plan = HarnessDecision[];
+export type Key2 = string;
+export type Label3 = string;
+export type StartValue = number;
+export type PeakValue = number;
+export type EndValue = number;
+export type Delta = number;
+export type Explanation1 = string;
+export type Scenarios = HarnessScenario[];
+export type Evidence = string[];
+export type AllowedActions = string[];
 export type NextActions = string[];
 export type Confidence3 = number;
 export type Calendar = {
@@ -169,7 +179,7 @@ export type IssuedAt2 = string;
 export type Timezone1 = string;
 export type Curve2 = CurvePoint[];
 export type Confidence4 = number;
-export type Label3 = string;
+export type Label4 = string;
 export type Assumptions = string;
 
 export interface BioTwinContracts {
@@ -179,7 +189,7 @@ export interface BioTwinContracts {
   Readiness: Readiness;
   RecoveryPrediction: RecoveryPrediction;
   DailyPlan: DailyPlan;
-  FitnessHarness: FitnessHarness;
+  FitnessHarnessResult: FitnessHarnessResult;
   NarrationContext: NarrationContext;
   NarrationResponse: NarrationResponse;
   Conversation: Conversation;
@@ -361,12 +371,15 @@ export interface BusyInterval {
   end: End2;
   title?: Title1;
 }
-export interface FitnessHarness {
+export interface FitnessHarnessResult {
   issued_at: IssuedAt1;
-  state_metrics: StateMetrics;
-  forecast_summary: ForecastSummary;
-  policy: Policy;
-  evaluations: Evaluations;
+  state: State;
+  forecast: Forecast;
+  policy_decisions: PolicyDecisions;
+  plan: Plan;
+  scenarios?: Scenarios;
+  evidence: Evidence;
+  allowed_actions: AllowedActions;
   next_actions: NextActions;
   confidence: Confidence3;
 }
@@ -382,6 +395,15 @@ export interface HarnessDecision {
   value: Value2;
   reason: Reason1;
 }
+export interface HarnessScenario {
+  key: Key2;
+  label: Label3;
+  start_value: StartValue;
+  peak_value: PeakValue;
+  end_value: EndValue;
+  delta: Delta;
+  explanation: Explanation1;
+}
 export interface NarrationContext {
   calendar?: Calendar;
   readiness: Readiness;
@@ -389,7 +411,7 @@ export interface NarrationContext {
   recent_trend?: RecentTrend;
   plan?: DailyPlan | null;
   prediction?: RecoveryPrediction | null;
-  harness?: FitnessHarness | null;
+  harness?: FitnessHarnessResult | null;
   facts?: Facts;
   provenance?: Provenance | null;
   quality?: Quality1;
@@ -419,6 +441,6 @@ export interface DayOutlook {
   timezone: Timezone1;
   curve: Curve2;
   confidence: Confidence4;
-  label?: Label3;
+  label?: Label4;
   assumptions: Assumptions;
 }

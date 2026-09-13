@@ -10,10 +10,11 @@ Build on Aditya's existing readiness, recovery, daily outlook, planner, and what
 
 ## What changed
 
-- Added shared `FitnessHarness` contracts:
+- Added shared `FitnessHarnessResult` contracts:
   - `HarnessMetric`
   - `HarnessDecision`
-  - `FitnessHarness`
+  - `HarnessScenario`
+  - `FitnessHarnessResult`
 - Added `modeling/harness.py`, which derives:
   - current user-state metrics
   - forecast summary from `DayOutlook`
@@ -28,10 +29,24 @@ Build on Aditya's existing readiness, recovery, daily outlook, planner, and what
 - Added a What-if Lab scenario impact card showing start, peak, and ending heart-rate trajectory for the selected scenario.
 - Regenerated shared schema and frontend contracts.
 - Added tests for deterministic harness construction and API exposure.
+- Promoted the source-of-truth shape to:
+  - `state`
+  - `forecast`
+  - `policy_decisions`
+  - `plan`
+  - `scenarios`
+  - `evidence`
+  - `confidence`
+  - `allowed_actions`
+- Added hard validators/tests:
+  - Gemini narration is rejected when cited harness/plan timing evidence is contradicted.
+  - Harness plan checks reject proposals that overlap busy calendar windows.
+  - Scenario summaries are derived from the actual simulated curve start/peak/end values.
+- Reworded the visible Daily Plan panel from developer-facing harness language to judge-facing "Forecast / Decision / Adaptation" language.
 
 ## Remaining work
 
-1. Make the planner directly consume `FitnessHarness.policy` instead of recomputing similar rules inside `planning.py`.
+1. Make the planner directly consume `FitnessHarnessResult.policy_decisions` instead of recomputing similar rules inside `planning.py`.
 2. Add pending calendar/action intent validation so Gemini can request actions and the harness can approve or reject them.
 3. Add richer scenario comparisons: train now vs best window, not just rest/light/exercise single-path simulations.
 4. Store harness snapshots with conversations for later evaluation.

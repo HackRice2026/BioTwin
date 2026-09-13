@@ -569,6 +569,25 @@ export function PlanPanel({
           </p>
         </div>
       )}
+      {data.harness && (
+        <div className="coach-decision">
+          <span className="pill">Why this works</span>
+          <p>
+            {data.harness.next_actions[0] ??
+              "Your recommendation is based on today’s readiness, forecast, and calendar fit."}
+          </p>
+          <div>
+            {[...data.harness.forecast, ...data.harness.policy_decisions]
+              .slice(0, 3)
+              .map((item) => (
+                <small key={item.key}>
+                  <b>{item.label}</b>
+                  {item.value}
+                </small>
+              ))}
+          </div>
+        </div>
+      )}
       <div className="plan-reminder">
         <label htmlFor="reminder">Remind me before an event</label>
         <select
@@ -599,6 +618,14 @@ export function CalendarDay({ data }: { data: Dashboard }) {
   );
 }
 export function LabPanel({ data }: { data: Dashboard }) {
+  const scenarioValues = data.simulation?.curve.map((point) => point.value) ?? [];
+  const scenarioImpact = data.simulation?.curve.length
+    ? {
+        start: scenarioValues[0],
+        peak: Math.max(...scenarioValues),
+        end: scenarioValues[scenarioValues.length - 1],
+      }
+    : null;
   return (
     <Panel className="lab-panel">
       <PanelTitle
@@ -665,6 +692,19 @@ export function LabPanel({ data }: { data: Dashboard }) {
           data.prediction?.assumption ??
           "Add a recorded workout to explore a scenario."}
       </p>
+      {scenarioImpact && (
+        <div className="scenario-impact">
+          <span>
+            Start <b>{value(scenarioImpact.start, 1)} bpm</b>
+          </span>
+          <span>
+            Peak <b>{value(scenarioImpact.peak, 1)} bpm</b>
+          </span>
+          <span>
+            End <b>{value(scenarioImpact.end, 1)} bpm</b>
+          </span>
+        </div>
+      )}
       {data.simulation && (
         <button className="text-button" onClick={data.clearSimulation}>
           Return to recorded state

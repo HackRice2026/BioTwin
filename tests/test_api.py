@@ -96,8 +96,9 @@ def test_services_missing_credentials_fail_visibly(client):
     assert client.get("/api/voice/missing").status_code == 503
     assert client.get("/api/plan/today").json()["calendar_status"] == "unavailable"
     harness = client.get("/api/harness").json()
-    assert "state_metrics" in harness
-    assert "policy" in harness
+    assert "state" in harness
+    assert "policy_decisions" in harness
+    assert "allowed_actions" in harness
     assert client.post("/webhooks/garmin", json={}).status_code == 401
     assert client.post("/webhooks/google-health", json={"type": "verification"}).status_code == 401
 
