@@ -6,7 +6,7 @@ import secrets
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
@@ -30,13 +30,14 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPrediction
 from core.config import Settings
 from core.runtime import Runtime
+from core.agenda import AgendaService, EventDraft, calendar_question
+from narration.calendar import prepare_event, calendar_context
 from core.security import hash_password, verify_password
 from core.watch import issue_token, authenticate as authenticate_watch
 from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
-from modeling.engine import simulate
 from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
@@ -64,11 +65,10 @@ class Question(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=1, max_length=1000)
     request_id: str = Field(default_factory=lambda: secrets.token_hex(16), pattern=r"^[a-zA-Z0-9_-]{16,64}$")
+    calendar_start: date | None = None
+    calendar_end: date | None = None
+    calendar_mode: bool = False
 
-
-class Scenario(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    scenario: str
 
 
 class AddEvent(BaseModel):
@@ -335,6 +335,24 @@ def create_app(config=None):
             u["profile"].get("timezone", "UTC"),
         )
 
+    @app.get("/api/forecast/trajectory")
+    async def forecast_trajectory(request: Request):
+        """Body Battery at 1, 3 and 6 hours ahead.
+
+        Each point comes from whichever predictor measured best at that horizon
+        -- the ridge only at an hour, this person's own hour-of-day rhythm
+        beyond it -- and carries the method and validation error that produced
+        it, so the widening uncertainty is on the chart rather than implied.
+        """
+        u = user(request)
+        from modeling.forecast import trajectory
+
+        return trajectory(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+        )
+
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
         return (await state(request)).baseline_summary
@@ -363,12 +381,6 @@ def create_app(config=None):
             if not scored or p.rmse is not None
         ][:30]
 
-    @app.post("/api/simulate")
-    async def what_if(data: Scenario, request: Request):
-        if data.scenario not in ["rest", "light", "exercise"]:
-            raise ValueError("Select rest, light, or exercise")
-        return simulate(data.scenario, await state(request), utcnow())
-
     @app.get("/api/plan/today")
     async def plan(request: Request):
         return await rt().get_plan(user(request))
@@ -380,6 +392,18 @@ def create_app(config=None):
     @app.post("/api/plan/refresh")
     async def refresh_plan(request: Request):
         return await rt().get_plan(user(request), True)
+
+    @app.get("/api/calendar/agenda")
+    async def calendar_agenda(request: Request, start: date | None = None, end: date | None = None):
+        return await AgendaService(rt().calendar).list(user(request), start, end)
+
+    @app.post("/api/calendar/drafts")
+    async def calendar_draft(data: EventDraft, request: Request):
+        return await AgendaService(rt().calendar).draft(user(request, True), data.model_dump())
+
+    @app.post("/api/calendar/drafts/{draft_id}/confirm")
+    async def calendar_confirm(draft_id: str, request: Request):
+        return await AgendaService(rt().calendar).confirm(user(request, True), draft_id)
 
     @app.post("/api/calendar/events")
     async def calendar_add(data: AddEvent, request: Request):
@@ -507,11 +531,25 @@ def create_app(config=None):
             DailyPlan.model_validate(stored) if stored else None,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
         )
+        agenda = None
+        if data.calendar_mode or calendar_question(question):
+            agenda = await AgendaService(rt().calendar).list(u, data.calendar_start, data.calendar_end)
+            ctx = ctx.model_copy(update={"calendar": calendar_context(agenda)})
         row, created = rt().store.begin_conversation(
             owner, data.request_id, question, ctx.model_dump(mode="json")
         )
         if created:
-            answer = await narrate(question, ctx, config, rt().http)
+            prepared = (
+                await prepare_event(question, agenda, u, AgendaService(rt().calendar), config, rt().http)
+                if agenda
+                else None
+            )
+            if prepared:
+                answer, draft = prepared
+                if draft:
+                    rt().store.put(owner, "conversation_draft", draft, data.request_id, require_user=True)
+            else:
+                answer = await narrate(question, ctx, config, rt().http)
             row = rt().store.complete_conversation(owner, data.request_id, answer)
         elif row["mode"] == "pending":
             raise HTTPException(409, "Your twin is still answering this question. Try again shortly.")
@@ -521,6 +559,7 @@ def create_app(config=None):
             **transcript(row),
             "grounded": True,
             **speech_ticket(owner, row),
+            "calendar_draft": rt().store.get(owner, "conversation_draft", data.request_id),
         }
 
     @app.get("/api/voice/{reply_id}")
@@ -686,10 +725,13 @@ def create_app(config=None):
         if uid not in rt().latest_index:
             rt().compute(uid)
         readings = {}
-        for metric in WATCH_METRICS:
-            frame = rt().latest_index[uid].get((metric, Provenance.GARMIN_CIQ_LIVE))
+        for wire_metric, stored_metric in WATCH_METRICS.items():
+            frame = rt().latest_index[uid].get((stored_metric, Provenance.GARMIN_CIQ_LIVE))
             if frame is not None:
-                readings[metric] = {"value": getattr(frame, metric), "event_time": frame.event_time}
+                readings[wire_metric] = {
+                    "value": getattr(frame, stored_metric),
+                    "event_time": frame.event_time,
+                }
         return {
             "paired": bool(device and device["expires"] > utcnow().timestamp()),
             "expires_at": device["expires_at"] if device else None,

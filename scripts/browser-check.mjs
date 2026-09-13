@@ -17,7 +17,7 @@ const report = {
   layouts: [],
   pwa: false,
   offline: false,
-  simulation: false,
+  forecast: false,
   calendar: false,
 };
 await mkdir("test-results", { recursive: true });
@@ -42,14 +42,13 @@ try {
       "Overview",
       "Signals",
       "Daily plan",
-      "What-if lab",
       "Connections",
     ]) {
       await nav.getByRole("button", { name, exact: true }).click();
       await page.waitForTimeout(180);
       assert.ok(
         await page
-          .getByRole("meter", { name: "Body Battery estimate" })
+          .getByRole("meter", { name: "Body Battery, measured" })
           .isVisible(),
       );
       assert.equal(
@@ -71,27 +70,19 @@ try {
     name: "Main navigation",
     exact: true,
   });
-  await nav.getByRole("button", { name: "What-if lab", exact: true }).click();
-  for (const name of ["Take a breather", "Keep it light", "Get moving"]) {
-    const option = page.getByRole("button", { name, exact: false });
-    const response = page.waitForResponse(
-      (r) => r.url().includes("/api/simulate") && r.request().method() === "POST",
-    );
-    await option.click();
-    assert.equal((await response).status(), 200);
-    await page
-      .getByRole("heading", {
-        name: "Possible heart-rate trajectory",
-        exact: true,
-      })
-      .waitFor();
-    assert.equal(await option.getAttribute("aria-pressed"), "true");
-    await page
-      .getByRole("button", { name: "Return to recorded state", exact: true })
-      .click();
-  }
-  report.simulation = true;
   await nav.getByRole("button", { name: "Overview", exact: true }).click();
+  // The what-if lab is gone. What has to work instead is the Body Battery
+  // broadcast: the tile button opens it, and it renders in whichever state the
+  // account's data puts it -- a chart, or the refusal on a stale reading.
+  await page
+    .getByRole("button", { name: /Battery Broadcast/ })
+    .click();
+  const broadcast = page.getByRole("dialog", { name: "Battery Broadcast" });
+  await broadcast.waitFor();
+  assert.ok(await broadcast.getByRole("heading", { name: "Battery Broadcast" }).isVisible());
+  await broadcast.getByRole("button", { name: "Close", exact: true }).click();
+  await broadcast.waitFor({ state: "hidden" });
+  report.forecast = true;
   for (const name of ["Heart rate", "Sleep", "Calories burned", "Steps"]) {
     await page
       .getByRole("button", { name: `Explore ${name}`, exact: true })
@@ -211,17 +202,9 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page
     .getByRole("navigation", { name: "Mobile navigation", exact: true })
-    .getByRole("button", { name: "What-if lab", exact: true })
+    .getByRole("button", { name: "Signals", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Take a breather", exact: false })
-    .click();
-  await page
-    .getByRole("heading", {
-      name: "Possible heart-rate trajectory",
-      exact: true,
-    })
-    .waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({
     path: "test-results/redesign-offline.png",
     fullPage: true,

@@ -77,7 +77,7 @@ async def main():
                 scored.append(result.rmse)
         if scored:
             scored.sort()
-            print(f"\n=== OUT-OF-SAMPLE ERROR ON REAL MEASUREMENTS ===")
+            print("\n=== OUT-OF-SAMPLE ERROR ON REAL MEASUREMENTS ===")
             print(f"  scored predictions   {len(scored)}")
             print(f"  median RMSE          {scored[len(scored)//2]:.2f} bpm")
             print(f"  best / worst         {scored[0]:.2f} / {scored[-1]:.2f} bpm")

@@ -106,3 +106,25 @@ export function value(value: number | null | undefined, digits = 0) {
     ? "—"
     : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
+export type TrajectoryPoint = {
+  horizon_minutes: number;
+  value: number;
+  validation_mae: number;
+  method: string;
+  beats_baseline: boolean;
+};
+export type Trajectory =
+  | { available: false; reason: string; missing: string[] }
+  | {
+      available: true;
+      /** "model" when the ridge could run; "rhythm" when the current reading was
+          too old for it and the hour-of-day climatology answered instead. */
+      basis: "model" | "rhythm";
+      current: number;
+      measured_age_minutes: number;
+      imputed_inputs: string[];
+      measured: { minutes_ago: number; value: number }[];
+      points: TrajectoryPoint[];
+      reason?: string;
+      note: string;
+    };

@@ -5,15 +5,17 @@ import {
   type MetricPoint,
   type SleepPoint,
   type Session,
+  type Forecast,
+  type Trajectory,
 } from "./api";
 import type {
   DailyPlan,
   DayOutlook,
   Readiness,
   RecoveryPrediction,
-  SimulationOverlay,
 } from "./contracts";
 import { useTwin } from "./transport";
+import { useCalendar } from "./useCalendar";
 
 export const metricNames = [
   "heart_rate_bpm",
@@ -37,6 +39,7 @@ export function useDashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const twin = useTwin(accountKey);
   const { status, bundle, state } = twin;
+  const calendar = useCalendar(session, status === "online", accountKey);
   const [days, setDays] = useState(7);
   const [metrics, setMetrics] = useState(emptyMetrics);
   const [sleep, setSleep] = useState<SleepPoint[]>([]);
@@ -44,13 +47,11 @@ export function useDashboard() {
   const [predictions, setPredictions] = useState<RecoveryPrediction[]>([]);
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [outlook, setOutlook] = useState<DayOutlook | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [trajectory, setTrajectory] = useState<Trajectory | null>(null);
   const [notice, notify] = useState("");
   const [loadingPlan, setLoadingPlan] = useState(false);
-  const [simulation, setSimulation] = useState<SimulationOverlay | null>(null);
-  const [scenarioBusy, setScenarioBusy] = useState("");
-  const overlay = useRef<SimulationOverlay | null>(null);
   const revision = useRef(0);
-  const scenarioRequest = useRef(0);
   function reset() {
     revision.current++;
     setSession(null);
@@ -58,16 +59,11 @@ export function useDashboard() {
     setSleep([]);
     setHistory([]);
     setPredictions([]);
+    setForecast(null);
+    setTrajectory(null);
     setPlan(null);
     setOutlook(null);
-    clearSimulation();
     setAccountKey((k) => k + 1);
-  }
-  function clearSimulation() {
-    scenarioRequest.current++;
-    setScenarioBusy("");
-    overlay.current = null;
-    setSimulation(null);
   }
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +106,8 @@ export function useDashboard() {
         "/api/predictions",
         "/api/plan/today",
         "/api/outlook",
+        "/api/forecast",
+        "/api/forecast/trajectory",
       ];
       const results = await Promise.allSettled(
         requests.map((path) =>
@@ -124,7 +122,7 @@ export function useDashboard() {
           next[m] = (r.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(metricNames.length);
+      const [s, h, p, pl, out, fc, tj] = results.slice(metricNames.length);
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -132,6 +130,8 @@ export function useDashboard() {
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (fc.status === "fulfilled") setForecast(fc.value as Forecast);
+      if (tj.status === "fulfilled") setTrajectory(tj.value as Trajectory);
       if (results.some((r) => r.status === "rejected"))
         notify(
           "Some measurements could not refresh. Please try again shortly.",
@@ -157,27 +157,6 @@ export function useDashboard() {
       );
     } finally {
       setLoadingPlan(false);
-    }
-  }
-  async function simulate(scenario: string) {
-    const request = ++scenarioRequest.current;
-    const current = revision.current;
-    setScenarioBusy(scenario);
-    try {
-      const result =
-        status === "offline" && bundle?.simulations[scenario]
-          ? bundle.simulations[scenario]
-          : await post<SimulationOverlay>("/api/simulate", { scenario });
-      if (current === revision.current && request === scenarioRequest.current) {
-        overlay.current = result;
-        setSimulation(result);
-      }
-    } catch {
-      notify(
-        "This scenario is unavailable. Connect your watch or import a recorded workout first.",
-      );
-    } finally {
-      if (request === scenarioRequest.current) setScenarioBusy("");
     }
   }
   function series(field: string): MetricPoint[] {
@@ -217,16 +196,14 @@ export function useDashboard() {
     history,
     plan,
     outlook,
+    forecast,
+    trajectory,
     prediction,
     notice,
     notify,
     loadingPlan,
     refreshPlan,
-    simulation,
-    scenarioBusy,
-    simulate,
-    clearSimulation,
-    overlay,
+    calendar,
   };
 }
 export type Dashboard = ReturnType<typeof useDashboard>;

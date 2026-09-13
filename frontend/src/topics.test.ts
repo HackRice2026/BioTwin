@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { questionTopic, questionScenario } from "./topics";
+import { questionTopic,  } from "./topics";
 import { CaptionTimeline } from "./captions";
 describe("question routing", () => {
   it.each([
@@ -8,18 +8,12 @@ describe("question routing", () => {
     ["How many calories did I burn?", "calories"],
     ["How many steps today?", "steps"],
     ["When should I workout today?", "plan"],
-    ["What if I walk instead of sleep?", "what-if"],
     ["Why am I tired?", "recovery"],
     ["Hi there", null],
     ["What is your name?", null],
   ])("%s → %s", (question, topic) =>
     expect(questionTopic(question)).toBe(topic),
   );
-  it("selects the requested scenario", () => {
-    expect(questionScenario("What if I rest?")).toBe("rest");
-    expect(questionScenario("What if I walk?")).toBe("light");
-    expect(questionScenario("What if I exercise?")).toBe("exercise");
-  });
 });
 describe("speech captions", () => {
   it("keeps split words and absolute stream timings on the playback timeline", () => {

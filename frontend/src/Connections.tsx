@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { api, post } from "./api";
 import type { Session, Profile } from "./api";
+import type { TwinState } from "./contracts";
+import WatchConnection from "./WatchConnection";
 
 type Sources = {
   sources: {
@@ -146,11 +148,13 @@ export default function Connections({
   onAuth,
   onChange,
   notify,
+  state,
 }: {
   session: Session | null;
   onAuth: () => void;
   onChange: () => void;
   notify: (s: string) => void;
+  state?: TwinState;
 }) {
   const [sources, setSources] = useState<Sources | null>(null),
     [busy, setBusy] = useState(""),
@@ -237,6 +241,7 @@ export default function Connections({
           : (result.reason ?? "Your calendar already has events coming up."),
       );
       reload();
+      if (result.seeded) onChange();
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -489,6 +494,7 @@ export default function Connections({
                       try {
                         await api(`/auth/${item.id}`, { method: "DELETE" });
                         reload();
+                        onChange();
                         notify("Account disconnected.");
                       } catch {
                         notify(
@@ -537,6 +543,12 @@ export default function Connections({
       <div className="section-label">
         <h2>Your watch, your way</h2>
       </div>
+      <WatchConnection
+        personal={!!session && !session.demo}
+        setup
+        onAuth={onAuth}
+        state={state}
+      />
       <section className="watch-methods glass">
         <div className="watch-method">
           <span className="connection-icon">

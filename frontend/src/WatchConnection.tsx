@@ -71,7 +71,7 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
   if (!setup && (!personal || (!status?.paired && !status?.sync))) return null;
   const receiving = !error && status?.paired && status.sync
     && Date.now() - Date.parse(status.sync.received_at) < 20000;
-  return <section className="card watch-connection">
+  return <section className="glass watch-connection">
     <span className="eyebrow">VENU 2 · CONNECT IQ</span>
     <h3>{receiving ? "Receiving from your watch" : "Watch stream"}</h3>
     <p role="status">{error ? "Connection check failed" : receiving ? "Connected"
@@ -86,8 +86,10 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
         // Use socket updates immediately when CIQ is the selected source. The
         // status endpoint also preserves watch values when another source wins.
         let reading = status?.readings[key];
-        const quality = state?.quality?.[key];
-        const current = state?.latest?.[key as keyof NonNullable<TwinState["latest"]>];
+        const stateKey = key === "body_battery" ? "body_battery_pct"
+          : key === "distance_m" ? "distance_meters" : key;
+        const quality = state?.quality?.[stateKey];
+        const current = state?.latest?.[stateKey as keyof NonNullable<TwinState["latest"]>];
         if (quality?.provenance === "garmin_ciq_live" && typeof current === "number"
           && (!reading || Date.parse(quality.event_time) >= Date.parse(reading.event_time))) {
           reading = { value: current, event_time: quality.event_time };

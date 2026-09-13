@@ -62214,6 +62214,166 @@
   }
  },
  {
+  "date": "2026-08-09",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-09",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
+  "date": "2026-08-10",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-10",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
+  "date": "2026-08-11",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-11",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
+  "date": "2026-08-12",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-12",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
+  "date": "2026-08-13",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-13",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
   "date": "2026-08-14",
   "data": {
    "dailySleepDTO": {
@@ -80143,6 +80303,38 @@
     "id": null,
     "userProfilePK": 139042506,
     "calendarDate": "2026-08-17",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
+  }
+ },
+ {
+  "date": "2026-08-18",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-08-18",
     "sleepTimeSeconds": null,
     "napTimeSeconds": null,
     "sleepWindowConfirmed": null,
@@ -206043,6 +206235,38 @@
    "skinTempDataExists": false,
    "bodyBatteryChange": 77,
    "restingHeartRate": 41
+  }
+ },
+ {
+  "date": "2026-09-09",
+  "data": {
+   "dailySleepDTO": {
+    "id": null,
+    "userProfilePK": 139042506,
+    "calendarDate": "2026-09-09",
+    "sleepTimeSeconds": null,
+    "napTimeSeconds": null,
+    "sleepWindowConfirmed": null,
+    "sleepWindowConfirmationType": null,
+    "sleepStartTimestampGMT": null,
+    "sleepEndTimestampGMT": null,
+    "sleepStartTimestampLocal": null,
+    "sleepEndTimestampLocal": null,
+    "autoSleepStartTimestampGMT": null,
+    "autoSleepEndTimestampGMT": null,
+    "sleepQualityTypePK": null,
+    "sleepResultTypePK": null,
+    "unmeasurableSleepSeconds": null,
+    "deepSleepSeconds": null,
+    "lightSleepSeconds": null,
+    "remSleepSeconds": null,
+    "awakeSleepSeconds": null,
+    "deviceRemCapable": false,
+    "retro": false
+   },
+   "sleepMovement": [],
+   "remSleepData": null,
+   "sleepLevels": []
   }
  },
  {

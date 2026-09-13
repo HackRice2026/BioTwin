@@ -165,6 +165,42 @@ This file is a living document. The agent MUST:
   `authenticated`; this unrelated warning was not modified without approval.
   The automatic OAuth attempt requested incompatible default scopes; explicit
   Supabase scopes succeeded.
+- 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
+  selected calendar day. The frontend requests an end-exclusive one-day window,
+  previous/next move one day, and only tasks due on that date appear. The
+  backend keeps its range-capable agenda API for calendar narration and future
+  consumers; the one-day constraint belongs to this UI. VERIFIED in Chrome at
+  1440/390/360px, including day navigation, filters, drafts, confirmed writes
+  and partial/read failure states; production build and 21 frontend tests pass.
+  Calendar browser tests must arm `waitForResponse` before the triggering click;
+  the opposite order intermittently misses fast CI responses.
+
+- 2026-09-12 — While publishing calendar work, origin/dev advanced with
+  watch/forecast and OAuth-return fixes. Merged normally; retained all of them
+  alongside the new agenda. The empty-plan card now displays the planner's
+  explanation instead of asking connected users to connect again. Removed
+  unused imports/format prefixes in incoming scripts because they blocked CI.
+  Kept the redesign's explicit recovery-chart height: the incoming 100% height
+  assumes the removed UI's fixed parent and inflated the new chart to 609px.
+
+- 2026-09-12 — Calendar agenda follows every event/calendar/task page and
+  keeps all-day ends exclusive; Tasks failure doesn't discard calendar events.
+  Event drafts are account-scoped, expire after an hour and require visible
+  confirmation; stable Google IDs protect retries. Draft persistence checks
+  the account still exists, and expiry cleanup covers both draft documents.
+  Real Vertex read/draft checks passed with fixture calendar data, without
+  creating real events. No connected calendar existed in this local database;
+  real Google consent/read/write is still unverified on this machine.
+  The numeric narration guard rejects spelled-out counts and zero-padded date
+  conversions; calendar facts now supply human-readable dates/times and the
+  prompt avoids unsolicited counts. Keep the physiological guard unchanged.
+
+- 2026-09-12 — Calendar follow-up authorized on dev: replace free/busy-only
+  display with named events and optional Google Tasks, plus calendar-grounded
+  twin answers and reviewable event drafts. Show all readable calendars for one
+  selected day and retain explicit Add confirmation.
+  Tasks use a separate read scope and may need renewed Google consent.
+
 - 2026-09-12 — Shivendra explicitly requested merging `biotwin2.0` into
   `dev`, superseding the feature-only branch instruction. Normal merge
   preserves all redesign commits and dev's newer Audio2Face documentation

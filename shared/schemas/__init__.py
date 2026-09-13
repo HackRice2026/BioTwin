@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, AwareDatetime, model_validator
 
 SCHEMA_VERSION = "1.0.0"
@@ -249,6 +249,7 @@ class TwinState(Contract):
 
 
 class NarrationContext(Contract):
+    calendar: dict[str, Any] | None = None
     readiness: Readiness
     baseline_summary: Baseline
     recent_trend: tuple[str, ...] = ()

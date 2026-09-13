@@ -563,7 +563,8 @@ export function PlanPanel({
           <CalendarDays size={26} />
           <p>
             {plan
-              ? "No suitable windows are available right now. Refresh your plan or connect a calendar to find time."
+              ? plan.explanation ||
+                "No suitable windows are available right now. Refresh your plan to check again."
               : "Gathering your schedule…"}
           </p>
         </div>
@@ -588,121 +589,12 @@ export function PlanPanel({
 export function CalendarDay({ data }: { data: Dashboard }) {
   return (
     <Panel>
-      <PanelTitle title="Your day at a glance" note={data.plan?.timezone} />
-      <div className="day-agenda">
-        {data.plan?.busy.length ? (
-          data.plan.busy.map((b, i) => (
-            <div key={i}>
-              <time>
-                {new Date(b.start).toLocaleTimeString(undefined, {
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZone: data.plan!.timezone,
-                })}
-              </time>
-              <i />
-              <div>
-                <b>{b.title}</b>
-                <small>
-                  Until{" "}
-                  {new Date(b.end).toLocaleTimeString(undefined, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: data.plan!.timezone,
-                  })}
-                </small>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p>
-            {data.plan?.calendar_status === "connected"
-              ? "No busy windows today. Room for yourself."
-              : "Connect your calendar to see your day here."}
-          </p>
-        )}
-      </div>
+      <PanelTitle title="Energy outlook" note={data.plan?.timezone} />
       <div className="outlook-heading">
-        <h3>Energy outlook</h3>
         <span className="pill">Scenario estimate</span>
       </div>
       <OutlookChart outlook={data.outlook} />
       <p className="fine-print">{data.outlook?.assumptions}</p>
-    </Panel>
-  );
-}
-export function LabPanel({ data }: { data: Dashboard }) {
-  return (
-    <Panel className="lab-panel">
-      <PanelTitle
-        title="A different kind of day"
-        note="Explore what a change in pace could look like."
-      />
-      <div className="scenario-options">
-        {[
-          {
-            id: "rest",
-            name: "Take a breather",
-            detail: "Pause & rest",
-            icon: Leaf,
-          },
-          {
-            id: "light",
-            name: "Keep it light",
-            detail: "Gentle movement",
-            icon: Footprints,
-          },
-          {
-            id: "exercise",
-            name: "Get moving",
-            detail: "An exercise scenario",
-            icon: Activity,
-          },
-        ].map((s) => (
-          <button
-            key={s.id}
-            disabled={!!data.scenarioBusy}
-            aria-pressed={data.simulation?.scenario === s.id}
-            onClick={() => data.simulate(s.id)}
-            className={data.simulation?.scenario === s.id ? "selected" : ""}
-          >
-            <s.icon size={22} />
-            <span>
-              <b>{s.name}</b>
-              <small>{s.detail}</small>
-            </span>
-            {data.scenarioBusy === s.id ? (
-              <LoaderCircle size={16} className="spin" />
-            ) : (
-              <ArrowUpRight size={16} />
-            )}
-          </button>
-        ))}
-      </div>
-      <div className="outlook-heading">
-        <h3>
-          {data.simulation
-            ? "Possible heart-rate trajectory"
-            : "Your current recovery"}
-        </h3>
-        <span className="pill">
-          {data.simulation ? "Simulation" : "Estimate"}
-        </span>
-      </div>
-      <RecoveryChart
-        prediction={data.prediction}
-        simulation={data.simulation}
-      />
-      <p className="fine-print">
-        {data.simulation?.assumption ??
-          data.prediction?.assumption ??
-          "Add a recorded workout to explore a scenario."}
-      </p>
-      {data.simulation && (
-        <button className="text-button" onClick={data.clearSimulation}>
-          Return to recorded state
-        </button>
-      )}
     </Panel>
   );
 }

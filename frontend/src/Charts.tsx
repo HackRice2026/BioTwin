@@ -239,7 +239,7 @@ export function RecoveryChart({
       rows.set(time, { ...rows.get(time), time, observed: p.value });
     }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height={190}>
       <ComposedChart
         data={[...rows.values()].sort((a, b) => a.time - b.time)}
         margin={{ top: 12, right: 5, left: -20, bottom: 0 }}
@@ -379,6 +379,101 @@ export function ReadinessChart({
           name="Readiness"
         />
       </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function TrajectoryChart({
+  measured,
+  points,
+}: {
+  measured: { minutes_ago: number; value: number }[];
+  points: {
+    horizon_minutes: number;
+    value: number;
+    validation_mae: number;
+    method: string;
+    beats_baseline: boolean;
+  }[];
+}) {
+  if (!measured.length && !points.length)
+    return <EmptyChart message="Body Battery readings appear once your watch syncs." />;
+  // One x axis in hours, negative behind and positive ahead, so the measured
+  // past and the prediction share a scale and meet at zero. The band carries
+  // each point's own validation error, which is why it widens rightward.
+  const rows = [
+    ...measured.map((m) => ({
+      hours: -m.minutes_ago / 60,
+      observed: m.value,
+      ...(m === measured[measured.length - 1]
+        ? { predicted: m.value, low: m.value, high: m.value }
+        : {}),
+    })),
+    ...points.map((p) => ({
+      hours: p.horizon_minutes / 60,
+      predicted: p.value,
+      low: Math.max(0, p.value - p.validation_mae),
+      high: Math.min(100, p.value + p.validation_mae),
+    })),
+  ];
+  const first = rows.length ? rows[0].hours : -1;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={rows} margin={{ top: 12, right: 8, left: -22, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke={grid} />
+        <XAxis
+          dataKey="hours"
+          type="number"
+          domain={[Math.floor(first), 6]}
+          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6].filter(
+            (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
+          )}
+          tickFormatter={(h: number) => (h === 0 ? "now" : h < 0 ? `${h}h` : `+${h}h`)}
+          tick={tick}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis tick={tick} domain={[0, 100]} axisLine={false} tickLine={false} />
+        <Tooltip
+          contentStyle={tooltip}
+          labelFormatter={(h) =>
+            Number(h) === 0
+              ? "Now"
+              : Number(h) < 0
+                ? `${Math.abs(Number(h)).toFixed(1)}h ago`
+                : `In ${h}h`
+          }
+          formatter={(v, name) => [
+            `${v}%`,
+            name === "observed"
+              ? "Measured"
+              : name === "predicted"
+                ? "Predicted"
+                : name === "high"
+                  ? "Upper"
+                  : "Lower",
+          ]}
+        />
+        <Area dataKey="high" stroke="none" fill="var(--green)" fillOpacity={0.14} isAnimationActive={false} />
+        <Area dataKey="low" stroke="none" fill="#17221e" fillOpacity={1} isAnimationActive={false} />
+        <Line
+          dataKey="observed"
+          stroke="var(--green)"
+          strokeWidth={2}
+          dot={false}
+          connectNulls
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="predicted"
+          stroke="var(--green)"
+          strokeWidth={2}
+          strokeDasharray="5 4"
+          dot={{ r: 3, fill: "var(--green)", stroke: "none" }}
+          connectNulls
+          isAnimationActive={false}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

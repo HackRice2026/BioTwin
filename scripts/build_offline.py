@@ -10,7 +10,6 @@ from core.runtime import Runtime
 from shared.schemas import utcnow, TwinFrame, Provenance
 from modeling.explanations import narration_context
 from modeling.outlook import daily_outlook
-from modeling.engine import simulate
 from modeling.recovery import score_prediction
 from shared.schemas import RecoveryPrediction
 from narration.service import template
@@ -58,7 +57,6 @@ async def main():
             }
         context = narration_context(state, plan)
         payload = {
-            "simulations": {scenario: simulate(scenario, state, now).model_dump(mode="json") for scenario in ["rest", "light", "exercise"]},
             "outlook": daily_outlook(state, runtime.store.user("demo")["profile"], now).model_dump(
                 mode="json"
             ),

@@ -1,5 +1,29 @@
 # BioTwin 2.0 verification — 2026-09-12
 
+## Connected calendar follow-up
+
+- After merging concurrent watch/forecast updates: **99 Python tests passed,
+  3 PostgreSQL-only cases skipped locally**; frontend's **21 tests**, production
+  build, Ruff and schema checks pass.
+- `scripts/calendar-check.mjs` verifies consent-return navigation, an exact
+  one-day request window, actual event titles/details, tasks due that day,
+  day/source/search filters, draft review, confirmed write request and agenda
+  refresh, and clear partial/failure states at 1440/390/360px.
+  Calendar provider responses are controlled test data; no real events are written.
+- Backend tests exercise all calendar/event/task pagination, recurring instances,
+  all-day end dates, missing Tasks permission, account isolation, conflicts,
+  idempotent confirmation, DST gaps, and draft expiry/deleted-account protection.
+- Real **Vertex gemini-2.5-flash** answered from fixture event facts and prepared
+  a requested event at the correct local time. Its first reading attempt hit the
+  existing numeric guard; supplying consistent readable date/time facts and
+  avoiding unsolicited spelled-out counts corrected the live check.
+- General navigation/PWA, conversation audio/failure/history, and account/FIT
+  browser regressions also pass after the calendar change.
+- No connected calendar account was present in this local database. Actual Google
+  consent, calendar reads/writes and Tasks API access still need a connected account.
+  Existing users may need renewed consent for `tasks.readonly`; setup is in
+  [INTEGRATIONS.md](INTEGRATIONS.md#google-calendar-events-and-reminders).
+
 ## Verified in this redesign
 
 - Python: **66 passed, 3 skipped** locally. The skipped cases require a dedicated

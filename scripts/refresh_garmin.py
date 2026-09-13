@@ -105,7 +105,8 @@ async def main():
             act["activityId"], dl_fmt=api.ActivityDownloadFormat.ORIGINAL), pause=0.4)
         if not blob:
             continue
-        import io, zipfile
+        import io
+        import zipfile
         try:
             with zipfile.ZipFile(io.BytesIO(blob)) as z:
                 for member in z.namelist():
