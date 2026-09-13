@@ -1,25 +1,31 @@
 /**
  * Gemini Live: one WebSocket carrying your voice out and the twin's voice back.
  *
- * The server mints a single-use token and locks the grounding into it, so nothing
- * here chooses what the twin may say -- this file only moves audio.
+ * The socket goes to our own server, not to Google. Ephemeral tokens are refused
+ * by this project ("unregistered callers"), and the only other way to reach Gemini
+ * from a browser is to ship it the API key, which would publish the key to anyone
+ * who opens devtools. So the server relays, holds the key, and sends the setup --
+ * including the grounding -- before this file's first frame. Nothing here decides
+ * what the twin may say; it only moves audio.
  *
  * Two sample rates, because the API uses two: microphone audio goes up as 16 kHz
  * signed 16-bit PCM, and the model's speech comes back as 24 kHz of the same. They
  * are not interchangeable; playing the reply at the capture rate is what makes a
  * voice sound slowed down.
  */
-import { post } from "./api";
-
 type Session = {
-  token: string;
-  url: string;
   model: string;
   voice: string;
   input_sample_rate: number;
   output_sample_rate: number;
   input_mime_type: string;
 };
+
+/** The relay lives on the same origin, so it follows the page's scheme. */
+function relayUrl() {
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${location.host}/ws/twin/live`;
+}
 
 export type LiveState = "idle" | "connecting" | "listening" | "speaking" | "error";
 
@@ -39,6 +45,7 @@ export class GeminiLive {
   private node: ScriptProcessorNode | null = null;
   /** When the next reply chunk should start, so consecutive chunks play gapless. */
   private playhead = 0;
+  private session: Session | null = null;
   private closing = false;
 
   constructor(private handlers: Handlers) {}
@@ -51,18 +58,12 @@ export class GeminiLive {
     if (this.socket) return;
     this.closing = false;
     this.handlers.onState("connecting");
-    let session: Session;
-    try {
-      session = await post<Session>("/api/twin/live/session");
-    } catch (e) {
-      this.handlers.onState("error", (e as Error).message);
-      return;
-    }
 
+    let stream: MediaStream;
     try {
-      // Ask for the microphone before opening the socket: a denied permission
-      // should not leave a live session burning its single use.
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      // Ask for the microphone first: a declined permission should not leave a
+      // live Gemini session open and billing.
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
       });
     } catch {
@@ -72,20 +73,13 @@ export class GeminiLive {
       );
       return;
     }
+    this.stream = stream;
 
-    const socket = new WebSocket(
-      `${session.url}?access_token=${encodeURIComponent(session.token)}`,
-    );
+    const socket = new WebSocket(relayUrl());
     socket.binaryType = "arraybuffer";
     this.socket = socket;
 
-    socket.onopen = () => {
-      // The token already carries the model, the voice and the system instruction,
-      // so setup only has to name the model it was minted for.
-      socket.send(JSON.stringify({ setup: { model: `models/${session.model}` } }));
-      void this.openMicrophone(session);
-    };
-    socket.onmessage = (event) => void this.receive(event, session);
+    socket.onmessage = (event) => void this.receive(event);
     socket.onerror = () => {
       if (!this.closing) this.handlers.onState("error", "The live connection dropped.");
     };
@@ -140,7 +134,7 @@ export class GeminiLive {
     this.handlers.onState("listening");
   }
 
-  private async receive(event: MessageEvent, session: Session) {
+  private async receive(event: MessageEvent) {
     const raw =
       typeof event.data === "string"
         ? event.data
@@ -152,6 +146,13 @@ export class GeminiLive {
       return;
     }
 
+    // The relay speaks first, with the rates Gemini expects; capture starts only
+    // once those are known, so nothing is encoded at the wrong sample rate.
+    if (message.ready) {
+      this.session = message.ready as Session;
+      void this.openMicrophone(this.session);
+      return;
+    }
     if (message.setupComplete) return;
     if (message.error) {
       this.handlers.onState("error", message.error.message ?? "Gemini reported an error.");
@@ -172,7 +173,7 @@ export class GeminiLive {
     for (const part of content.modelTurn?.parts ?? []) {
       if (part.text) this.handlers.onText?.(part.text);
       const audio = part.inlineData?.data;
-      if (audio) this.play(audio, session.output_sample_rate);
+      if (audio) this.play(audio, this.session?.output_sample_rate ?? 24000);
     }
     if (content.turnComplete) this.handlers.onState("listening");
   }
@@ -210,6 +211,7 @@ export class GeminiLive {
     void this.capture?.close();
     this.capture = null;
     this.resetPlayback();
+    this.session = null;
     this.socket = null;
   }
 }

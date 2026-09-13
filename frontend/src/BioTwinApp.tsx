@@ -22,6 +22,7 @@ import {
 import Connections, { AuthModal } from "./Connections";
 import { api, post, value, type DayScenario } from "./api";
 import { SimulateDayChart, TrajectoryChart } from "./Charts";
+import { GeminiLive, type LiveState } from "./geminiLive";
 import { useDashboard } from "./useDashboard";
 import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
 import type { CalendarDraft } from "./useCalendar";
@@ -123,6 +124,20 @@ export default function BioTwinApp() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [compare, setCompare] = useState(false);
+  // Gemini Live is a separate mode from the typed coach: the model hears and
+  // answers directly, so it gets its own control rather than changing what the
+  // existing microphone button does.
+  const [liveState, setLiveState] = useState<LiveState>("idle");
+  const [liveNotice, setLiveNotice] = useState("");
+  const live = useRef<GeminiLive | null>(null);
+  if (!live.current) {
+    live.current = new GeminiLive({
+      onState: (state, detail) => {
+        setLiveState(state);
+        setLiveNotice(detail ?? "");
+      },
+    });
+  }
   const [scenarioId, setScenarioId] =
     useState<DayScenario["id"]>("extra_steps");
   const [daySteps, setDaySteps] = useState(5000);
@@ -604,10 +619,46 @@ export default function BioTwinApp() {
                     <span aria-hidden="true" />
                     <Mic size={24} />
                   </button>
+                  {session?.live_voice && (
+                    <button
+                      type="button"
+                      className={`coach-live ${liveState !== "idle" ? "active" : ""}`}
+                      aria-pressed={liveState !== "idle"}
+                      aria-label={
+                        liveState === "idle"
+                          ? "Start a live conversation"
+                          : "End the live conversation"
+                      }
+                      onClick={() =>
+                        liveState === "idle"
+                          ? void live.current?.start()
+                          : live.current?.stop()
+                      }
+                    >
+                      <AudioLines size={18} />
+                      <span>
+                        {liveState === "idle"
+                          ? "Live"
+                          : liveState === "connecting"
+                            ? "Connecting"
+                            : liveState === "speaking"
+                              ? "Speaking"
+                              : liveState === "error"
+                                ? "Failed"
+                                : "Listening"}
+                      </span>
+                    </button>
+                  )}
                   <div className="coach-status">
                     <b>{phase}</b>
                     <span>
-                      {listening
+                      {liveNotice
+                        ? liveNotice
+                        : liveState === "listening"
+                          ? "Live — just talk, it hears you"
+                          : liveState === "speaking"
+                            ? "Live — answering"
+                            : listening
                         ? "Tap again to stop and answer"
                         : speaking
                           ? "Answering out loud"

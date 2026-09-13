@@ -4367,3 +4367,21 @@ button.primary:hover:not(:disabled) {
     margin-top: 14px;
   }
 }
+/* Live conversation control: a sibling of the microphone, not a replacement --
+   the two modes behave differently enough that one button for both would lie. */
+.coach-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted, #9aac9f);
+  font-size: 12px;
+  cursor: pointer;
+}
+.coach-live.active {
+  border-color: #8ce5b0;
+  color: #8ce5b0;
+}

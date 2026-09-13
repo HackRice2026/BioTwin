@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import contextlib
 import json
 import re
 import secrets
@@ -11,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
+import websockets
 from fastapi import (
     FastAPI,
     Request,
@@ -32,7 +34,7 @@ from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPre
 from core.config import Settings
 from core.runtime import Runtime
 from core.agenda import AgendaService, EventDraft, calendar_question
-from narration.gemini_live import mint_session, system_instruction
+from narration.gemini_live import LIVE_WS, live_config, mint_session, system_instruction
 from narration.calendar import prepare_event, calendar_context
 from core.security import hash_password, verify_password
 from core.watch import issue_token, authenticate as authenticate_watch
@@ -1168,6 +1170,91 @@ def create_app(config=None):
             "model_version": "recovery-1.0.0",
             "queue": rt().store.stats()["queue"],
         }
+
+    @app.websocket("/ws/twin/live")
+    async def twin_live(ws: WebSocket):
+        """Relay one voice conversation between the browser and Gemini Live.
+
+        The browser cannot reach Gemini directly: ephemeral tokens are refused by
+        this project (1008, "unregistered callers"), and the alternative -- handing
+        the browser the API key -- would publish it to anyone who opens devtools.
+        So the server sits in the middle and keeps the key.
+
+        It forwards frames verbatim and decides nothing. The setup, including the
+        grounding the model may speak from, is built here and sent before the
+        browser's first frame, so a browser cannot widen its own instruction.
+        """
+        allowed = [config.frontend_origin, config.public_url]
+        if config.lan_origin:
+            allowed.append(config.lan_origin)
+        if ws.headers.get("origin") not in allowed:
+            await ws.close(code=1008)
+            return
+        u = await asyncio.to_thread(
+            rt().store.session_user, ws.cookies.get("biotwin_session")
+        )
+        if not u and config.demo_enabled:
+            u = await asyncio.to_thread(rt().store.user, "demo")
+        if not u:
+            await ws.close(code=1008)
+            return
+        if not (config.gemini_api_key and config.use_gemini_live):
+            await ws.accept()
+            await ws.send_json({"error": {"message": "Live voice is not configured on this server."}})
+            await ws.close(code=1011)
+            return
+
+        await ws.accept()
+        turn = await rt().turn_context(u)
+        setup = {
+            "model": f"models/{config.gemini_live_model}",
+            **live_config(config, system_instruction(turn["ctx"])),
+        }
+        rt().counters["live_sessions"] += 1
+        try:
+            async with websockets.connect(
+                f"{LIVE_WS}?key={config.gemini_api_key}", max_size=None
+            ) as upstream:
+                await upstream.send(json.dumps({"setup": setup}))
+                await ws.send_json({
+                    "ready": {
+                        "model": config.gemini_live_model,
+                        "voice": config.gemini_live_voice,
+                        "input_sample_rate": 16000,
+                        "output_sample_rate": 24000,
+                        "input_mime_type": "audio/pcm;rate=16000",
+                    }
+                })
+
+                async def to_gemini():
+                    while True:
+                        await upstream.send(await ws.receive_text())
+
+                async def to_browser():
+                    async for frame in upstream:
+                        await ws.send_text(
+                            frame if isinstance(frame, str) else frame.decode()
+                        )
+
+                # Whichever side hangs up ends the call; the other task is cancelled
+                # rather than left waiting on a socket nobody is reading.
+                done, pending = await asyncio.wait(
+                    [asyncio.create_task(to_gemini()), asyncio.create_task(to_browser())],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                for task in done:
+                    with contextlib.suppress(Exception):
+                        task.result()
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:
+            rt().errors["twin_live"] = type(exc).__name__
+            with contextlib.suppress(Exception):
+                await ws.send_json({"error": {"message": "The live voice connection failed."}})
+        with contextlib.suppress(Exception):
+            await ws.close()
 
     @app.websocket("/ws/live")
     async def websocket(ws: WebSocket):
