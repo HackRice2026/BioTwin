@@ -130,6 +130,12 @@ export default function BioTwinApp() {
   const [liveState, setLiveState] = useState<LiveState>("idle");
   const [liveNotice, setLiveNotice] = useState("");
   const [liveDraft, setLiveDraft] = useState<LiveDraft | null>(null);
+  const liveScroll = useRef<HTMLDivElement | null>(null);
+  // Whether to keep following the newest line. Intent, not a measurement: each
+  // fragment grows the box, so measuring "am I at the bottom?" after the fact
+  // fails as soon as one fragment is taller than the tolerance, and following
+  // stops for good. This flips only when the reader actually scrolls.
+  const followLive = useRef(true);
   // One line per turn: fragments append to the last line of the same speaker, so
   // the panel reads as a conversation rather than a wall of partial words.
   const [liveLines, setLiveLines] = useState<{ who: "twin" | "you"; text: string }[]>([]);
@@ -396,6 +402,11 @@ export default function BioTwinApp() {
     daySimulation?.scenarios.find((s) => s.id === scenarioId) ??
     daySimulation?.scenarios.find((s) => s.id === "extra_steps") ??
     daySimulation?.baseline;
+  useEffect(() => {
+    const box = liveScroll.current;
+    if (box && followLive.current) box.scrollTop = box.scrollHeight;
+  }, [liveLines]);
+
   const navButtons = navigation.map((item) => (
     <button
       key={item.name}
@@ -467,7 +478,17 @@ export default function BioTwinApp() {
       ) : liveLines.length > 0 ? (
         // The live voice writes here too, rather than in a panel of its own: this
         // is where an answer from this twin has always appeared.
-        <div className="live-lines">
+        <div
+          className="live-lines"
+          ref={liveScroll}
+          onScroll={(e) => {
+            const box = e.currentTarget;
+            // Scrolling back to the bottom resumes following, so a reader who
+            // caught up is not stuck reading history.
+            followLive.current =
+              box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+          }}
+        >
           {liveLines.map((line, i) => (
             <p key={i} className={line.who === "twin" ? "answer-text" : "live-you"}>
               {line.who === "you" && <b>You</b>}

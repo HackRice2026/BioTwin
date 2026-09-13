@@ -4404,7 +4404,13 @@ button.primary:hover:not(:disabled) {
   gap: 10px;
   max-height: 210px;
   overflow-y: auto;
+  /* Keeps the newest line pinned as content grows, without the jump that
+     assigning scrollTop alone produces mid-sentence. */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: 6px;
 }
+
 .live-you {
   margin: 0;
   font-size: 13px;
