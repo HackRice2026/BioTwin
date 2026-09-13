@@ -170,33 +170,30 @@ def trajectory(history, now, timezone="UTC", params=None, extra=None):
     method's validation error, so the band widens because the predictors
     genuinely get worse.
 
-    What to do when the current reading is stale. The ridge leans on the current
-    level hard enough that extrapolating from an old one would be confidently
-    wrong, so it refuses -- but the hour-of-day rhythm needs nothing except the
-    clock, and can still answer. Rather than showing an empty panel, the
-    trajectory falls back to that rhythm, says so, and reports its honestly
-    worse error (8.91 at an hour, against the ridge's 1.91). The chart is never
-    blank while there is history to draw, and never implies model precision it
-    does not have.
+    What to do when the current reading is stale. The ridge still must not claim
+    to forecast from now. Instead, it is replayed at the last real watch sample,
+    using only measurements available at that instant. The API labels that path
+    as a historical replay and returns its anchor time, so the UI cannot mistake
+    it for a live forecast.
     """
     spec = extra or load_trajectory_params()
-    local = now.astimezone(ZoneInfo(timezone))
 
-    measured = [
-        {"minutes_ago": round((now - f.event_time).total_seconds() / 60, 1),
-         "value": round(float(f.body_battery_pct), 1)}
-        for f in sorted(history, key=lambda f: f.event_time)
-        if getattr(f, "body_battery_pct", None) is not None
-        and timedelta(0) <= now - f.event_time <= MEASURED_WINDOW
-    ]
+    def measured_at(reference, source):
+        return [
+            {"minutes_ago": round((reference - f.event_time).total_seconds() / 60, 1),
+             "value": round(float(f.body_battery_pct), 1)}
+            for f in sorted(source, key=lambda f: f.event_time)
+            if getattr(f, "body_battery_pct", None) is not None
+            and timedelta(0) <= reference - f.event_time <= MEASURED_WINDOW
+        ]
 
-    def clock_at(name, minutes):
+    def clock_at(reference, name, minutes):
+        local = reference.astimezone(ZoneInfo(timezone))
         target_hour = (local.hour + (local.minute + minutes) // 60) % 24
         return spec["horizons"][name]["climatology_by_target_hour"][target_hour]
 
-    first = predict(history, now, timezone, params)
-    if first["available"]:
-        current, change = first["current"], _change_per_hour(history, now)
+    def model_points(source, reference, first):
+        current, change = first["current"], _change_per_hour(source, reference)
         points = [{
             "horizon_minutes": first["horizon_minutes"],
             "value": first["forecast"],
@@ -207,7 +204,8 @@ def trajectory(history, now, timezone="UTC", params=None, extra=None):
         for name, horizon in _ordered(spec):
             if horizon["minutes"] <= first["horizon_minutes"]:
                 continue
-            minutes, clock = horizon["minutes"], clock_at(name, horizon["minutes"])
+            minutes = horizon["minutes"]
+            clock = clock_at(reference, name, minutes)
             value = clock if horizon["method"] == "time_of_day" else (
                 _clip((_clip(current + change / 60 * minutes) + clock) / 2))
             points.append({
@@ -217,42 +215,50 @@ def trajectory(history, now, timezone="UTC", params=None, extra=None):
                 "method": horizon["method"],
                 "beats_baseline": False,
             })
+        return points
+
+    first = predict(history, now, timezone, params)
+    if first["available"]:
         return {
             "available": True,
             "basis": "model",
-            "current": current,
+            "anchor_time": now.isoformat(),
+            "current": first["current"],
             "measured_age_minutes": first["measured_age_minutes"],
             "imputed_inputs": first["imputed_inputs"],
-            "measured": measured,
-            "points": points,
+            "measured": measured_at(now, history),
+            "points": model_points(history, now, first),
+            "model": first["model"],
             "note": spec["note"],
         }
 
-    # Stale, or never measured. The rhythm still applies to the clock.
-    if not measured:
+    # A stale reading cannot support a forecast from now. Replay the actual
+    # fitted model at the latest recorded sample and exclude all later frames,
+    # which prevents future information from leaking into that historical run.
+    anchor_frame = _latest(history, "body_battery_pct", now)
+    if anchor_frame is None:
         return first
-    last = measured[-1]
-    points = [{
-        "horizon_minutes": horizon["minutes"],
-        "value": round(clock_at(name, horizon["minutes"]), 1),
-        "validation_mae": horizon["alternatives"]["time_of_day"],
-        "method": "time_of_day",
-        "beats_baseline": False,
-    } for name, horizon in _ordered(spec)]
-    hours = last["minutes_ago"] / 60
+    anchor = anchor_frame.event_time
+    replay_history = [frame for frame in history if frame.event_time <= anchor]
+    replay = predict(replay_history, anchor, timezone, params)
+    if not replay["available"]:
+        return first
+    age_minutes = round((now - anchor).total_seconds() / 60, 1)
+    hours = age_minutes / 60
     return {
         "available": True,
-        "basis": "rhythm",
-        "current": last["value"],
-        "measured_age_minutes": last["minutes_ago"],
-        "imputed_inputs": [],
-        "measured": measured,
-        "points": points,
+        "basis": "replay",
+        "anchor_time": anchor.isoformat(),
+        "current": replay["current"],
+        "measured_age_minutes": age_minutes,
+        "imputed_inputs": replay["imputed_inputs"],
+        "measured": measured_at(anchor, replay_history),
+        "points": model_points(replay_history, anchor, replay),
+        "model": replay["model"],
         "reason": (
-            f"Your last Body Battery reading is {hours:.1f} hours old, and the "
-            f"fitted model leans on the current level too heavily to extrapolate "
-            f"from it. This is your own hour-of-day rhythm instead, which needs "
-            f"only the clock -- and is less accurate."
+            f"Historical MATLAB model replay anchored to your last recorded "
+            f"Body Battery sample ({hours:.1f} hours old). It uses only data "
+            f"available at that sync and is not a forecast from now."
         ),
         "note": spec["note"],
     }

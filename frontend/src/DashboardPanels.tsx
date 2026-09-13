@@ -252,25 +252,49 @@ export function SignalDetail({
   const rows = data.series(field);
   const q = data.state?.quality?.[field];
   const latest = data.state?.latest;
-  const extras: Record<string, [string, string][]> = {
+  const extras: Record<
+    string,
+    { key: keyof NonNullable<typeof latest>; label: string; unit?: string; divisor?: number }[]
+  > = {
+    active_kcal: [
+      { key: "total_calories", label: "Total calories", unit: "kcal" },
+      { key: "active_seconds", label: "Active time", unit: "min", divisor: 60 },
+      { key: "highly_active_seconds", label: "Highly active", unit: "min", divisor: 60 },
+    ],
     steps: [
-      ["moderate_intensity_min", "Moderate · min"],
-      ["vigorous_intensity_min", "Vigorous · min"],
+      { key: "moderate_intensity_min", label: "Moderate", unit: "min" },
+      { key: "vigorous_intensity_min", label: "Vigorous", unit: "min" },
     ],
     stress_level: [
-      ["stress_high_min", "High · min"],
-      ["stress_medium_min", "Medium · min"],
-      ["stress_low_min", "Low · min"],
+      { key: "stress_avg", label: "Daily average", unit: "/100" },
+      { key: "stress_max", label: "Daily maximum", unit: "/100" },
+      { key: "stress_high_min", label: "High", unit: "min" },
+      { key: "stress_medium_min", label: "Medium", unit: "min" },
+      { key: "stress_low_min", label: "Low", unit: "min" },
     ],
     body_battery_pct: [
-      ["body_battery_at_wake", "At wake"],
-      ["body_battery_charged", "Charged"],
-      ["body_battery_drained", "Drained"],
+      { key: "body_battery_at_wake", label: "At wake", unit: "/100" },
+      { key: "body_battery_charged", label: "Charged", unit: "points" },
+      { key: "body_battery_drained", label: "Drained", unit: "points" },
     ],
   };
-  const breakdown = (extras[field] ?? []).filter(
-    ([key]) => latest?.[key as keyof typeof latest] != null,
-  );
+  const latestSleep = data.sleep.at(-1)?.value;
+  const breakdown = field === "sleep"
+    ? [
+        { label: "Sleep score", value: latestSleep?.score, unit: "/100" },
+        { label: "Total", value: latestSleep?.total_minutes != null ? latestSleep.total_minutes / 60 : null, unit: "hrs" },
+        { label: "Deep", value: latestSleep?.deep_minutes, unit: "min" },
+        { label: "Light", value: latestSleep?.light_minutes, unit: "min" },
+        { label: "REM", value: latestSleep?.rem_minutes, unit: "min" },
+        { label: "Awake", value: latestSleep?.awake_minutes, unit: "min" },
+      ].filter((item) => item.value != null)
+    : (extras[field] ?? []).flatMap((item) => {
+        const raw = latest?.[item.key];
+        return typeof raw === "number"
+          ? [{ label: item.label, value: raw / (item.divisor ?? 1), unit: item.unit }]
+          : [];
+      });
+  const source = q?.provenance ?? data.sleep.at(-1)?.provenance;
   return (
     <div className={`signal-detail ${def.tone}`}>
       <div className="signal-heading">
@@ -281,7 +305,7 @@ export function SignalDetail({
           <h2>{def.name}</h2>
           <p>
             {q
-              ? `Recorded ${new Date(q.event_time).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+              ? `Recorded ${new Date(q.event_time).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${source ? ` · ${humanize(source)}` : ""}`
               : "No measurement yet"}
           </p>
         </div>
@@ -332,15 +356,21 @@ export function SignalDetail({
             .join(" · ")}
         </p>
       )}
+      {field === "hrv_rmssd_ms" && rows.length === 0 && (
+        <p className="notice">
+          HRV RMSSD is not present in this Garmin export. BioTwin does not substitute another variability score.
+        </p>
+      )}
       {breakdown.length > 0 && (
         <details className="disclosure">
           <summary>View breakdown</summary>
           <div className="signal-stats">
-            {breakdown.map(([key, label]) => (
-              <div key={key}>
-                <small>{label}</small>
+            {breakdown.map((item) => (
+              <div key={item.label}>
+                <small>{item.label}</small>
                 <b>
-                  {value(latest?.[key as keyof typeof latest] as number | null)}
+                  {value(item.value, item.unit === "hrs" ? 1 : 0)}{" "}
+                  {item.unit && <em>{item.unit}</em>}
                 </b>
               </div>
             ))}

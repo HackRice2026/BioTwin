@@ -306,19 +306,16 @@ def test_the_trajectory_uses_the_predictor_that_wins_at_each_horizon():
     assert errors == sorted(errors) and errors[0] < errors[-1]
     assert all(0 <= p["value"] <= 100 for p in result["points"])
 
-    # A stale reading no longer blanks the chart: the model still refuses, and
-    # the hour-of-day rhythm answers in its place under a different basis. The
-    # dedicated test below covers that path.
+    # A stale reading no longer blanks the chart: the model still refuses to
+    # forecast from now, then replays at the last measured sample instead.
     stale = trajectory(history, now + timedelta(hours=5), "America/Chicago")
-    assert stale["basis"] == "rhythm"
-    assert all(p["method"] == "time_of_day" for p in stale["points"])
+    assert stale["basis"] == "replay"
+    assert stale["points"][0]["method"] == "ridge"
+    assert stale["anchor_time"] == now.isoformat()
 
 
-def test_the_trajectory_still_draws_when_the_reading_is_too_old_for_the_model():
-    """An empty panel was the old behaviour: the ridge refuses on a stale level,
-    and the whole chart went with it. The hour-of-day rhythm needs only the
-    clock, so it can still answer -- at its own honestly worse error, and
-    labelled as a different basis rather than passed off as the model."""
+def test_the_trajectory_replays_the_model_when_the_reading_is_too_old_for_now():
+    """A stale level may drive a historical replay, never a forecast from now."""
     from datetime import datetime, timedelta, timezone as tzmod
     from modeling.forecast import trajectory
     from shared.schemas import TwinFrame, Provenance
@@ -342,14 +339,13 @@ def test_the_trajectory_still_draws_when_the_reading_is_too_old_for_the_model():
     # Four hours later the newest reading is far outside the 20-minute window.
     stale = trajectory(history, now + timedelta(hours=4), "America/Chicago")
     assert stale["available"] is True, "a stale reading must not blank the chart"
-    assert stale["basis"] == "rhythm"
-    assert {p["method"] for p in stale["points"]} == {"time_of_day"}
-    assert "hours old" in stale["reason"]
+    assert stale["basis"] == "replay"
+    assert stale["points"][0]["method"] == "ridge"
+    assert "Historical MATLAB model replay" in stale["reason"]
+    assert "not a forecast from now" in stale["reason"]
+    assert stale["anchor_time"] == now.isoformat()
     assert stale["measured"] and stale["points"]
-    # The fallback must not claim the model's accuracy.
-    assert min(p["validation_mae"] for p in stale["points"]) > max(
-        p["validation_mae"] for p in fresh["points"][:1]
-    )
+    assert stale["model"].startswith("ridge")
     assert all(0 <= p["value"] <= 100 for p in stale["points"])
 
     # With no Body Battery at all there is nothing to draw, and it says so.

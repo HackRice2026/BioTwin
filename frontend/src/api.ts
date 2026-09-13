@@ -118,14 +118,16 @@ export type Trajectory =
   | { available: false; reason: string; missing: string[] }
   | {
       available: true;
-      /** "model" when the ridge could run; "rhythm" when the current reading was
-          too old for it and the hour-of-day climatology answered instead. */
-      basis: "model" | "rhythm";
+      /** "model" forecasts from a fresh reading; "replay" runs the same fitted
+          model at the most recent historical watch sample. */
+      basis: "model" | "replay";
+      anchor_time: string;
       current: number;
       measured_age_minutes: number;
       imputed_inputs: string[];
       measured: { minutes_ago: number; value: number }[];
       points: TrajectoryPoint[];
+      model: string;
       reason?: string;
       note: string;
     };

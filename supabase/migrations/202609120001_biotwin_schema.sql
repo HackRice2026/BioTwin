@@ -97,4 +97,3 @@ revoke all on table public.conversations from anon, authenticated;
 revoke all on table public.outbox from anon, authenticated;
 revoke all on sequence public.measurements_id_seq from anon, authenticated;
 revoke all on sequence public.outbox_id_seq from anon, authenticated;
-

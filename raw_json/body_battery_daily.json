@@ -15473,35 +15473,35 @@
  {
   "date": "2026-09-12",
   "charged": 58,
-  "drained": 31,
+  "drained": 66,
   "startTimestampGMT": "2026-09-12T05:00:00.0",
-  "endTimestampGMT": "2026-09-12T16:45:00.0",
+  "endTimestampGMT": "2026-09-13T03:47:00.0",
   "startTimestampLocal": "2026-09-12T00:00:00.0",
-  "endTimestampLocal": "2026-09-12T11:45:00.0",
+  "endTimestampLocal": "2026-09-12T22:47:00.0",
   "bodyBatteryValuesArray": [
    [
     1789197480000,
     24
    ],
    [
-    1789203240000,
-    37
-   ],
-   [
-    1789203420000,
-    37
+    1789215840000,
+    80
    ],
    [
     1789216560000,
     81
    ],
    [
-    1789217640000,
-    78
+    1789243740000,
+    38
    ],
    [
-    1789229880000,
-    54
+    1789243920000,
+    38
+   ],
+   [
+    1789269660000,
+    19
    ]
   ],
   "bodyBatteryValueDescriptorDTOList": [

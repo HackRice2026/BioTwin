@@ -44,6 +44,16 @@ def num(v, lo=None, hi=None):
     return v
 
 
+def nonnegative_num(v, hi=None):
+    """Daily summaries can legitimately be zero; keep those values."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    v = float(v)
+    if v < 0 or (hi is not None and v > hi):
+        return None
+    return v
+
+
 def stamp(ms):
     return datetime.fromtimestamp(ms / 1000, timezone.utc)
 
@@ -152,6 +162,22 @@ def wellness_frames(root, uid):
                                  provenance=Provenance.GARMIN_FIT_REPLAY,
                                  body_battery_pct=float(level)))
 
+    # Intraday stress, the companion series to Body Battery in the same file and
+    # the one the dashboard's stress tile reads. Garmin marks unmeasurable
+    # minutes with a negative sentinel (-1 asleep or off-wrist, -2 too much
+    # motion); those are skipped rather than clamped to zero, which would read
+    # as perfect calm.
+    for row in load("stress.json"):
+        for sample in (row.get("data") or {}).get("stressValuesArray") or []:
+            if not isinstance(sample, list) or len(sample) < 2:
+                continue
+            level = num(sample[1], 0, 100)
+            if level is None:
+                continue
+            out.append(TwinFrame(user_id=uid, event_time=stamp(sample[0]),
+                                 provenance=Provenance.GARMIN_FIT_REPLAY,
+                                 stress_level=float(level)))
+
     for row in load("stress.json"):
         data = row.get("data") or {}
         avg, mx = num(data.get("avgStressLevel"), 0, 100), num(data.get("maxStressLevel"), 0, 100)
@@ -174,13 +200,13 @@ def wellness_frames(root, uid):
             frame = dict(user_id=uid, event_time=day_noon(row["date"]),
                          provenance=Provenance.GARMIN_FIT_REPLAY)
             if kcal:
-                frame["active_calories"] = int(kcal)
+                frame["active_kcal"] = float(kcal)
             if act:
                 frame["active_seconds"] = int(act)
             if hi:
                 frame["highly_active_seconds"] = int(hi)
             if floors:
-                frame["floors_climbed"] = round(floors, 1)
+                frame["floors_ascended"] = round(floors, 1)
             out.append(TwinFrame(**frame))
 
     # ---- steps ----
@@ -192,6 +218,57 @@ def wellness_frames(root, uid):
     return out
 
 
+def wellness_detail_frames(root, uid):
+    """Import real Garmin daily details that complement the primary series.
+
+    These live in their own frame so this targeted import can enrich an existing
+    account without replaying tens of thousands of intraday samples. Durations
+    in Garmin's payload are seconds; the TwinFrame contract stores minutes.
+    """
+    path = os.path.join(root, "stats_and_body.json")
+    rows = json.load(open(path)) if os.path.exists(path) else []
+    out = []
+    for row in rows:
+        date = row.get("date") or (row.get("data") or {}).get("calendarDate")
+        data = row.get("data") or {}
+        if not date:
+            continue
+
+        values = {
+            "total_calories": nonnegative_num(data.get("totalKilocalories"), 30000),
+            "distance_meters": nonnegative_num(data.get("totalDistanceMeters"), 100000),
+            "max_hr_bpm": num(data.get("maxHeartRate"), 25, 250),
+            "min_hr_bpm": num(data.get("minHeartRate"), 25, 250),
+            "body_battery_at_wake": nonnegative_num(data.get("bodyBatteryAtWakeTime"), 100),
+            "stress_high_min": (
+                nonnegative_num(data.get("highStressDuration"), 86400) / 60
+                if nonnegative_num(data.get("highStressDuration"), 86400) is not None
+                else None
+            ),
+            "stress_medium_min": (
+                nonnegative_num(data.get("mediumStressDuration"), 86400) / 60
+                if nonnegative_num(data.get("mediumStressDuration"), 86400) is not None
+                else None
+            ),
+            "stress_low_min": (
+                nonnegative_num(data.get("lowStressDuration"), 86400) / 60
+                if nonnegative_num(data.get("lowStressDuration"), 86400) is not None
+                else None
+            ),
+            "moderate_intensity_min": nonnegative_num(data.get("moderateIntensityMinutes"), 1440),
+            "vigorous_intensity_min": nonnegative_num(data.get("vigorousIntensityMinutes"), 1440),
+        }
+        values = {key: value for key, value in values.items() if value is not None}
+        if values:
+            out.append(TwinFrame(
+                user_id=uid,
+                event_time=day_noon(date),
+                provenance=Provenance.GARMIN_FIT_REPLAY,
+                **values,
+            ))
+    return out
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fit", default="../data/garmin/fit", help="directory of .fit activities")
@@ -199,6 +276,11 @@ async def main():
     ap.add_argument("--email", required=True)
     ap.add_argument("--name", default="Aditya")
     ap.add_argument("--timezone", default="America/Chicago")
+    ap.add_argument(
+        "--details-only",
+        action="store_true",
+        help="only add daily Garmin detail fields; useful after a full import",
+    )
     a = ap.parse_args()
 
     rt = Runtime(Settings())
@@ -222,20 +304,25 @@ async def main():
             print(f"created account {a.email}")
 
         frames = []
-        paths = sorted(glob.glob(os.path.join(a.fit, "*.fit")))
-        print(f"\nreading {len(paths)} activity files")
-        for p in paths:
-            try:
-                got = parse_fit(open(p, "rb").read(), uid)
-            except Exception as exc:
-                print(f"  skipped {os.path.basename(p)}: {exc}")
-                continue
-            frames += got
-            print(f"  {os.path.basename(p):<46} {len(got):>6} heart-rate records")
+        if not a.details_only:
+            paths = sorted(glob.glob(os.path.join(a.fit, "*.fit")))
+            print(f"\nreading {len(paths)} activity files")
+            for p in paths:
+                try:
+                    got = parse_fit(open(p, "rb").read(), uid)
+                except Exception as exc:
+                    print(f"  skipped {os.path.basename(p)}: {exc}")
+                    continue
+                frames += got
+                print(f"  {os.path.basename(p):<46} {len(got):>6} heart-rate records")
 
-        wellness = wellness_frames(a.json, uid)
-        print(f"\nwellness records from {a.json}: {len(wellness)}")
-        frames += wellness
+            wellness = wellness_frames(a.json, uid)
+            print(f"\nwellness records from {a.json}: {len(wellness)}")
+            frames += wellness
+
+        details = wellness_detail_frames(a.json, uid)
+        print(f"\ndaily detail records from {a.json}: {len(details)}")
+        frames += details
 
         future = [f for f in frames if f.event_time > utcnow() + timedelta(minutes=5)]
         if future:

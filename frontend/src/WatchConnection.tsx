@@ -28,6 +28,7 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
 }) {
   const [status, setStatus] = useState<WatchStatus | null>(null);
   const [token, setToken] = useState("");
+  const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
     try {
       const result = await post<{ token: string }>("/api/watch/token");
       setToken(result.token);
+      setCopied("");
       setStatus(await api<WatchStatus>("/api/watch"));
       setError("");
     } catch (e) { setError((e as Error).message); }
@@ -71,6 +73,16 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
   if (!setup && (!personal || (!status?.paired && !status?.sync))) return null;
   const receiving = !error && status?.paired && status.sync
     && Date.now() - Date.parse(status.sync.received_at) < 20000;
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied("ok");
+    } catch {
+      // Clipboard access needs a secure context, so a LAN http:// address
+      // fails here. Say what to do instead of failing silently.
+      setCopied("blocked");
+    }
+  }
   return <section className="glass watch-connection">
     <span className="eyebrow">VENU 2 · CONNECT IQ</span>
     <h3>{receiving ? "Receiving from your watch" : "Watch stream"}</h3>
@@ -110,10 +122,25 @@ export default function WatchConnection({ personal, setup = false, onAuth, state
       </div>
       <p>Tokens can only send watch measurements, expire after 90 days, and are shown once.
         Replacing a token disconnects the previous watch build.</p>
-      {token && <label>Pairing token — save in watch-app/.env as API_KEY
-        <input aria-label="Watch pairing token" type="password" readOnly value={token}
-          onFocus={(e) => e.target.select()} autoComplete="off" />
-      </label>}
+      {token && <div className="pairing-token">
+        {/* Shown once and never recoverable -- the server keeps only a hash -- so
+            it has to be readable and copyable here or it is lost. A password
+            input, which is what this was, satisfies neither. */}
+        <label htmlFor="watch-pairing-token">
+          Pairing token — shown once. Save it in <code>watch-app/.env</code> as API_KEY
+        </label>
+        <textarea id="watch-pairing-token" aria-label="Watch pairing token" readOnly
+          rows={2} spellCheck={false} value={token} onFocus={(e) => e.target.select()} />
+        <div className="watch-actions">
+          <button className="button" onClick={copyToken}>
+            {copied === "ok" ? "Copied" : "Copy token"}
+          </button>
+        </div>
+        {copied === "blocked" && <small className="setup-note">
+          This browser blocked clipboard access, which happens on plain-HTTP
+          addresses. Select the token above and copy it by hand.
+        </small>}
+      </div>}
     </>}
   </section>;
 }
