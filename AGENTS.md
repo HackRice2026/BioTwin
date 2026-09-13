@@ -128,6 +128,11 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — The desktop Overview no longer reserves the removed top-navbar
+  height when its page intro is empty. Its workspace uses a compact 18px top
+  inset; other section pages retain their own header spacing. This follows
+  Shivendra's explicit request to remove the vacant area above the twin hero.
+
 - 2026-09-13 — During the `origin/dev` merge, retained the incoming training
   window, scenario simulation, coach UI and dynamic forecast horizon while
   preserving progressive metric loading, fixed Day/Week/28-day chart domains,
