@@ -78,23 +78,14 @@ const bodyHttp =
 const bodyWs =
   import.meta.env.VITE_BODY_SERVICE_WS || "ws://localhost:8766/ws/body";
 
-// Bones the EMAGE body-gesture service is never allowed to drive, regardless
-// of what it sends -- covers this rig's actual lower-body node names
-// (Hips, LeftFoot, RightFoot) plus the standard Mixamo leg names in case a
-// different rig is ever swapped in.
-const LOWER_BODY_BONES = new Set([
-  "Hips",
-  "LeftUpLeg",
-  "RightUpLeg",
-  "LeftLeg",
-  "RightLeg",
-  "LeftFoot",
-  "RightFoot",
-  "LeftToeBase",
-  "RightToeBase",
-  "LeftToe",
-  "RightToe",
-]);
+// The ONLY bones the EMAGE body-gesture service is allowed to drive --
+// everything else it sends (spine, shoulders, arms, hands, fingers, hips,
+// legs, feet) is ignored outright. Started as a denylist covering just the
+// legs (this rig has no thigh/knee bones, so ankle output landed straight
+// on an isolated foot bone and read as a duckling waddle); tightened to an
+// allowlist of just the neck and head per explicit request -- nothing
+// below the neck should move at all, not even arm gestures while speaking.
+const ALLOWED_EMAGE_BONES = new Set(["Neck", "Head"]);
 
 const demoStates: Record<string, Partial<AvatarSemanticState>> = {
   "1": {
@@ -479,15 +470,11 @@ function Body({
         string,
         [number, number, number],
       ][]) {
-        // This rig has no separate thigh/knee bones -- the body service's
-        // hip/knee/ankle output all lands on "Hips" and the two foot bones,
-        // with nothing in between to distribute it naturally, so a foot
-        // rotation alone reads as an isolated ankle flap ("waddling") with
-        // no matching leg motion. Never apply EMAGE output below the waist;
-        // procedural squat/walk still drive the foot bones directly (see
-        // the damp() calls above) since those are deliberate poses, not
+        // Only the neck/head are allowed to move from EMAGE output --
+        // procedural squat/walk still drive other bones directly (see the
+        // damp() calls above) since those are deliberate poses, not
         // per-frame network output.
-        if (LOWER_BODY_BONES.has(boneName)) continue;
+        if (!ALLOWED_EMAGE_BONES.has(boneName)) continue;
         const node = nodes[boneName];
         const origin = base[boneName];
         if (!node || !origin) continue;
