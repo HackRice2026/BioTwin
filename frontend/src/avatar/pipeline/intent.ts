@@ -26,6 +26,7 @@ export type AvatarTarget =
   | "breathing";
 
 export type ExerciseName =
+  | "NONE"
   | "SQUAT"
   | "RDL"
   | "LUNGE"
@@ -89,6 +90,7 @@ const validTargets = new Set<AvatarTarget>([
 ]);
 
 const validExercises = new Set<ExerciseName>([
+  "NONE",
   "SQUAT",
   "RDL",
   "LUNGE",

@@ -22,6 +22,13 @@ This branch starts the safer architecture: a layered semantic state machine. The
 - Added typed motion-manifest contracts and a starter squat manifest in `frontend/src/avatar/pipeline/motionManifest.ts`.
 - Added a capability resolver in `frontend/src/avatar/pipeline/capabilityResolver.ts`.
 - Added tests proving that blocked physical gestures become HUD overlays during locked exercise phases.
+- Wired Gemini narration to request and return one `avatar` packet alongside the guarded text answer.
+- The `avatar` packet now carries data for all three tracks:
+  - `face`: grounded speech text, ARKit emotion values, gaze target, preferred face backend.
+  - `body`: semantic body action, EMAGE enable flag, deterministic motion id, tempo, safe-exit flag.
+  - `fallback`: strict semantic intent, HUD target/text, resolver mode.
+- Persisted `avatar` JSON on conversations and returns it from `/api/twin/ask` and transcript history.
+- Frontend now applies `reply.avatar` to the avatar event bus before speaking, so Gemini state drives face/gaze/body/fallback behavior.
 
 ## What this branch does not do yet
 
@@ -30,6 +37,7 @@ This branch starts the safer architecture: a layered semantic state machine. The
 - It does not author or import mocap clips.
 - It does not touch skeletal bone math.
 - It does not remove the existing face/lip-sync fallback service.
+- It does not yet render resolver HUD overlays from `avatar.fallback`; the packet is available and dispatched, but HUD anchoring is the next UI step.
 
 ## Current intended flow
 
@@ -44,7 +52,7 @@ Gemini strict JSON intent
 
 ## Next steps
 
-1. Wire `AvatarIntent` into the Gemini narration prompt/output parser.
+1. Render resolver HUD overlays from `avatar.fallback` when `resolver_mode` is `hud_overlay` or `safe_exit_then_act`.
 2. Create a small store around the resolver state:
    - active motion id
    - normalized progress

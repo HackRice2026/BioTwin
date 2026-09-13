@@ -65,11 +65,15 @@ def test_exchange_persists_gemini_answer_and_speech_uses_same_text(client):
     ).json()
     assert reply["mode"] == "language_service"
     assert "76" in reply["answer"]
+    assert reply["avatar"]["face"]["speech_text"] == reply["answer"]
+    assert reply["avatar"]["body"]["emage_enabled"] is True
+    assert reply["avatar"]["fallback"]["intent"]["speech"] == reply["answer"]
     assert client.get("/api/voice/" + reply["reply_id"]).content == b"ID3-audio"
     assert json.loads(client.provider_calls[-1].content)["text"] == reply["answer"]
     assert client.provider_calls[-1].headers["xi-api-key"] == "eleven-test"
     history = client.get("/api/twin/conversations").json()["conversations"]
     assert history[0]["answer"] == reply["answer"]
+    assert history[0]["avatar"]["face"]["speech_text"] == reply["answer"]
     assert history[0]["created_at"] and history[0]["completed_at"]
     store = Store(client.app.state.runtime.config.database_url)
     try:

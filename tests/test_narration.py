@@ -28,6 +28,21 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
         assert supplied == {"question": "What is my readiness?", "context": context.model_dump(mode="json")}
         assert body["model"] == "gemini-3.1-flash-lite"
         assert "tools" not in body
+        assert "avatar" in body["response_format"]["json_schema"]["schema"]["required"]
+        assert (
+            body["response_format"]["json_schema"]["schema"]["properties"]["avatar"]["properties"]["body"][
+                "properties"
+            ]["deterministic_motion"]["enum"]
+            == [
+                "none",
+                "squat.bodyweight.v1",
+                "rdl.v1",
+                "lunge.v1",
+                "curl.v1",
+                "shoulder_press.v1",
+                "push_up.v1",
+            ]
+        )
         return httpx.Response(
             200,
             json={
@@ -35,7 +50,62 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
                     {
                         "finish_reason": "stop",
                         "message": {
-                            "content": json.dumps({"answer": answer, "evidence": ["readiness.score"]})
+                            "content": json.dumps(
+                                {
+                                    "answer": answer,
+                                    "evidence": ["readiness.score"],
+                                    "avatar": {
+                                        "face": {
+                                            "speech_text": answer,
+                                            "emotion": {
+                                                "energy": 0.5,
+                                                "happiness": 0.4,
+                                                "fatigue": 0,
+                                                "stress": 0,
+                                                "confidence": 0.8,
+                                                "excitement": 0.2,
+                                                "concern": 0.1,
+                                            },
+                                            "gaze": "user",
+                                            "preferred_backend": "asr_viseme",
+                                        },
+                                        "body": {
+                                            "semantic_action": "talk",
+                                            "emage_enabled": True,
+                                            "deterministic_motion": "none",
+                                            "tempo": {
+                                                "eccentric": 3,
+                                                "pause": 1,
+                                                "concentric": 1,
+                                            },
+                                            "safe_exit_required": False,
+                                        },
+                                        "fallback": {
+                                            "intent": {
+                                                "intent": "ANSWER",
+                                                "speech": answer,
+                                                "target": "user",
+                                                "exercise": "NONE",
+                                                "action": "talk",
+                                                "gaze": "user",
+                                                "tone": "calm",
+                                                "emotion": {
+                                                    "energy": 0.5,
+                                                    "happiness": 0.4,
+                                                    "fatigue": 0,
+                                                    "stress": 0,
+                                                    "confidence": 0.8,
+                                                    "excitement": 0.2,
+                                                    "concern": 0.1,
+                                                },
+                                            },
+                                            "hud_target": "none",
+                                            "hud_text": "",
+                                            "resolver_mode": "allow_body",
+                                        },
+                                    },
+                                }
+                            )
                         },
                     }
                 ]
@@ -52,6 +122,9 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
     assert result.answer == answer
     assert result.mode == "language_service"
     assert result.notice is None
+    assert result.avatar
+    assert result.avatar.face.speech_text == answer
+    assert result.avatar.body.emage_enabled is True
 
 
 @pytest.mark.parametrize(

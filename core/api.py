@@ -412,6 +412,7 @@ def create_app(config=None):
     def transcript(row):
         return {
             **{key: row[key] for key in ["id", "question", "answer", "mode", "notice", "model"]},
+            "avatar": row.get("avatar"),
             "created_at": datetime.fromtimestamp(row["created_at"], timezone.utc).isoformat(),
             "completed_at": datetime.fromtimestamp(row["completed_at"], timezone.utc).isoformat()
             if row["completed_at"]

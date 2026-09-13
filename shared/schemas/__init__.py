@@ -239,6 +239,121 @@ class NarrationResponse(Contract):
     grounded: bool = True
     notice: str | None = None
     model: str | None = None
+    avatar: "AvatarPipeline | None" = None
+
+
+class AvatarEmotion(Contract):
+    energy: float | None = Field(None, ge=0, le=1)
+    happiness: float | None = Field(None, ge=0, le=1)
+    fatigue: float | None = Field(None, ge=0, le=1)
+    stress: float | None = Field(None, ge=0, le=1)
+    confidence: float | None = Field(None, ge=0, le=1)
+    excitement: float | None = Field(None, ge=0, le=1)
+    concern: float | None = Field(None, ge=0, le=1)
+
+
+class AvatarTempo(Contract):
+    eccentric: float = Field(3, ge=0.5, le=10)
+    pause: float = Field(1, ge=0, le=5)
+    concentric: float = Field(1, ge=0.5, le=10)
+
+
+class AvatarWorkoutAdjustment(Contract):
+    intensityDelta: float | None = Field(None, ge=-1, le=1)
+    volumeDelta: float | None = Field(None, ge=-1, le=1)
+    reason: str | None = None
+
+
+class AvatarIntent(Contract):
+    intent: Literal[
+        "ANSWER",
+        "EXPLAIN_FORM",
+        "DEMONSTRATE_EXERCISE",
+        "ADJUST_WORKOUT",
+        "POINT_TARGET",
+        "ENCOURAGE",
+        "WARN",
+        "IDLE",
+    ] = "ANSWER"
+    speech: str = ""
+    target: Literal[
+        "user",
+        "workout_panel",
+        "readiness_score",
+        "heart_rate_chart",
+        "knees",
+        "hips",
+        "spine",
+        "feet",
+        "breathing",
+    ] = "user"
+    exercise: Literal["NONE", "SQUAT", "RDL", "LUNGE", "CURL", "SHOULDER_PRESS", "PUSH_UP"] = "NONE"
+    action: Literal["idle", "talk", "listen", "think", "point", "walk", "run", "nod", "celebrate", "squat"] = (
+        "talk"
+    )
+    gaze: Literal["user", "panel", "away", "workout"] = "user"
+    tone: Literal["calm", "encouraging", "concerned", "confident", "urgent"] = "calm"
+    emotion: AvatarEmotion = Field(default_factory=AvatarEmotion)
+    tempo: AvatarTempo | None = None
+    workoutAdjustment: AvatarWorkoutAdjustment | None = None
+
+
+class AvatarFacePlan(Contract):
+    speech_text: str = ""
+    emotion: AvatarEmotion = Field(default_factory=AvatarEmotion)
+    gaze: Literal["user", "panel", "away", "workout"] = "user"
+    preferred_backend: Literal["audio2face", "asr_viseme", "procedural"] = "asr_viseme"
+
+
+class AvatarBodyPlan(Contract):
+    semantic_action: Literal[
+        "idle",
+        "talk",
+        "listen",
+        "think",
+        "point",
+        "walk",
+        "run",
+        "nod",
+        "celebrate",
+        "squat",
+    ] = "talk"
+    emage_enabled: bool = True
+    deterministic_motion: Literal[
+        "none",
+        "squat.bodyweight.v1",
+        "rdl.v1",
+        "lunge.v1",
+        "curl.v1",
+        "shoulder_press.v1",
+        "push_up.v1",
+    ] = "none"
+    tempo: AvatarTempo | None = None
+    safe_exit_required: bool = False
+
+
+class AvatarFallbackPlan(Contract):
+    intent: AvatarIntent = Field(default_factory=AvatarIntent)
+    hud_target: Literal[
+        "none",
+        "user",
+        "workout_panel",
+        "readiness_score",
+        "heart_rate_chart",
+        "knees",
+        "hips",
+        "spine",
+        "feet",
+        "breathing",
+    ] = "none"
+    hud_text: str = ""
+    resolver_mode: Literal["allow_body", "hud_overlay", "safe_exit_then_act"] = "allow_body"
+
+
+class AvatarPipeline(Contract):
+    face: AvatarFacePlan = Field(default_factory=AvatarFacePlan)
+    body: AvatarBodyPlan = Field(default_factory=AvatarBodyPlan)
+    fallback: AvatarFallbackPlan = Field(default_factory=AvatarFallbackPlan)
 
 
 class Conversation(Contract):
@@ -250,6 +365,7 @@ class Conversation(Contract):
     mode: str
     notice: str | None = None
     model: str | None = None
+    avatar: AvatarPipeline | None = None
 
 
 class DayOutlook(Contract):

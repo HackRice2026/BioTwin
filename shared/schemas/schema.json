@@ -1,5 +1,64 @@
 {
   "$defs": {
+    "AvatarBodyPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "semantic_action": {
+          "default": "talk",
+          "enum": [
+            "idle",
+            "talk",
+            "listen",
+            "think",
+            "point",
+            "walk",
+            "run",
+            "nod",
+            "celebrate",
+            "squat"
+          ],
+          "title": "Semantic Action",
+          "type": "string"
+        },
+        "emage_enabled": {
+          "default": true,
+          "title": "Emage Enabled",
+          "type": "boolean"
+        },
+        "deterministic_motion": {
+          "default": "none",
+          "enum": [
+            "none",
+            "squat.bodyweight.v1",
+            "rdl.v1",
+            "lunge.v1",
+            "curl.v1",
+            "shoulder_press.v1",
+            "push_up.v1"
+          ],
+          "title": "Deterministic Motion",
+          "type": "string"
+        },
+        "tempo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvatarTempo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "safe_exit_required": {
+          "default": false,
+          "title": "Safe Exit Required",
+          "type": "boolean"
+        }
+      },
+      "title": "AvatarBodyPlan",
+      "type": "object"
+    },
     "AvatarDrivers": {
       "additionalProperties": false,
       "properties": {
@@ -52,6 +111,402 @@
         "recovery_progress"
       ],
       "title": "AvatarDrivers",
+      "type": "object"
+    },
+    "AvatarEmotion": {
+      "additionalProperties": false,
+      "properties": {
+        "energy": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Energy"
+        },
+        "happiness": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Happiness"
+        },
+        "fatigue": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fatigue"
+        },
+        "stress": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "excitement": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Excitement"
+        },
+        "concern": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Concern"
+        }
+      },
+      "title": "AvatarEmotion",
+      "type": "object"
+    },
+    "AvatarFacePlan": {
+      "additionalProperties": false,
+      "properties": {
+        "speech_text": {
+          "default": "",
+          "title": "Speech Text",
+          "type": "string"
+        },
+        "emotion": {
+          "$ref": "#/$defs/AvatarEmotion"
+        },
+        "gaze": {
+          "default": "user",
+          "enum": [
+            "user",
+            "panel",
+            "away",
+            "workout"
+          ],
+          "title": "Gaze",
+          "type": "string"
+        },
+        "preferred_backend": {
+          "default": "asr_viseme",
+          "enum": [
+            "audio2face",
+            "asr_viseme",
+            "procedural"
+          ],
+          "title": "Preferred Backend",
+          "type": "string"
+        }
+      },
+      "title": "AvatarFacePlan",
+      "type": "object"
+    },
+    "AvatarFallbackPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "intent": {
+          "$ref": "#/$defs/AvatarIntent"
+        },
+        "hud_target": {
+          "default": "none",
+          "enum": [
+            "none",
+            "user",
+            "workout_panel",
+            "readiness_score",
+            "heart_rate_chart",
+            "knees",
+            "hips",
+            "spine",
+            "feet",
+            "breathing"
+          ],
+          "title": "Hud Target",
+          "type": "string"
+        },
+        "hud_text": {
+          "default": "",
+          "title": "Hud Text",
+          "type": "string"
+        },
+        "resolver_mode": {
+          "default": "allow_body",
+          "enum": [
+            "allow_body",
+            "hud_overlay",
+            "safe_exit_then_act"
+          ],
+          "title": "Resolver Mode",
+          "type": "string"
+        }
+      },
+      "title": "AvatarFallbackPlan",
+      "type": "object"
+    },
+    "AvatarIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "intent": {
+          "default": "ANSWER",
+          "enum": [
+            "ANSWER",
+            "EXPLAIN_FORM",
+            "DEMONSTRATE_EXERCISE",
+            "ADJUST_WORKOUT",
+            "POINT_TARGET",
+            "ENCOURAGE",
+            "WARN",
+            "IDLE"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "speech": {
+          "default": "",
+          "title": "Speech",
+          "type": "string"
+        },
+        "target": {
+          "default": "user",
+          "enum": [
+            "user",
+            "workout_panel",
+            "readiness_score",
+            "heart_rate_chart",
+            "knees",
+            "hips",
+            "spine",
+            "feet",
+            "breathing"
+          ],
+          "title": "Target",
+          "type": "string"
+        },
+        "exercise": {
+          "default": "NONE",
+          "enum": [
+            "NONE",
+            "SQUAT",
+            "RDL",
+            "LUNGE",
+            "CURL",
+            "SHOULDER_PRESS",
+            "PUSH_UP"
+          ],
+          "title": "Exercise",
+          "type": "string"
+        },
+        "action": {
+          "default": "talk",
+          "enum": [
+            "idle",
+            "talk",
+            "listen",
+            "think",
+            "point",
+            "walk",
+            "run",
+            "nod",
+            "celebrate",
+            "squat"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "gaze": {
+          "default": "user",
+          "enum": [
+            "user",
+            "panel",
+            "away",
+            "workout"
+          ],
+          "title": "Gaze",
+          "type": "string"
+        },
+        "tone": {
+          "default": "calm",
+          "enum": [
+            "calm",
+            "encouraging",
+            "concerned",
+            "confident",
+            "urgent"
+          ],
+          "title": "Tone",
+          "type": "string"
+        },
+        "emotion": {
+          "$ref": "#/$defs/AvatarEmotion"
+        },
+        "tempo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvatarTempo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "workoutAdjustment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvatarWorkoutAdjustment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "AvatarIntent",
+      "type": "object"
+    },
+    "AvatarPipeline": {
+      "additionalProperties": false,
+      "properties": {
+        "face": {
+          "$ref": "#/$defs/AvatarFacePlan"
+        },
+        "body": {
+          "$ref": "#/$defs/AvatarBodyPlan"
+        },
+        "fallback": {
+          "$ref": "#/$defs/AvatarFallbackPlan"
+        }
+      },
+      "title": "AvatarPipeline",
+      "type": "object"
+    },
+    "AvatarTempo": {
+      "additionalProperties": false,
+      "properties": {
+        "eccentric": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 0.5,
+          "title": "Eccentric",
+          "type": "number"
+        },
+        "pause": {
+          "default": 1,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Pause",
+          "type": "number"
+        },
+        "concentric": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0.5,
+          "title": "Concentric",
+          "type": "number"
+        }
+      },
+      "title": "AvatarTempo",
+      "type": "object"
+    },
+    "AvatarWorkoutAdjustment": {
+      "additionalProperties": false,
+      "properties": {
+        "intensityDelta": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": -1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intensitydelta"
+        },
+        "volumeDelta": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": -1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volumedelta"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "title": "AvatarWorkoutAdjustment",
       "type": "object"
     },
     "Baseline": {
@@ -247,6 +702,17 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "avatar": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvatarPipeline"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -561,6 +1027,17 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "avatar": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvatarPipeline"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

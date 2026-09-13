@@ -16,12 +16,14 @@ from sqlalchemy import (
     JSON,
     Text,
     UniqueConstraint,
+    inspect,
     select,
     insert,
     update,
     delete,
     func,
     event,
+    text,
 )
 from sqlalchemy.exc import IntegrityError
 from shared.schemas import TwinFrame, utcnow
@@ -78,6 +80,7 @@ conversations = Table(
     Column("mode", String, nullable=False),
     Column("notice", Text),
     Column("model", String),
+    Column("avatar", JSON),
     Column("context", JSON, nullable=False),
 )
 outbox = Table(
@@ -111,6 +114,13 @@ class Store:
 
         self.lock = RLock()
         metadata.create_all(self.engine)
+        self._migrate()
+
+    def _migrate(self):
+        columns = {column["name"] for column in inspect(self.engine).get_columns("conversations")}
+        if "avatar" not in columns:
+            with self.engine.begin() as c:
+                c.execute(text("ALTER TABLE conversations ADD COLUMN avatar JSON"))
 
     def user(self, user_id):
         with self.engine.connect() as c:
@@ -313,6 +323,7 @@ class Store:
                     mode=response.mode,
                     notice=response.notice,
                     model=response.model,
+                    avatar=response.avatar.model_dump(mode="json") if response.avatar else None,
                 )
             )
         return self.conversation(user_id, conversation_id)

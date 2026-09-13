@@ -127,6 +127,57 @@ export type Mode = "template" | "language_service" | "guard_fallback";
 export type Grounded = boolean;
 export type Notice = string | null;
 export type Model = string | null;
+export type SpeechText = string;
+export type Energy = number | null;
+export type Happiness = number | null;
+export type Fatigue1 = number | null;
+export type Stress = number | null;
+export type Confidence3 = number | null;
+export type Excitement = number | null;
+export type Concern = number | null;
+export type Gaze = "user" | "panel" | "away" | "workout";
+export type PreferredBackend = "audio2face" | "asr_viseme" | "procedural";
+export type SemanticAction =
+  "idle" | "talk" | "listen" | "think" | "point" | "walk" | "run" | "nod" | "celebrate" | "squat";
+export type EmageEnabled = boolean;
+export type DeterministicMotion =
+  "none" | "squat.bodyweight.v1" | "rdl.v1" | "lunge.v1" | "curl.v1" | "shoulder_press.v1" | "push_up.v1";
+export type Eccentric = number;
+export type Pause = number;
+export type Concentric = number;
+export type SafeExitRequired = boolean;
+export type Intent =
+  | "ANSWER"
+  | "EXPLAIN_FORM"
+  | "DEMONSTRATE_EXERCISE"
+  | "ADJUST_WORKOUT"
+  | "POINT_TARGET"
+  | "ENCOURAGE"
+  | "WARN"
+  | "IDLE";
+export type Speech = string;
+export type Target =
+  "user" | "workout_panel" | "readiness_score" | "heart_rate_chart" | "knees" | "hips" | "spine" | "feet" | "breathing";
+export type Exercise = "NONE" | "SQUAT" | "RDL" | "LUNGE" | "CURL" | "SHOULDER_PRESS" | "PUSH_UP";
+export type Action = "idle" | "talk" | "listen" | "think" | "point" | "walk" | "run" | "nod" | "celebrate" | "squat";
+export type Gaze1 = "user" | "panel" | "away" | "workout";
+export type Tone = "calm" | "encouraging" | "concerned" | "confident" | "urgent";
+export type Intensitydelta = number | null;
+export type Volumedelta = number | null;
+export type Reason1 = string | null;
+export type HudTarget =
+  | "none"
+  | "user"
+  | "workout_panel"
+  | "readiness_score"
+  | "heart_rate_chart"
+  | "knees"
+  | "hips"
+  | "spine"
+  | "feet"
+  | "breathing";
+export type HudText = string;
+export type ResolverMode = "allow_body" | "hud_overlay" | "safe_exit_then_act";
 export type Id2 = string;
 export type Question = string;
 export type Answer1 = string | null;
@@ -138,7 +189,7 @@ export type Model1 = string | null;
 export type IssuedAt1 = string;
 export type Timezone1 = string;
 export type Curve2 = CurvePoint[];
-export type Confidence3 = number;
+export type Confidence4 = number;
 export type Label1 = string;
 export type Assumptions = string;
 
@@ -338,6 +389,62 @@ export interface NarrationResponse {
   grounded?: Grounded;
   notice?: Notice;
   model?: Model;
+  avatar?: AvatarPipeline | null;
+}
+export interface AvatarPipeline {
+  face?: AvatarFacePlan;
+  body?: AvatarBodyPlan;
+  fallback?: AvatarFallbackPlan;
+}
+export interface AvatarFacePlan {
+  speech_text?: SpeechText;
+  emotion?: AvatarEmotion;
+  gaze?: Gaze;
+  preferred_backend?: PreferredBackend;
+}
+export interface AvatarEmotion {
+  energy?: Energy;
+  happiness?: Happiness;
+  fatigue?: Fatigue1;
+  stress?: Stress;
+  confidence?: Confidence3;
+  excitement?: Excitement;
+  concern?: Concern;
+}
+export interface AvatarBodyPlan {
+  semantic_action?: SemanticAction;
+  emage_enabled?: EmageEnabled;
+  deterministic_motion?: DeterministicMotion;
+  tempo?: AvatarTempo | null;
+  safe_exit_required?: SafeExitRequired;
+}
+export interface AvatarTempo {
+  eccentric?: Eccentric;
+  pause?: Pause;
+  concentric?: Concentric;
+}
+export interface AvatarFallbackPlan {
+  intent?: AvatarIntent;
+  hud_target?: HudTarget;
+  hud_text?: HudText;
+  resolver_mode?: ResolverMode;
+}
+export interface AvatarIntent {
+  intent?: Intent;
+  speech?: Speech;
+  target?: Target;
+  exercise?: Exercise;
+  action?: Action;
+  gaze?: Gaze1;
+  tone?: Tone;
+  emotion?: AvatarEmotion;
+  tempo?: AvatarTempo | null;
+  workoutAdjustment?: AvatarWorkoutAdjustment | null;
+}
+export interface AvatarWorkoutAdjustment {
+  intensityDelta?: Intensitydelta;
+  volumeDelta?: Volumedelta;
+  reason?: Reason1;
 }
 export interface Conversation {
   id: Id2;
@@ -348,12 +455,13 @@ export interface Conversation {
   mode: Mode1;
   notice?: Notice1;
   model?: Model1;
+  avatar?: AvatarPipeline | null;
 }
 export interface DayOutlook {
   issued_at: IssuedAt1;
   timezone: Timezone1;
   curve: Curve2;
-  confidence: Confidence3;
+  confidence: Confidence4;
   label?: Label1;
   assumptions: Assumptions;
 }

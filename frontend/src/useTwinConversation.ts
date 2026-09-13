@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, post, type OfflineBundle, type Session } from "./api";
-import type { Conversation } from "./contracts";
+import type { AvatarEmotion, AvatarPipeline, Conversation } from "./contracts";
 import { TwinVoice } from "./voice";
 import { recordQuestion } from "./microphone";
 import { emitAvatarSemantic } from "./avatar/avatarBus";
+import type { AvatarSemanticState } from "./avatar/state/AvatarState";
+import { defaultEmotion } from "./avatar/state/AvatarState";
+import { normalizeAvatarIntent } from "./avatar/pipeline/intent";
 
 export type Reply = {
   id?: string;
@@ -13,6 +16,7 @@ export type Reply = {
   created_at?: string;
   reply_id?: string;
   voice_configured?: boolean;
+  avatar?: AvatarPipeline | null;
 };
 type Turn = {
   id: string;
@@ -68,6 +72,49 @@ export function useTwinConversation({
   function resumeSpeech() {
     setNeedsTap(false);
     void voice.current?.resume();
+  }
+  function cleanEmotion(emotion?: AvatarEmotion | Partial<AvatarSemanticState["emotion"]>) {
+    const cleaned: Partial<AvatarSemanticState["emotion"]> = {};
+    if (!emotion) return cleaned;
+    for (const key of [
+      "energy",
+      "happiness",
+      "fatigue",
+      "stress",
+      "confidence",
+      "excitement",
+      "concern",
+    ] as const) {
+      const value = emotion[key];
+      if (typeof value === "number") cleaned[key] = value;
+    }
+    return cleaned;
+  }
+  function applyAvatar(reply: Reply) {
+    const fallbackIntent = normalizeAvatarIntent(reply.avatar?.fallback?.intent);
+    const action =
+      reply.avatar?.body?.semantic_action ??
+      fallbackIntent.action ??
+      (reply.avatar?.body?.deterministic_motion === "squat.bodyweight.v1"
+        ? "squat"
+        : "talk");
+    const gaze = reply.avatar?.face?.gaze ?? fallbackIntent.gaze ?? "user";
+    emitAvatarSemantic({
+      emotion: {
+        ...defaultEmotion,
+        ...cleanEmotion(fallbackIntent.emotion),
+        ...cleanEmotion(reply.avatar?.face?.emotion),
+      },
+      action,
+      gaze,
+      camera:
+        reply.avatar?.body?.deterministic_motion &&
+        reply.avatar.body.deterministic_motion !== "none"
+          ? "exercise"
+          : action === "walk" || action === "run"
+            ? "full_body"
+            : "conversation",
+    });
   }
   function reset() {
     epoch.current++;
@@ -159,6 +206,7 @@ export function useTwinConversation({
   }, [open, online, session?.user.id, accountKey]);
 
   async function speak(reply: Reply) {
+    applyAvatar(reply);
     if (!online || !reply.voice_configured || !reply.id) {
       setVoiceError(true);
       setVoiceNotice(
@@ -213,27 +261,6 @@ export function useTwinConversation({
   async function ask(text: string) {
     text = text.trim();
     if (!text || busy.current) return;
-    if (/exhausted|tired|four hours|4 hours|depleted|drained/i.test(text)) {
-      emitAvatarSemantic({
-        emotion: {
-          energy: 0.32,
-          happiness: 0.24,
-          fatigue: 0.66,
-          stress: 0.16,
-          confidence: 0.88,
-          excitement: 0.08,
-          concern: 0.72,
-        },
-        action: "listen",
-        gaze: "user",
-      });
-    } else if (/show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)) {
-      emitAvatarSemantic({
-        action: "squat",
-        gaze: "workout",
-        camera: "exercise",
-      });
-    }
     busy.current = true;
     const currentEpoch = epoch.current;
     stopSpeaking();
@@ -275,6 +302,7 @@ export function useTwinConversation({
         });
       }
       if (currentEpoch !== epoch.current) return;
+      applyAvatar(reply);
       setTurns((rows) =>
         rows.map((row) =>
           row.id === id
