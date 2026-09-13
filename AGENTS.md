@@ -403,6 +403,34 @@ This file is a living document. The agent MUST:
   not installed") -- a real unresolved library compatibility issue, not a
   missing-package problem; abandoned in favor of the plain-English model
   rather than sinking more time into it.
+- 2026-09-12/13 — Reported: idle-pose fix had an elbow-flare regression
+  ("hands tucked in, looks like a duck"), and separately, the avatar
+  barely moves during conversation (no hand gestures while talking,
+  legs never move/walk). Fixed the flare (see Remember). Root-caused
+  the movement complaint: only two keyword triggers exist anywhere in
+  the frontend that ever set `action` away from `"idle"` ("show me
+  squat", "I'm exhausted") -- walk/run/point/celebrate exist in
+  Avatar.tsx but nothing in real conversation ever calls them, and the
+  speaking-only arm sway is a small few-degree wobble. This led into
+  the real fix: real full-body gesture generation, added below.
+- 2026-09-13 — Added real full-body co-speech gesture generation
+  (EMAGE, `PantoMatrix/PantoMatrix`) as a second GPU service running
+  parallel to the face service, per direct user request after
+  confirming (WebSearch + reading the actual GitHub repo/HF model card,
+  not assumed) that EMAGE's weights are Apache-2.0 even though its code
+  repo has no license at all -- user explicitly chose to proceed anyway
+  after being told this plainly. Full technical writeup (model, venv,
+  the retargeting sign-convention finding, the streaming architecture,
+  a real bug found and fixed via an actual failing test, both
+  verification passes) is in `docs/AVATAR_IMPLEMENTATION_PLAN.md`'s
+  "Body gestures" section, not duplicated here. Headline result,
+  verified twice: a real authenticated conversation (logged in as
+  `sapnil`) shows the avatar's arms genuinely raised and gesturing
+  while "Speaking..." is shown, driven by real GPU inference logged in
+  real time -- not the old flat idle pose with a faint wobble.
+  Per explicit instruction from this point on: **do not merge
+  `3d-gesturing` into `dev`** until told the 3D work is ready -- commit
+  and push to the feature branch only.
 
 ---
 
@@ -636,6 +664,35 @@ This file is a living document. The agent MUST:
 - HuggingFace Hub (`huggingface.co`) is reachable from the SCC box with no
   proxy/auth needed -- confirmed both a plain `curl` 200 and real model
   downloads (`facebook/wav2vec2-base-960h`, ~360MB) working.
+- Body gestures (EMAGE, `services/avatar_body_service/`) run in their own
+  venv, `/data/saurav/envs/emage` (Python 3.12) -- NOT the same venv as
+  the face/lip-sync service (`avatar_face_lipsync`). EMAGE's model code
+  is imported from a plain `git clone` of `PantoMatrix/PantoMatrix` at
+  `/data/saurav/emage`, on `PYTHONPATH`, not a pip package. `transformers`
+  is pinned to exactly `4.46.3` -- newer versions break EMAGE's
+  `PreTrainedModel` subclass (`AttributeError:
+  'EmageVQVAEConv' object has no attribute 'all_tied_weights_keys'`).
+  tmux session `avatar-body`, port 8766, tunneled the same way as the
+  face service's 8765.
+- Retargeting SMPL-X (EMAGE's output skeleton) rotations onto this rig's
+  Mixamo-style bones: negate the ENTIRE axis-angle vector
+  (`[-x,-y,-z]`, not per-axis sign flips) before converting to a
+  quaternion. Found empirically with a throwaway Three.js test harness,
+  not derived analytically -- confirmed on two independent frames.
+  Don't re-derive this from scratch if it needs revisiting; start from
+  "try negating the whole vector first."
+- Async WebSocket services that both receive a client stream AND emit
+  their own independently-timed output (the body-gesture service is the
+  first one to do this) must NOT emit from inside the same loop that's
+  waiting on `websocket.receive()` -- input arrival rate and how fast
+  you actually want to emit are unrelated, and coupling them means a
+  client that sends few large bursts (confirmed: the browser's `fetch`
+  stream for TTS audio does exactly this) will fill an output queue
+  that never actually drains. Give input-receiving and output-emitting
+  each their own `asyncio` task; this cost real debugging time to find
+  (looked fine in a synthetic small-chunk test, broke against the real
+  browser's chunking) -- test against how the real client actually
+  sends data, not just a script mimicking it a different way.
 
 ---
 
