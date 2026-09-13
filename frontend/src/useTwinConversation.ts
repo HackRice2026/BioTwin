@@ -5,6 +5,7 @@ import type { CaptionWord } from "./captions";
 import { TwinVoice } from "./voice";
 import { recordQuestion } from "./microphone";
 import { emitAvatarSemantic } from "./avatar/avatarBus";
+import type { CalendarDraft } from "./useCalendar";
 
 export type Reply = {
   id?: string;
@@ -14,6 +15,7 @@ export type Reply = {
   created_at?: string;
   reply_id?: string;
   voice_configured?: boolean;
+  calendar_draft?: CalendarDraft | null;
 };
 type Turn = {
   id: string;
@@ -32,17 +34,31 @@ export function useTwinConversation({
   accountKey,
   onQuestion,
   onSpeechEnd,
+  calendarRange,
+  onCalendarDraft,
 }: {
   open: boolean;
   online: boolean;
   bundle: OfflineBundle | null;
   session: Session | null;
   accountKey: number;
-  onQuestion?: (text: string) => void;
+  onQuestion?: (text: string, calendarMode?: boolean) => void;
   onSpeechEnd?: () => void;
+  calendarRange?: { start: string; end: string };
+  onCalendarDraft?: (draft: CalendarDraft) => void;
 }) {
-  const callbacks = useRef({ onQuestion, onSpeechEnd });
-  callbacks.current = { onQuestion, onSpeechEnd };
+  const callbacks = useRef({
+    onQuestion,
+    onSpeechEnd,
+    onCalendarDraft,
+    calendarRange,
+  });
+  callbacks.current = {
+    onQuestion,
+    onSpeechEnd,
+    onCalendarDraft,
+    calendarRange,
+  };
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [audioTime, setAudioTime] = useState(0);
   const [activeAnswer, setActiveAnswer] = useState("");
@@ -233,7 +249,7 @@ export function useTwinConversation({
     }
   }
 
-  async function ask(text: string) {
+  async function ask(text: string, calendarMode = false) {
     text = text.trim();
     if (!text || busy.current) return;
     if (/exhausted|tired|four hours|4 hours|depleted|drained/i.test(text)) {
@@ -270,7 +286,7 @@ export function useTwinConversation({
     setAsking(true);
     setActiveAnswer("");
     setVoiceError(false);
-    callbacks.current.onQuestion?.(text);
+    callbacks.current.onQuestion?.(text, calendarMode);
     const id = crypto.randomUUID();
     setTurns((rows) => [
       ...rows,
@@ -298,12 +314,20 @@ export function useTwinConversation({
       } else {
         reply = await api<Reply>("/api/twin/ask", {
           method: "POST",
-          body: JSON.stringify({ question: text, request_id: id }),
+          body: JSON.stringify({
+            question: text,
+            request_id: id,
+            calendar_mode: calendarMode,
+            calendar_start: callbacks.current.calendarRange?.start,
+            calendar_end: callbacks.current.calendarRange?.end,
+          }),
           signal: controller.signal,
         });
       }
       if (currentEpoch !== epoch.current) return;
       setActiveAnswer(reply.answer);
+      if (reply.calendar_draft)
+        callbacks.current.onCalendarDraft?.(reply.calendar_draft);
       setTurns((rows) =>
         rows.map((row) =>
           row.id === id

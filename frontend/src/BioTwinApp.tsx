@@ -24,6 +24,8 @@ import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
 import { api, post } from "./api";
 import { useDashboard } from "./useDashboard";
+import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
+import type { CalendarDraft } from "./useCalendar";
 import { useTwinConversation } from "./useTwinConversation";
 import { questionScenario, questionTopic, type Topic } from "./topics";
 import {
@@ -112,7 +114,14 @@ function Captions({
 export default function BioTwinApp() {
   const data = useDashboard();
   const { state, session, status } = data;
-  const [page, setPage] = useState<Page>("Overview");
+  const [page, setPage] = useState<Page>(() =>
+    new URLSearchParams(location.search).get("connected")?.includes("calendar")
+      ? "Daily plan"
+      : "Overview",
+  );
+  const [eventEditor, setEventEditor] = useState<CalendarDraft | "new" | null>(
+    null,
+  );
   const [auth, setAuth] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [takeover, setTakeover] = useState<{
@@ -139,8 +148,15 @@ export default function BioTwinApp() {
     bundle: data.bundle,
     session,
     accountKey: data.accountKey,
-    onQuestion: (text) => {
-      const topic = questionTopic(text);
+    calendarRange: { start: data.calendar.start, end: data.calendar.end },
+    onCalendarDraft: (draft) => {
+      autoTopic.current = false;
+      setTakeover(null);
+      setPage("Daily plan");
+      setEventEditor(draft);
+    },
+    onQuestion: (text, calendarMode) => {
+      const topic = calendarMode ? "plan" : questionTopic(text);
       setPage("Overview");
       setHistoryOpen(false);
       autoTopic.current = !!topic;
@@ -177,6 +193,7 @@ export default function BioTwinApp() {
   }, []);
   useEffect(() => {
     setAdded([]);
+    setEventEditor(null);
     setTakeover(null);
     autoTopic.current = false;
   }, [data.accountKey]);
@@ -243,6 +260,7 @@ export default function BioTwinApp() {
       });
       setAdded((ids) => [...ids, id]);
       data.notify(`Added to your calendar with a ${reminder}-minute reminder.`);
+      void data.calendar.refresh();
     } catch (error) {
       data.notify(
         (error as Error).message ||
@@ -627,8 +645,15 @@ export default function BioTwinApp() {
                   />
                 ) : takeover.topic === "plan" ? (
                   <>
+                    <CalendarAgenda
+                      calendar={data.calendar}
+                      compact
+                      onConnect={() => navigate("Connections")}
+                      onNew={() => setEventEditor("new")}
+                      onAsk={(q) => void conversation.ask(q, true)}
+                      asking={asking}
+                    />
                     <PlanPanel data={data} actions={actions} />
-                    <CalendarDay data={data} />
                   </>
                 ) : takeover.topic === "what-if" ? (
                   <LabPanel data={data} />
@@ -703,8 +728,15 @@ export default function BioTwinApp() {
             <ReadinessDetails data={data} />
           </>
         )}
-        {state && page === "Daily plan" && (
+        {page === "Daily plan" && (
           <>
+            <CalendarAgenda
+              calendar={data.calendar}
+              onConnect={() => navigate("Connections")}
+              onNew={() => setEventEditor("new")}
+              onAsk={(q) => void conversation.ask(q, true)}
+              asking={asking}
+            />
             <div className="plan-layout">
               <PlanPanel data={data} actions={actions} />
               <CalendarDay data={data} />
@@ -749,6 +781,26 @@ export default function BioTwinApp() {
               </Panel>
             </div>
           </>
+        )}
+        {eventEditor && (
+          <CalendarEditor
+            key={
+              eventEditor === "new" ? `new-${data.accountKey}` : eventEditor.id
+            }
+            draft={eventEditor}
+            calendar={data.calendar}
+            onClose={() => setEventEditor(null)}
+            onAdded={(start) => {
+              setEventEditor(null);
+              autoTopic.current = false;
+              setTakeover(null);
+              setPage("Daily plan");
+              data.calendar.setStart(start);
+              void data.calendar.refresh();
+              void data.refreshPlan();
+              data.notify("Added to your calendar. Your agenda is updating.");
+            }}
+          />
         )}
         <div hidden={page !== "Connections"}>
           <Connections

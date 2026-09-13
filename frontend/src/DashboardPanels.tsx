@@ -588,42 +588,8 @@ export function PlanPanel({
 export function CalendarDay({ data }: { data: Dashboard }) {
   return (
     <Panel>
-      <PanelTitle title="Your day at a glance" note={data.plan?.timezone} />
-      <div className="day-agenda">
-        {data.plan?.busy.length ? (
-          data.plan.busy.map((b, i) => (
-            <div key={i}>
-              <time>
-                {new Date(b.start).toLocaleTimeString(undefined, {
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZone: data.plan!.timezone,
-                })}
-              </time>
-              <i />
-              <div>
-                <b>{b.title}</b>
-                <small>
-                  Until{" "}
-                  {new Date(b.end).toLocaleTimeString(undefined, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    timeZone: data.plan!.timezone,
-                  })}
-                </small>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p>
-            {data.plan?.calendar_status === "connected"
-              ? "No busy windows today. Room for yourself."
-              : "Connect your calendar to see your day here."}
-          </p>
-        )}
-      </div>
+      <PanelTitle title="Energy outlook" note={data.plan?.timezone} />
       <div className="outlook-heading">
-        <h3>Energy outlook</h3>
         <span className="pill">Scenario estimate</span>
       </div>
       <OutlookChart outlook={data.outlook} />

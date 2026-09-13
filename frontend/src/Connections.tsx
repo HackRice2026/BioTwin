@@ -237,6 +237,7 @@ export default function Connections({
           : (result.reason ?? "Your calendar already has events coming up."),
       );
       reload();
+      if (result.seeded) onChange();
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -489,6 +490,7 @@ export default function Connections({
                       try {
                         await api(`/auth/${item.id}`, { method: "DELETE" });
                         reload();
+                        onChange();
                         notify("Account disconnected.");
                       } catch {
                         notify(

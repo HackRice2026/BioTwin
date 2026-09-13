@@ -5,7 +5,7 @@ export function questionTopic(question: string): Topic | null {
   if (/\bwhat[ -]?if\b|\bsimulat|\bscenario\b/i.test(question))
     return "what-if";
   if (
-    /\bplan\b|\bcalendar\b|\bschedul|\bremind|\bwhen\b.*\b(work ?out|exercise|nap)\b|\bfit\b.*\bwork ?out\b/i.test(
+    /\bplan\b|\bcalendar\b|\b(agenda|meetings?|appointments?|events?|tasks?|book|add|create)\b|\bschedul|\bremind|\bwhen\b.*\b(work ?out|exercise|nap)\b|\bfit\b.*\bwork ?out\b/i.test(
       question,
     )
   )
