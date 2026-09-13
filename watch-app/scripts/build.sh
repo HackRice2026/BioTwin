@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-python3 scripts/configure.py
+python3 scripts/configure.py "$@"
 mkdir -p bin
 if [ ! -f bin/developer_key.der ]; then
   umask 077

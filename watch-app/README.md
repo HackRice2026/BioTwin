@@ -65,6 +65,15 @@ permission or background service is requested by this foreground implementation.
    bash watch-app/scripts/build.sh
    ```
 
+For an isolated simulator run, the token can remain in a restricted file instead
+of being copied into `.env` or a shell command:
+
+```sh
+bash watch-app/scripts/build.sh \
+  --api-url https://your-host/api/ingest/watch \
+  --api-key-file /path/to/restricted/watch.token
+```
+
 The build script generates a private `source/ApiConfig.mc` and a signing key on
 first use, then builds `watch-app/bin/BioTwin.prg` for `venu2`. The signing key,
 configuration, `.env`, and all compiled output are gitignored. The compiled app
@@ -116,10 +125,16 @@ the rejected batch. Daily counters are snapshots, not increments.
 - HTTP requests against a separate local test database persisted synthetic frames
   and recomputed the avatar pulse. A browser visibly changed from 84 to 91 bpm
   and from 5,432 to 5,447 steps without reloading, while old history ages remained.
-- Generic Garmin compilation passed. This checks source compilation only.
-  The **Venu 2 target build is blocked by the missing device profile**, and the
-  simulator and physical-watch paths have **not** been verified. The ignored
-  `BioTwin-generic.prg` uses compile-only configuration and must not be sideloaded.
+- Garmin SDK 9.2.0 and the Venu 2 profile are installed. A device-targeted Venu 2
+  build passes without warnings. The Venu 2 simulator delivered its generated
+  readings through a temporary HTTPS tunnel into an isolated database with
+  `garmin_ciq_live` provenance. Normal transport added about 0.4 seconds after a
+  collection tick. Changing simulator steps from 6,789 to 7,001 appeared in the
+  current web dashboard without a reload.
+- Disconnecting simulated BLE produced error `-104` and retained 30 samples.
+  Restoring the connection drained the queue to zero. Persisted retry rows kept
+  their original event times, with measured outage latency up to 30.4 seconds.
+  Physical Venu 2 delivery and real-device latency are still unverified.
 
 ## Sources and reference plumbing
 
@@ -137,14 +152,11 @@ constants pattern, with URL validation and restrictive file permissions.
 
 ## Continuation prompt
 
-> Finish Venu 2 hardware verification for BioTwin's existing watch-app/. Read this
-> README and the current code before editing. Install the Venu 2 profile after
-> the user completes Garmin's agreement/account flow. Use a separate test account
-> and an HTTPS endpoint to build and run in the simulator. Prove accepted frames,
-> original measurement times, retries, database persistence and browser updates.
-> Then configure the user's intended BioTwin account and build a private Venu 2
-> PRG for physical sideload. Verify actual hardware deliveries and measure latency
-> before reporting success. Preserve unrelated MATLAB work and personal data;
-> the user explicitly selected the existing mathworks branch for this work.
-> Garmin's agreement has been accepted with permission; SDK Manager is waiting
-> for Garmin account sign-in before device-profile installation.
+> Finish physical Venu 2 verification for BioTwin's existing watch-app/. Read this
+> README and the current code before editing. Garmin SDK 9.2.0, its Venu 2 profile,
+> device-targeted compilation, HTTPS transport, retry recovery, database persistence
+> and the current web dashboard have been verified in the simulator. Configure the
+> user's intended BioTwin account and stable HTTPS endpoint, build its private Venu
+> 2 PRG, and sideload it with the existing developer key. Verify actual hardware
+> deliveries and measure real-device latency before reporting hardware success.
+> Continue on dev and preserve unrelated personal data and worktree changes.

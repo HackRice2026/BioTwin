@@ -3,7 +3,7 @@ export type Topic =
 /** Match the question locally before the narration request; never inspect its answer. */
 export function questionTopic(question: string): Topic | null {
   if (
-    /\bplan\b|\bcalendar\b|\bschedul|\bremind|\bwhen\b.*\b(work ?out|exercise|nap)\b|\bfit\b.*\bwork ?out\b/i.test(
+    /\bplan\b|\bcalendar\b|\b(agenda|meetings?|appointments?|events?|tasks?|book|add|create)\b|\bschedul|\bremind|\bwhen\b.*\b(work ?out|exercise|nap)\b|\bfit\b.*\bwork ?out\b/i.test(
       question,
     )
   )

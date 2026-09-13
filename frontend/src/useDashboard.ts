@@ -15,6 +15,7 @@ import type {
   RecoveryPrediction,
 } from "./contracts";
 import { useTwin } from "./transport";
+import { useCalendar } from "./useCalendar";
 
 export const metricNames = [
   "heart_rate_bpm",
@@ -38,6 +39,7 @@ export function useDashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const twin = useTwin(accountKey);
   const { status, bundle, state } = twin;
+  const calendar = useCalendar(session, status === "online", accountKey);
   const [days, setDays] = useState(7);
   const [metrics, setMetrics] = useState(emptyMetrics);
   const [sleep, setSleep] = useState<SleepPoint[]>([]);
@@ -201,6 +203,7 @@ export function useDashboard() {
     notify,
     loadingPlan,
     refreshPlan,
+    calendar,
   };
 }
 export type Dashboard = ReturnType<typeof useDashboard>;

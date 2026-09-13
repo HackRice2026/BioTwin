@@ -132,6 +132,9 @@ export type End2 = string;
 export type Title1 = string;
 export type Busy = BusyInterval[];
 export type Explanation = string;
+export type Calendar = {
+  [k: string]: unknown;
+} | null;
 export type RecentTrend = string[];
 export type Facts = string[];
 export type Answer = string;
@@ -343,6 +346,7 @@ export interface BusyInterval {
   title?: Title1;
 }
 export interface NarrationContext {
+  calendar?: Calendar;
   readiness: Readiness;
   baseline_summary: Baseline;
   recent_trend?: RecentTrend;

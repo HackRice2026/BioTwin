@@ -21,7 +21,13 @@ class WatchSample(Contract):
     acceleration_mg: float | None = Field(default=None, ge=0, le=32000)
 
 
-WATCH_METRICS = tuple(k for k in WatchSample.model_fields if k != "event_time")
+# The watch wire names stay short and stable, while BioTwin stores the same
+# measurements under the canonical names already used by imports and forecasts.
+WATCH_METRICS = {
+    key: {"body_battery": "body_battery_pct", "distance_m": "distance_meters"}.get(key, key)
+    for key in WatchSample.model_fields
+    if key != "event_time"
+}
 
 
 class WatchBatch(Contract):
@@ -34,12 +40,14 @@ def watch_frames(batch: WatchBatch, uid: str, retention_days: int) -> list[TwinF
     for sample in batch.samples:
         if not now - timedelta(days=retention_days) <= sample.event_time <= now + timedelta(minutes=5):
             raise ValueError("Watch time is outside the retention window or more than five minutes ahead")
+        values = sample.model_dump(exclude_none=True)
+        values = {WATCH_METRICS.get(key, key): value for key, value in values.items()}
         records.append(
             normalize(
                 TwinFrame(
                     user_id=uid,
                     provenance=Provenance.GARMIN_CIQ_LIVE,
-                    **sample.model_dump(exclude_none=True),
+                    **values,
                 )
             )
         )

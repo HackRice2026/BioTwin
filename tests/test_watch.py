@@ -92,7 +92,11 @@ def test_watch_partial_metrics_dedupe_original_times_and_websocket(client):
         pushed = ws.receive_json()["payload"]
         assert pushed["latest"]["heart_rate_bpm"] == 84
         assert pushed["drivers"]["pulse_hz"] == 1.4
-        assert pushed["quality"]["body_battery"]["event_time"] == old.isoformat().replace("+00:00", "Z")
+        assert pushed["quality"]["body_battery_pct"]["event_time"] == old.isoformat().replace(
+            "+00:00", "Z"
+        )
+        assert pushed["latest"]["body_battery_pct"] == 72
+        assert pushed["latest"]["distance_meters"] == 0
         assert pushed["readiness"]["user_id"] == uid
         assert pushed["readiness"]["score"] is None  # No invented HRV/sleep inputs.
         assert pushed["latest"]["active_calories"] is None
@@ -190,3 +194,24 @@ def test_config_generator_rejects_unsafe_url_and_protects_key(tmp_path):
     env.write_text(f"API_URL=http://example.com/api/ingest/watch\nAPI_KEY={key}\n")
     with pytest.raises(ValueError, match="HTTPS"):
         module.generate(env, out)
+
+
+def test_config_generator_accepts_key_file_without_env(tmp_path):
+    path = Path(__file__).parents[1] / "watch-app/scripts/configure.py"
+    spec = importlib.util.spec_from_file_location("watch_configure_key_file", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    key = "a" * 32 + "." + "b" * 43
+    key_file, out = tmp_path / "watch.token", tmp_path / "ApiConfig.mc"
+    key_file.write_text(key + "\n")
+    module.generate(
+        tmp_path / "missing.env",
+        out,
+        api_url="https://example.com/api/ingest/watch",
+        api_key_file=key_file,
+        send_interval=7,
+    )
+    content = out.read_text()
+    assert key in content
+    assert 'API_URL = "https://example.com/api/ingest/watch"' in content
+    assert "SEND_INTERVAL_SECONDS = 7" in content
