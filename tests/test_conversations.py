@@ -193,6 +193,19 @@ def test_timestamped_speech_is_scoped_and_preserves_alignment(client):
     assert client.get(f"/api/voice/{reply['reply_id']}?timestamps=true").status_code == 404
 
 
+def test_followup_question_carries_the_prior_turn_for_continuity(client):
+    """"What about tomorrow?" only makes sense with the previous exchange attached."""
+    register(client)
+    client.post("/api/ingest/bluetooth", json={"heart_rate_bpm": 71})
+    first = client.post("/api/twin/ask", json={"question": "What is my heart rate?"}).json()
+    client.post("/api/twin/ask", json={"question": "What about now?"})
+    payload = json.loads(json.loads(client.provider_calls[-1].content)["messages"][1]["content"])
+    assert payload["recent_conversation"] == [{"question": "What is my heart rate?", "answer": first["answer"]}]
+    # The very first question in a conversation has nothing prior to attach.
+    first_payload = json.loads(json.loads(client.provider_calls[-2].content)["messages"][1]["content"])
+    assert "recent_conversation" not in first_payload
+
+
 def test_energy_estimate_is_missing_without_signals_and_grounded_when_available(client):
     uid = register(client)
     assert client.get("/api/state").json()["energy_reserve_pct"] is None

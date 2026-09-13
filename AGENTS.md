@@ -128,6 +128,37 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — `deep-aware` branch: the voice agent is now data-aware by default,
+  not just on training-flavored questions. `Runtime.turn_context(user)`
+  (`core/runtime.py`) computes plan, outlook, forecast trajectory and the
+  best-training-window decision once and caches it per account for 45s
+  (`turn_context_cache`); `/api/twin/ask`, `/api/training-window`, and
+  `/api/simulate/day` all read from it instead of each separately recomputing
+  the same things, and it's invalidated on account deletion (`Runtime.forget`).
+  This removes the `TRAINING_QUESTION` regex gate that used to hide the
+  training-window decision from any question that didn't mention a workout --
+  `narration_context()` now always receives it, so "how am I looking today"
+  can mention the best window exactly like "when should I train" can.
+  Conversational continuity: `core/api.py`'s `_recent_turns()` pulls the last
+  3 completed exchanges and `narrate()` sends them as a separate
+  `recent_conversation` field, never as `context` -- `guard()` still only
+  resolves evidence against `context`, so a prior turn can inform "why that
+  time?" but can never itself become a grounding source; the system prompt
+  states plainly that fresh context overrides anything said earlier. Persona
+  rewritten in `narration/service.py`'s `SYSTEM_PROMPT` toward a friend who
+  coaches, not an analyst who reports: shorter answers, numbers only when
+  they help, no metric dumps.
+  NOT changed: true mid-generation token streaming from Gemini into ElevenLabs.
+  The response is validated against `guard()` (every number must trace back to
+  a supplied fact) before it may be spoken; that check needs the complete
+  answer, and partial JSON under the strict-schema response format isn't
+  independently parseable anyway. Real observed cost per turn is dominated by
+  Gemini's own non-streaming round trip (~9-15s warm in this environment, once
+  turn_context is no longer adding its own sequential calendar/forecast/plan
+  fetches on top) -- caching removed real, measured overhead from the turn,
+  but did not touch the single largest cost, which is the trade-off for
+  keeping every spoken number provably grounded.
+
 - 2026-09-13 — During the `origin/dev` merge, retained the incoming training
   window, scenario simulation, coach UI and dynamic forecast horizon while
   preserving progressive metric loading, fixed Day/Week/28-day chart domains,

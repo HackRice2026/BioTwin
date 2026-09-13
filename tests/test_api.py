@@ -112,6 +112,52 @@ def test_narration_does_not_trust_client_numbers_or_make_diagnoses(client):
     assert "cannot assess" in result["answer"]
 
 
+def test_ask_always_carries_the_training_window_even_off_topic(client):
+    """The agent should already know the best training window on any question, not
+    just ones that mention "workout" -- that's the whole point of turn_context."""
+    uid = register(client)
+    now = utcnow()
+    for m in range(0, 120, 5):
+        client.post(
+            "/api/ingest/file",
+            files={
+                "file": (
+                    "g.json",
+                    json.dumps(
+                        [
+                            {
+                                "event_time": (now - timedelta(minutes=m)).isoformat(),
+                                "body_battery_pct": 60 - m // 20,
+                                "heart_rate_bpm": 70,
+                            }
+                        ]
+                    ),
+                    "application/json",
+                )
+            },
+        )
+    result = client.post("/api/twin/ask", json={"question": "How did I sleep?"}).json()
+    stored = client.app.state.runtime.store.conversation(uid, result["id"])
+    facts = " ".join(stored["context"]["facts"])
+    assert "training window" in facts.lower()
+
+
+def test_turn_context_is_cached_and_invalidated_on_delete(client):
+    import asyncio
+
+    uid = register(client)
+    rt = client.app.state.runtime
+    u = rt.store.user(uid)
+    first = asyncio.run(rt.turn_context(u))
+    assert rt.turn_context_cache.get(uid) is not None
+    second = asyncio.run(rt.turn_context(u))
+    assert second is first  # cache hit returns the same object, not a recomputation
+    forced = asyncio.run(rt.turn_context(u, force=True))
+    assert forced is not first
+    rt.invalidate_turn_context(uid)
+    assert uid not in rt.turn_context_cache
+
+
 def test_delete_cascades_private_data_and_sessions(client):
     uid = register(client)
     client.post("/api/ingest/bluetooth", json={"heart_rate_bpm": 70})

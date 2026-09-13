@@ -22,6 +22,10 @@ from ingestion.webhooks import GoogleSignatureVerifier
 from modeling.engine import baseline, readiness, reconcile, drivers
 from modeling.recovery import issue_prediction, score_prediction
 from modeling.planning import make_plan
+from modeling.outlook import daily_outlook
+from modeling.forecast import trajectory
+from modeling.training_window import best_training_window
+from core.agenda import AgendaService
 
 log = logging.getLogger("biotwin")
 
@@ -58,6 +62,15 @@ class Runtime:
         self.wakeup = asyncio.Event()
         self.errors = {}
         self.ingest_lock = asyncio.Lock()
+        # The voice agent's per-turn context (plan/outlook/forecast/training-window
+        # decision) so a conversation turn is never the first thing to compute any of
+        # it -- the dashboard's own polling (plan, forecast, training-window) already
+        # warms this before anyone opens the mic. A short TTL stands in for true
+        # event-driven invalidation: exact freshness on every watch sync would mean
+        # re-scoring the whole day and re-hitting Google Calendar on every live-stream
+        # tick, which is real cost for no perceptible benefit between watch syncs.
+        self.turn_context_cache = {}
+        self.turn_context_ttl = 45.0
 
     def rr_rmssd(self, uid, intervals, window=40):
         """RMSSD over a rolling window of measured beat-to-beat intervals.
@@ -113,6 +126,7 @@ class Runtime:
             self.readiness_inputs,
             self.states,
             self.buffers,
+            self.turn_context_cache,
         ]:
             cache.pop(uid, None)
 
@@ -372,6 +386,48 @@ class Runtime:
         plan = make_plan(utcnow(), state.readiness, busy, user["profile"], status)
         self.store.put(user["id"], "plan", plan.model_dump(mode="json"))
         return plan
+
+    async def turn_context(self, user, force=False):
+        """Everything the voice agent needs about *this* account, computed once and
+        reused: today's plan, the energy outlook, the fitted Body Battery forecast, and
+        the best-training-window decision (readiness + forecast + calendar + workout
+        duration). Recomputing this per conversation turn was the actual source of
+        per-turn latency, not the Gemini call itself -- the decision alone chains a
+        calendar free/busy fetch and an agenda fetch. A voice turn should only ever
+        pay for the one thing it doesn't already have cached."""
+        uid = user["id"]
+        cached = self.turn_context_cache.get(uid)
+        if not force and cached and cached[0] > time.monotonic():
+            return cached[1]
+        current = self.states.get(uid) or self.compute(uid)
+        tz = user["profile"].get("timezone", "UTC")
+        plan = await self.get_plan(user, force)
+        outlook = daily_outlook(current, user["profile"], utcnow())
+        energy_trajectory = trajectory(self.history(uid), utcnow(), tz)
+        try:
+            busy, status = await self.calendar.availability(user)
+        except (ValueError, httpx.HTTPError):
+            busy, status = [], "unavailable"
+        events = None
+        if status == "connected":
+            today = utcnow().astimezone(ZoneInfo(tz)).date()
+            try:
+                events = (await AgendaService(self.calendar).list(user, today, today + timedelta(days=1)))["events"]
+            except (ValueError, httpx.HTTPError):
+                events = None
+        decision = best_training_window(current, energy_trajectory, busy, user["profile"], utcnow(), status, events=events)
+        payload = {
+            "state": current,
+            "plan": plan,
+            "outlook": outlook,
+            "trajectory": energy_trajectory,
+            "decision": decision,
+        }
+        self.turn_context_cache[uid] = (time.monotonic() + self.turn_context_ttl, payload)
+        return payload
+
+    def invalidate_turn_context(self, uid):
+        self.turn_context_cache.pop(uid, None)
 
     async def sync(self, uid, provider, since=None):
         count = 0
