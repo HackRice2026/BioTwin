@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     use_gemini_live: bool = False
     gemini_live_model: str = "gemini-3.1-flash-live-preview"
-    gemini_live_voice: str = "Aoede"
+    # Male voices this model accepts, all verified against the live API:
+    # Charon (informative), Orus (firm), Puck (upbeat), Fenrir (excitable).
+    gemini_live_voice: str = "Charon"
     # How long a browser may hold a minted session token before it must ask again.
     gemini_live_token_minutes: int = 10
     # Opt-in alternate narration path: Vertex AI instead of the AI Studio key
