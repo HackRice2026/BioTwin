@@ -128,6 +128,13 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — The Overview card presents the computed 0–100 energy reserve
+  as **Current Body Battery**. Its percentage belongs in a filled, labelled
+  battery meter beside the title so the value remains visible as part of the
+  card identity; do not render a second detached score below the heading.
+  The subtitle identifies it as a BioTwin estimate, preserving the product
+  distinction from any Garmin-reported value.
+
 - 2026-09-13 — Voice input is deliberately push-to-talk: tapping Start begins
   a single capture, tapping Stop submits it, and neither a wake-word listener
   nor post-answer auto-listening may restart capture. Browser speech recognition

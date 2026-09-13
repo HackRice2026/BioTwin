@@ -1085,25 +1085,62 @@ button.primary:hover:not(:disabled) {
 }
 .current-battery-summary {
   align-items: center;
-  gap: 16px;
   padding: 8px 0 14px;
 }
-/* Deliberately not battery-shaped: this is the readiness score, not Body
-   Battery, and the two must never look interchangeable. */
-.readiness-score {
+.current-battery-title {
   align-items: center;
-  background: #8cdfb014;
-  border: 1px solid #8cdfb02a;
-  border-radius: 16px;
-  color: #8cdfb0;
+  display: inline-flex;
+  gap: 11px;
+}
+.current-battery-meter {
+  color: var(--green);
+  display: inline-grid;
+  flex: 0 0 82px;
+  height: 38px;
+  place-items: center;
+  position: relative;
+  width: 82px;
+}
+.current-battery-meter-fill {
+  background: #0a1712;
+  border-radius: 5px;
+  height: 21px;
+  left: 6px;
+  overflow: hidden;
+  position: absolute;
+  top: 8px;
+  width: 64px;
+}
+.current-battery-meter-fill i {
+  background: linear-gradient(90deg, #5dcf8f, #9af1bc);
+  border-radius: inherit;
+  box-shadow: 0 0 12px #8ce5b06e;
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+.current-battery-meter > svg {
+  filter: drop-shadow(0 0 5px #8ce5b03d);
+  height: 38px;
+  position: relative;
+  stroke-width: 2.3;
+  width: 82px;
+}
+.current-battery-meter > b {
+  align-items: center;
+  color: #f5fff8;
   display: flex;
-  flex: 0 0 72px;
   font-family: Manrope, sans-serif;
-  font-size: 19px;
-  font-weight: 600;
-  height: 56px;
+  font-size: 13px;
+  font-weight: 800;
+  inset: 0 10px 0 0;
+  letter-spacing: -0.45px;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 1px 6px #08110ddd;
   justify-content: center;
-  letter-spacing: -0.5px;
 }
 .current-battery-summary h3 {
   font-size: 16px;
