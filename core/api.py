@@ -185,6 +185,51 @@ class BroadcastSample(BaseModel):
     contact: bool | None = None
 
 
+async def _live_tool(u, args):
+    """Prepare a calendar event the person still has to confirm.
+
+    Returns what the voice may say back, and never books: confirm() is a separate
+    call the person makes on screen. A bad time or length comes back as a reason
+    the model can read aloud rather than an exception nobody hears.
+    """
+    title = str(args.get("title") or "").strip()[:120]
+    start = str(args.get("start") or "").strip()
+    try:
+        minutes = int(args.get("duration_minutes") or 0)
+    except (TypeError, ValueError):
+        minutes = 0
+    if not title or not start:
+        return {"ok": False, "reason": "I need a title and a start time before I can prepare it."}
+    if not 10 <= minutes <= 180:
+        return {"ok": False, "reason": "Give me a length between ten minutes and three hours."}
+    # EventDraft is start/end, not start/duration: the voice speaks in lengths, so
+    # the end is computed here rather than asked for.
+    try:
+        begins = datetime.fromisoformat(start)
+    except ValueError:
+        return {"ok": False, "reason": "I could not read that start time."}
+    try:
+        draft = await AgendaService(rt().calendar).draft(
+            u,
+            {
+                "title": title,
+                "start": begins.isoformat(),
+                "end": (begins + timedelta(minutes=minutes)).isoformat(),
+                "reminder_minutes": 10,
+            },
+        )
+    except Exception as exc:
+        return {"ok": False, "reason": str(exc)[:180]}
+    return {
+        "ok": True,
+        "draft_id": draft.get("id"),
+        "title": title,
+        "start": draft.get("start", start),
+        "duration_minutes": minutes,
+        "status": "prepared, awaiting the person's confirmation on screen",
+    }
+
+
 def create_app(config=None):
     config = config or Settings()
 
@@ -1232,9 +1277,34 @@ def create_app(config=None):
 
                 async def to_browser():
                     async for frame in upstream:
-                        await ws.send_text(
-                            frame if isinstance(frame, str) else frame.decode()
-                        )
+                        text = frame if isinstance(frame, str) else frame.decode()
+                        calls = (json.loads(text).get("toolCall") or {}).get(
+                            "functionCalls"
+                        ) or []
+                        if calls:
+                            # The model cannot write to the calendar; it can only ask
+                            # this server to prepare something the person confirms.
+                            # Executed here, never in the browser, so the arguments
+                            # are validated by the same draft path the typed flow uses.
+                            responses = []
+                            for call in calls:
+                                result = await _live_tool(u, call.get("args") or {})
+                                responses.append(
+                                    {
+                                        "id": call.get("id"),
+                                        "name": call.get("name"),
+                                        "response": result,
+                                    }
+                                )
+                                # Tell the page as well, so a draft can be confirmed
+                                # without hunting for it.
+                                if result.get("draft_id"):
+                                    await ws.send_json({"draft": result})
+                            await upstream.send(
+                                json.dumps({"toolResponse": {"functionResponses": responses}})
+                            )
+                            continue
+                        await ws.send_text(text)
 
                 # Whichever side hangs up ends the call; the other task is cancelled
                 # rather than left waiting on a socket nobody is reading.

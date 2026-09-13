@@ -136,3 +136,28 @@ def test_both_sides_of_the_conversation_are_transcribed():
     spoken = live_config(Config(), "x")
     assert spoken["outputAudioTranscription"] == {}
     assert spoken["inputAudioTranscription"] == {}
+
+
+def test_the_voice_can_prepare_an_event_but_never_book_one():
+    """Booking by voice goes through the same draft the typed flow uses, so a
+    misheard time is a discarded draft rather than a meeting in the calendar."""
+    tools = live_config(Config(), "x")["tools"][0]["functionDeclarations"]
+    assert [f["name"] for f in tools] == ["draft_calendar_event"]
+    declared = tools[0]
+    assert "Does not book anything" in declared["description"]
+    params = declared["parameters"]["properties"]
+    # The voice speaks in lengths; the server turns that into an end time.
+    assert set(declared["parameters"]["required"]) == {"title", "start", "duration_minutes"}
+    assert params["duration_minutes"]["type"] == "integer"
+
+    flat = " ".join(RULES_TEXT().split())
+    assert "never say it is booked, added or done" in flat
+    # Verified against the live model: with the calendar unavailable it said "I ran
+    # into a problem trying to set that up" instead of claiming success.
+    assert "If it comes back not ok, read the reason it gives" in flat
+
+
+def RULES_TEXT():
+    from narration.gemini_live import RULES
+
+    return RULES

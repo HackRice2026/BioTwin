@@ -22,7 +22,7 @@ import {
 import Connections, { AuthModal } from "./Connections";
 import { api, post, value, type DayScenario } from "./api";
 import { SimulateDayChart, TrajectoryChart } from "./Charts";
-import { GeminiLive, type LiveState } from "./geminiLive";
+import { GeminiLive, type LiveDraft, type LiveState } from "./geminiLive";
 import { useDashboard } from "./useDashboard";
 import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
 import type { CalendarDraft } from "./useCalendar";
@@ -129,6 +129,7 @@ export default function BioTwinApp() {
   // existing microphone button does.
   const [liveState, setLiveState] = useState<LiveState>("idle");
   const [liveNotice, setLiveNotice] = useState("");
+  const [liveDraft, setLiveDraft] = useState<LiveDraft | null>(null);
   // One line per turn: fragments append to the last line of the same speaker, so
   // the panel reads as a conversation rather than a wall of partial words.
   const [liveLines, setLiveLines] = useState<{ who: "twin" | "you"; text: string }[]>([]);
@@ -152,6 +153,7 @@ export default function BioTwinApp() {
       onTurnEnd: () => {
         turnOpen.current = false;
       },
+      onDraft: setLiveDraft,
     });
   }
   const [scenarioId, setScenarioId] =
@@ -478,6 +480,39 @@ export default function BioTwinApp() {
           {answer || "Ask a question to explore this with your twin."}
         </p>
       )}
+      {liveDraft && (
+        <div className="live-draft">
+          <p>
+            <b>{liveDraft.title}</b>
+            {new Date(liveDraft.start).toLocaleString(undefined, {
+              weekday: "short",
+              hour: "numeric",
+              minute: "2-digit",
+            })}{" "}
+            · {liveDraft.duration_minutes} min
+          </p>
+          <div>
+            <button
+              className="primary"
+              onClick={async () => {
+                try {
+                  await post(`/api/calendar/drafts/${liveDraft.draft_id}/confirm`);
+                  data.notify("Added to your calendar.");
+                  setLiveDraft(null);
+                  void data.calendar.refresh();
+                } catch (e) {
+                  data.notify((e as Error).message);
+                }
+              }}
+            >
+              Add to calendar
+            </button>
+            <button className="text-button" onClick={() => setLiveDraft(null)}>
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
       {recentReply?.reply?.notice && (
         <p className="fine-print">{recentReply.reply.notice}</p>
       )}
@@ -697,15 +732,20 @@ export default function BioTwinApp() {
               >
                 <button
                   type="button"
-                  className={`microphone ${listening ? "listening" : ""}`}
-                  disabled={asking}
+                  className={`microphone ${liveState !== "idle" ? "listening" : ""}`}
                   aria-label={
-                    listening ? "Stop voice input and answer" : "Start voice input"
+                    liveState === "idle"
+                      ? "Start a live conversation"
+                      : "End the live conversation"
                   }
-                  aria-pressed={listening}
-                  onClick={conversation.microphone}
+                  aria-pressed={liveState !== "idle"}
+                  onClick={() =>
+                    liveState === "idle"
+                      ? void live.current?.start()
+                      : live.current?.stop()
+                  }
                 >
-                  <Mic size={20} />
+                  <AudioLines size={20} />
                 </button>
                 <input
                   ref={input}

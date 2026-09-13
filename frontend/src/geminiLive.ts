@@ -29,8 +29,17 @@ function relayUrl() {
 
 export type LiveState = "idle" | "connecting" | "listening" | "speaking" | "error";
 
+export type LiveDraft = {
+  draft_id: string;
+  title: string;
+  start: string;
+  duration_minutes: number;
+};
+
 type Handlers = {
   onState: (state: LiveState, detail?: string) => void;
+  /** The voice prepared an event. It is not booked until the person confirms. */
+  onDraft?: (draft: LiveDraft) => void;
   /**
    * Transcript of what was said, as it is said. `who` separates the two sides so
    * the caller can show them differently; text arrives in fragments and should be
@@ -160,6 +169,10 @@ export class GeminiLive {
     if (message.ready) {
       this.session = message.ready as Session;
       void this.openMicrophone(this.session);
+      return;
+    }
+    if (message.draft) {
+      this.handlers.onDraft?.(message.draft as LiveDraft);
       return;
     }
     if (message.setupComplete) return;

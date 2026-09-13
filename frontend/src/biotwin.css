@@ -4406,3 +4406,29 @@ button.primary:hover:not(:disabled) {
   color: #6f8a7b;
   margin-bottom: 2px;
 }
+/* A voice-prepared event, shown where it was asked for. Nothing reaches the
+   calendar until this is confirmed, so the buttons are the point of the block. */
+.live-draft {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e0b46855;
+  border-radius: 10px;
+  background: #33270f40;
+  display: grid;
+  gap: 10px;
+}
+.live-draft p {
+  margin: 0;
+  font-size: 13px;
+  color: #e8d6b4;
+}
+.live-draft b {
+  display: block;
+  font-size: 14px;
+  color: #f2e6cf;
+}
+.live-draft div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
