@@ -441,7 +441,15 @@ export default function BioTwinApp() {
       <div className="answer-label">
         <AudioLines size={17} />
         <b>Your twin</b>
-        <span>{phase}</span>
+        <span>
+          {liveState === "listening"
+            ? "Listening"
+            : liveState === "speaking"
+              ? "Speaking"
+              : liveState === "connecting"
+                ? "Connecting"
+                : phase}
+        </span>
       </div>
       {asking ? (
         <p className="answer-loading">
@@ -454,6 +462,17 @@ export default function BioTwinApp() {
           time={conversation.audioTime}
           answer={conversation.activeAnswer}
         />
+      ) : liveLines.length > 0 ? (
+        // The live voice writes here too, rather than in a panel of its own: this
+        // is where an answer from this twin has always appeared.
+        <div className="live-lines">
+          {liveLines.map((line, i) => (
+            <p key={i} className={line.who === "twin" ? "answer-text" : "live-you"}>
+              {line.who === "you" && <b>You</b>}
+              {line.text}
+            </p>
+          ))}
+        </div>
       ) : (
         <p className="answer-text">
           {answer || "Ask a question to explore this with your twin."}
@@ -667,16 +686,6 @@ export default function BioTwinApp() {
                     </span>
                   </div>
                 </div>
-                {liveLines.length > 0 && (
-                  <div className="live-transcript" aria-live="polite">
-                    {liveLines.map((line, i) => (
-                      <p key={i} className={line.who}>
-                        <b>{line.who === "twin" ? "Twin" : "You"}</b>
-                        {line.text}
-                      </p>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
             <div className="hero-composer">
@@ -784,7 +793,14 @@ export default function BioTwinApp() {
             </section>
           ) : (
             <>
-              {(asking || answer || conversation.voiceNotice) && (
+              {/* A live conversation has to open this panel too, or the transcript
+                  has nowhere to appear: none of the typed-path conditions are
+                  true while the voice is talking. */}
+              {(asking ||
+                answer ||
+                conversation.voiceNotice ||
+                liveState !== "idle" ||
+                liveLines.length > 0) && (
                 <div className="inline-answer glass">
                   {replyPanel}
                   <button

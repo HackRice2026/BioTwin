@@ -84,6 +84,9 @@ export class GeminiLive {
     const socket = new WebSocket(relayUrl());
     socket.binaryType = "arraybuffer";
     this.socket = socket;
+    // Exposed so a browser test can send a text turn down the page's own socket;
+    // the voice path itself needs a microphone a headless run does not have.
+    (window as unknown as Record<string, unknown>).__biotwinLiveSocket = socket;
 
     socket.onmessage = (event) => void this.receive(event);
     socket.onerror = () => {
