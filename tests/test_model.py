@@ -220,3 +220,34 @@ def test_confidence_is_measured_against_reportable_signals():
         f"confidence {state.confidence} still limited by an unreported signal"
     )
     assert "not reported by this device" in (state.degraded_reason or "")
+
+
+def test_an_evening_plan_explains_itself_instead_of_looking_disconnected():
+    """A connected calendar with no legal windows left is the normal late-evening
+    outcome. It used to return the same generic explanation as a successful plan,
+    and the UI answered an empty proposal list with "Connect your calendar" --
+    telling someone to connect what they had already connected."""
+    from datetime import datetime, timezone as tzmod
+    from modeling.planning import make_plan
+    from shared.schemas import BusyInterval, EnergyState, Readiness
+
+    profile = {"timezone": "America/Chicago", "bedtime": "23:00", "workout_minutes": 30}
+    late = datetime(2026, 9, 13, 2, 30, tzinfo=tzmod.utc)   # 21:30 in Chicago
+    ready = Readiness(
+        user_id="u", computed_at=late, score=70.0, state=EnergyState.BALANCED,
+        confidence=0.8, contributions={}, sleep_debt_minutes=0,
+    )
+    busy = [BusyInterval(
+        start=datetime(2026, 9, 13, 3, 0, tzinfo=tzmod.utc),
+        end=datetime(2026, 9, 13, 4, 0, tzinfo=tzmod.utc),
+    )]
+    plan = make_plan(late, ready, busy, profile, "connected")
+    assert plan.proposals == []
+    assert plan.calendar_status == "connected"
+    assert "No windows left today" in plan.explanation
+    assert "20:00" in plan.explanation and "23:00" in plan.explanation
+    assert "connect" not in plan.explanation.lower()
+
+    # Midday, the same inputs still produce real options.
+    midday = datetime(2026, 9, 12, 15, 0, tzinfo=tzmod.utc)   # 10:00 in Chicago
+    assert make_plan(midday, ready, busy, profile, "connected").proposals

@@ -96,11 +96,31 @@ def make_plan(now, ready, busy, profile, status="unavailable"):
         ):
             continue
         selected.append(candidate)
+    if selected:
+        explanation = (
+            "Estimated options fitted around your availability. Benefits and timing "
+            "preferences use documented engineering assumptions."
+        )
+    else:
+        # An empty plan with a working calendar is the normal evening outcome, not
+        # a failure: a workout has to end three hours before bedtime and a nap six,
+        # so the day runs out of legal windows well before bedtime does. Saying so
+        # matters, because the alternative was an empty card inviting the reader to
+        # connect a calendar they had already connected.
+        latest = (bedtime - timedelta(hours=3)).strftime("%H:%M")
+        explanation = (
+            f"No windows left today: a session has to end by {latest} to stay three "
+            f"hours clear of your {bedtime.strftime('%H:%M')} bedtime"
+        )
+        explanation += (
+            f", and {len(busy)} busy window(s) cover part of the day." if busy else "."
+        )
+        explanation += " Tomorrow's options appear after midnight."
     return DailyPlan(
         date=str(local.date()),
         timezone=str(tz),
         calendar_status=status,
         proposals=sorted(selected, key=lambda p: p.start),
         busy=busy,
-        explanation="Estimated options fitted around your availability. Benefits and timing preferences use documented engineering assumptions.",
+        explanation=explanation,
     )

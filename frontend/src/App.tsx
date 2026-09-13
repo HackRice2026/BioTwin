@@ -564,12 +564,27 @@ export default function App() {
         <div className="plan-empty">
           <CalendarDays size={25} />
           <p>{plan?.explanation ?? "Building your plan…"}</p>
-          <button
-            className="text-button"
-            onClick={() => navigate("Connections")}
-          >
-            Connect your calendar <ArrowRight size={14} />
-          </button>
+          {/* Only offer the connect action when a calendar is actually missing.
+              An empty plan on a connected calendar is the normal late-evening
+              outcome, and inviting the reader to connect what they already
+              connected reads as a broken integration. */}
+          {plan && plan.calendar_status === "unavailable" ? (
+            <button
+              className="text-button"
+              onClick={() => navigate("Connections")}
+            >
+              Connect your calendar <ArrowRight size={14} />
+            </button>
+          ) : (
+            plan && (
+              <button
+                className="text-button"
+                onClick={() => navigate("Connections")}
+              >
+                Manage calendar &amp; preferences <ArrowRight size={14} />
+              </button>
+            )
+          )}
         </div>
       )}
       <div className="plan-foot">
