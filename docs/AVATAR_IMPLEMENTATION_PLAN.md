@@ -100,15 +100,208 @@ under 30ms -- comfortably real-time on the H100) and that the returned
 mouth-shape sequence changed with the audio content rather than cycling
 blindly.
 
+### Body gestures: EMAGE, a second GPU service, a second WebSocket
+
+Added 2026-09-12/13: the avatar previously only ever gestured via two
+narrow, hand-authored keyword triggers ("show me the squat", "I'm
+exhausted") -- during ordinary conversation it just stood in the idle
+pose with a small speaking-sway on the arms. Real full-body co-speech
+gesture generation is now wired in, running in parallel with the face
+service, not instead of it.
+
+**Model**: [PantoMatrix/PantoMatrix](https://github.com/PantoMatrix/PantoMatrix)'s
+EMAGE (CVPR 2024) -- audio in, full SMPL-X body pose (55 joints,
+axis-angle) + FLAME facial expression (100-dim) + global translation
+out. Weights (`H-Liu1997/emage_audio` on HuggingFace) are Apache-2.0.
+**The GitHub repo's code (model architecture/inference scripts) has no
+stated license at all** -- default all-rights-reserved. Used anyway,
+knowingly, per explicit user decision (asked directly, this is common
+practice for research code and accepted as low-enforcement-risk for
+this context) -- flag this again before this project goes anywhere
+more formal than a hackathon demo.
+
+**Only body pose is used here, not the facial expression output** --
+face/lip-sync stays on the ASR-driven service; EMAGE's FLAME expression
+output was not wired up (would need its own FLAME-to-ARKit retargeting,
+not attempted).
+
+**Environment**: separate venv, `/data/saurav/envs/emage` (Python
+3.12, torch 2.6+cu124, `transformers==4.46.3` pinned exactly -- EMAGE's
+`PreTrainedModel` subclass breaks on newer transformers internals,
+`AttributeError` on `all_tied_weights_keys`). The actual model/inference
+code is imported from a plain `git clone` of PantoMatrix at
+`/data/saurav/emage` (not a pip package) -- `PYTHONPATH` must include
+that directory. The service's own code (`services/avatar_body_service/`)
+only imports `models.emage_audio` and `smplx.joint_names` from that
+clone, deliberately avoiding `emage_utils.fast_render` (pulls in
+`pyrender`, needed only for their own preview-video rendering, not for
+getting motion out).
+
+**Retargeting -- the genuinely risky part, verified empirically, not
+assumed**: EMAGE outputs standard SMPL-X joint order (`smplx.joint_names
+.JOINT_NAMES`), axis-angle rotations relative to SMPL-X's own rest
+pose. This rig's bones (Mixamo-style, e.g. `LeftArm`, `LeftForeArm`) are
+a different skeleton entirely. Built a throwaway Playwright+Three.js
+test harness (loaded `model.glb`, applied one real EMAGE frame's
+rotations to the mapped bones, screenshotted, iterated -- deleted once
+done, not part of the shipped code) and found: **negating the entire
+axis-angle vector before converting to a quaternion** (`[-x,-y,-z]`,
+not per-axis special cases) turns a broken/hunched pose into a natural,
+plausible gesture -- confirmed on two independent frames from different
+points in the same clip. The exact bone map is
+`SMPLX_TO_BONE` in `services/avatar_body_service/app.py` -- currently
+spine/neck/head/collar/shoulder/elbow/wrist/hip/knee/ankle only, no
+fingers or jaw/eyes (EMAGE outputs those too; just not mapped yet).
+
+**Streaming**: EMAGE's public API is batch (whole audio file in, whole
+motion sequence out), not causal/streaming. Same sliding-window
+technique as the ASR lip-sync service: a per-connection `ffmpeg`
+subprocess decodes the client's raw MP3 chunks to 16kHz PCM, buffered;
+every ~1s of new audio, re-run EMAGE on the last ~5s (for context),
+keep only the newest frames. Inference itself is fast (a full 28.68s
+clip processed in ~1s single-shot in isolation testing; live windows
+run 75-760ms, first call slower/cold) -- comfortably real time on the
+H100.
+
+**A real bug, found and fixed via an actual failing end-to-end test,
+not assumed away**: the first working version emitted frames only
+inside the same loop that received WebSocket messages, timed off
+`len(chunk)` the same way the face service does. That works for the
+face service because ElevenLabs audio arrives in many chunks; it does
+NOT work here because the browser's `fetch` stream can deliver the same
+audio as a handful of large bursts -- frames piled up in the queue
+(correctly capped at ~2s, so no unbounded growth) but were never
+actually drained, because there weren't enough incoming-message events
+left to pop them. Confirmed via the service's own logs: queue depth
+sat pinned at the cap across several successful inference cycles.
+Fixed by making emission a fully independent task on its own timer
+(`_emit_loop`, one `websocket.send_json` every `1/POSE_FPS`), decoupled
+from however the input actually arrives -- receiving audio and emitting
+motion are now unrelated concerns, each its own `asyncio` task.
+
+**Frontend wiring**: a second WebSocket (`/ws/body`, port 8766) is
+opened alongside the existing face one, fed the exact same audio bytes
+(`listenAvatarAudio`, one call now forwards to both sockets). In
+`Avatar.tsx`'s `useFrame` loop, body-gesture data is applied only while
+`speaking && action === "idle"` -- so a deliberate procedural state
+(squat/point/celebrate/walk) is never fought with real gesture data --
+and only for the bones EMAGE actually sent, replacing (not adding to)
+what the procedural `damp()` pass computed for those specific bones
+that frame, via `node.quaternion.slerp(basePose * emageDelta, ...)`.
+When the body frame goes stale (speech ends, or the service falls
+behind/disconnects), those bones simply stop being touched here --
+`damp()` above already runs for them unconditionally every frame, so
+they smoothly damp back to the plain procedural pose on their own, no
+separate transition-out code needed.
+
+**Verified end-to-end, twice**: (1) `test_lipsync.py`-style raw
+WebSocket streaming test against the live production service -- real
+audio in, 82 real `body_frame` messages out, sane symmetric bone
+rotations (e.g. `LeftArm`/`RightArm` roughly mirrored magnitude,
+opposite sign). (2) A real, authenticated, in-browser conversation
+(logged in as the `sapnil` seeded account) -- screenshotted mid-"Speaking..."
+and the avatar's arms are genuinely raised and gesturing outward,
+nothing like the flat idle pose. Service logs during that same run show
+real inference completing (`inference ok: N new samples -> M body
+frames in T ms`).
+
+Persisted the same way as the face service: tmux session `avatar-body`
+on the SCC box, `services/avatar_body_service/start.sh` (uses the
+`emage` venv, sets `PYTHONPATH` to the cloned EMAGE repo), port 8766,
+tunneled locally the same way as 8765
+(`ssh -N -L 8766:localhost:8766 scc`).
+
+### Real NVIDIA Audio2Face-3D: built and verified running, but not integrated -- here's exactly why
+
+Added 2026-09-13. Short version: **the actual official SDK genuinely
+builds and runs real inference on this H100** -- verified, not
+assumed. It is **not wired into the app**, and the reason isn't
+another dependency fight: it's a real architectural mismatch between
+what this SDK produces and what our avatar needs, discovered by
+actually inspecting the model's own metadata, not assumed from the
+name.
+
+**What was built and run, for real:**
+- Cloned `NVIDIA/Audio2Face-3D-SDK` (MIT) to `/data/saurav/audio2face-sdk`.
+- Installed real prerequisites the box didn't have: `git-lfs`, `cmake`,
+  `ninja-build`; CUDA Toolkit 12.9 and TensorRT 10.13.3.9 (matching the
+  SDK's own version constraints) via NVIDIA's official apt repo
+  (`developer.download.nvidia.com` -- no NGC/gated login needed for
+  any of this, a genuinely different distribution channel than the
+  NIM/microservice path). One real, trivial build error along the way:
+  the SDK's `CMakeLists.txt` requires zlib >=1.3.1, Ubuntu 24.04 ships
+  1.3 -- relaxed the version check by one line rather than building
+  zlib from source, since the two are compatible in practice.
+- Downloaded the actual (non-gated) model weights from HuggingFace:
+  `nvidia/Audio2Face-3D-v3.0` (diffusion), plus the legacy
+  regression models `v2.3.1-Claire`, `v2.3.1-James`, `v2.3-Mark`.
+  Deliberately skipped `Audio2Emotion` -- that specific model IS
+  gated (license click-through + HF token), and isn't needed for face
+  animation itself.
+- `./build.sh all release` -- succeeded, 147/147 targets, real CUDA/C++
+  compilation against our actual driver/GPU.
+- Converted the downloaded ONNX weights to real TensorRT engines via
+  the SDK's own `gen_test_data.py`/`gen_sample_data.py` scripts (needed
+  `trtexec`, which turned out to live at `/usr/src/tensorrt/bin/`, not
+  on `PATH` by default after the apt install -- and `pydub`, a plain
+  missing pip package). Real trtexec engine builds and benchmarks
+  completed for both the regression and diffusion models (sub-millisecond
+  and ~10ms GPU compute time respectively, on this H100).
+- Ran the actual compiled sample (`sample-a2f-executor`) against the
+  SDK's own real 4-second test audio clip -- both the regression
+  ("mark") and diffusion (v3.0) bundles produced real animation frames
+  across multiple simulated tracks, no errors, no fallback, no
+  synthetic data.
+
+**Why this isn't wired into the app -- checked, not guessed:**
+inspected the actual model metadata (`network_info.json` for the
+"mark" regression model, and the `v3.0` model's own HuggingFace README)
+before assuming anything about output format. Both are explicit:
+output is **facial motion on skin (272 shape coefficients over a
+61,520-vertex mesh specific to NVIDIA's own "mark"/"claire"/"james"
+reference characters), tongue, jaw, and eyes** -- not ARKit blendshape
+weights. Grepped the entire SDK source and docs for "arkit" and common
+ARKit shape names (`jawOpen`, `mouthFunnel`) -- zero real matches. The
+"Audio2Face-3D converts speech into ARKit Blendshapes" claim from
+NVIDIA's own docs describes the **gated NIM microservice**
+(`NVIDIA/Audio2Face-3D-Samples`, obtained through NGC), which does
+that conversion as part of its own server-side pipeline -- it is not a
+capability of this open SDK on its own.
+
+**What it would actually take to use this on our avatar:** the SDK's
+raw output would need to be retargeted from NVIDIA's own character
+mesh/shape-basis onto our completely different GLB mesh -- a real
+deformation-transfer / mesh-fitting problem (find the ARKit blendshape
+weights on our mesh that best reproduce NVIDIA's vertex deltas on
+theirs), not a data-format conversion. That's a bounded but genuinely
+separate research-engineering task, not a quick follow-up, and wasn't
+attempted. The alternative -- gated NGC access to the actual NIM
+microservice, which does emit ARKit blendshapes directly -- was
+already checked for and confirmed unavailable earlier in this project
+(see the Log entries around 2026-09-12/13).
+
+Nothing from this SDK is deployed as a running service; the build
+lives at `/data/saurav/audio2face-sdk` on the SCC box for reference,
+not wired to any port or tmux session. The face service in production
+today is still the ASR-based one described above.
+
 ## How to run what exists now
 
-On SCC, service should already be running:
+On SCC, both services should already be running:
 
 ```bash
 ssh scc
 sudo -iu saurav
-tmux ls
+tmux ls   # expect avatar-face AND avatar-body
 tmux attach -t avatar-face
+tmux attach -t avatar-body
+```
+
+Tunnel both from the Mac:
+
+```bash
+ssh -N -L 8765:localhost:8765 scc &
+ssh -N -L 8766:localhost:8766 scc &
 ```
 
 From the Mac, keep an SSH tunnel open:
@@ -165,7 +358,7 @@ Use:
    - step-back transition
    - point-to-plan gesture
    - return-to-conversation transition
-7. Add real retargeted skeletal animation clips if available; current body motions are procedural bone poses.
+7. ~~Add real retargeted skeletal animation clips if available; current body motions are procedural bone poses.~~ Done for the conversational-gesture case: EMAGE now drives real body-gesture motion while speaking (see "Body gestures" above). Still procedural-only: idle stance itself, walk/run/squat/point/celebrate (none of these ever call the model), and EMAGE's finger/jaw/eye joints and FLAME facial expression output (recognized in the 55-joint/100-dim output, not retargeted). Each window is also scored independently with no motion-seed continuity between windows (EMAGE's `inference()` supports a `masked_motion` seed for exactly this; not wired up) -- worth checking whether gestures look smooth across window boundaries during longer speech, or noticeably reset/jump.
 8. Add automated browser smoke that checks:
    - model loads
    - morph targets discovered

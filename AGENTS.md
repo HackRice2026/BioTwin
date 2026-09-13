@@ -420,6 +420,50 @@ This file is a living document. The agent MUST:
   not installed") -- a real unresolved library compatibility issue, not a
   missing-package problem; abandoned in favor of the plain-English model
   rather than sinking more time into it.
+- 2026-09-12/13 — Reported: idle-pose fix had an elbow-flare regression
+  ("hands tucked in, looks like a duck"), and separately, the avatar
+  barely moves during conversation (no hand gestures while talking,
+  legs never move/walk). Fixed the flare (see Remember). Root-caused
+  the movement complaint: only two keyword triggers exist anywhere in
+  the frontend that ever set `action` away from `"idle"` ("show me
+  squat", "I'm exhausted") -- walk/run/point/celebrate exist in
+  Avatar.tsx but nothing in real conversation ever calls them, and the
+  speaking-only arm sway is a small few-degree wobble. This led into
+  the real fix: real full-body gesture generation, added below.
+- 2026-09-13 — Added real full-body co-speech gesture generation
+  (EMAGE, `PantoMatrix/PantoMatrix`) as a second GPU service running
+  parallel to the face service, per direct user request after
+  confirming (WebSearch + reading the actual GitHub repo/HF model card,
+  not assumed) that EMAGE's weights are Apache-2.0 even though its code
+  repo has no license at all -- user explicitly chose to proceed anyway
+  after being told this plainly. Full technical writeup (model, venv,
+  the retargeting sign-convention finding, the streaming architecture,
+  a real bug found and fixed via an actual failing test, both
+  verification passes) is in `docs/AVATAR_IMPLEMENTATION_PLAN.md`'s
+  "Body gestures" section, not duplicated here. Headline result,
+  verified twice: a real authenticated conversation (logged in as
+  `sapnil`) shows the avatar's arms genuinely raised and gesturing
+  while "Speaking..." is shown, driven by real GPU inference logged in
+  real time -- not the old flat idle pose with a faint wobble.
+  Per explicit instruction from this point on: **do not merge
+  `3d-gesturing` into `dev`** until told the 3D work is ready -- commit
+  and push to the feature branch only.
+- 2026-09-13 — Also finished, per explicit request, the other half of
+  "real model, not heuristics": added finger retargeting (30 more
+  joints) and cross-window motion continuity to the EMAGE body service,
+  and separately, actually built and ran the real NVIDIA Audio2Face-3D
+  SDK end to end on the SCC H100 -- CUDA 12.9 + TensorRT 10.13 via
+  NVIDIA's normal apt repo (no NGC/gated access needed for the SDK or
+  its non-emotion models), full CMake build, real ONNX-to-TensorRT
+  engine conversion, real inference on real audio, both the regression
+  and diffusion model variants. This is NOT wired into the app: checked
+  the model's own metadata before assuming anything, and its output is
+  NVIDIA's own proprietary per-character shape/vertex basis (their
+  "mark"/"claire"/"james" meshes), not ARKit blendshapes -- the "outputs
+  ARKit Blendshapes" claim describes the separate, still-gated NIM
+  microservice, not this open SDK. Using this on our avatar would need
+  a real mesh-retargeting project, not a quick follow-up. Full detail
+  in docs/AVATAR_IMPLEMENTATION_PLAN.md's new Audio2Face-3D section.
 
 ---
 
@@ -660,6 +704,72 @@ This file is a living document. The agent MUST:
 - HuggingFace Hub (`huggingface.co`) is reachable from the SCC box with no
   proxy/auth needed -- confirmed both a plain `curl` 200 and real model
   downloads (`facebook/wav2vec2-base-960h`, ~360MB) working.
+- Body gestures (EMAGE, `services/avatar_body_service/`) run in their own
+  venv, `/data/saurav/envs/emage` (Python 3.12) -- NOT the same venv as
+  the face/lip-sync service (`avatar_face_lipsync`). EMAGE's model code
+  is imported from a plain `git clone` of `PantoMatrix/PantoMatrix` at
+  `/data/saurav/emage`, on `PYTHONPATH`, not a pip package. `transformers`
+  is pinned to exactly `4.46.3` -- newer versions break EMAGE's
+  `PreTrainedModel` subclass (`AttributeError:
+  'EmageVQVAEConv' object has no attribute 'all_tied_weights_keys'`).
+  tmux session `avatar-body`, port 8766, tunneled the same way as the
+  face service's 8765.
+- Retargeting SMPL-X (EMAGE's output skeleton) rotations onto this rig's
+  Mixamo-style bones: negate the ENTIRE axis-angle vector
+  (`[-x,-y,-z]`, not per-axis sign flips) before converting to a
+  quaternion. Found empirically with a throwaway Three.js test harness,
+  not derived analytically -- confirmed on two independent frames.
+  Don't re-derive this from scratch if it needs revisiting; start from
+  "try negating the whole vector first."
+- Async WebSocket services that both receive a client stream AND emit
+  their own independently-timed output (the body-gesture service is the
+  first one to do this) must NOT emit from inside the same loop that's
+  waiting on `websocket.receive()` -- input arrival rate and how fast
+  you actually want to emit are unrelated, and coupling them means a
+  client that sends few large bursts (confirmed: the browser's `fetch`
+  stream for TTS audio does exactly this) will fill an output queue
+  that never actually drains. Give input-receiving and output-emitting
+  each their own `asyncio` task; this cost real debugging time to find
+  (looked fine in a synthetic small-chunk test, broke against the real
+  browser's chunking) -- test against how the real client actually
+  sends data, not just a script mimicking it a different way.
+- NVIDIA's CUDA/TensorRT apt repo
+  (`developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64`,
+  added via the `cuda-keyring_1.1-1_all.deb` package) needs no NGC/dev-portal
+  login -- it's a genuinely open distribution channel, separate from
+  NGC container images and gated model downloads. `libnvinfer-dev` /
+  `cuda-toolkit-12-9` are both installable from it directly. Packages
+  from this repo cross-depend on EXACT matching versions across the
+  whole chain (e.g. `libnvinfer-dev` also needs `libnvinfer-headers-dev`,
+  `libnvinfer10` at the identical version) -- `apt-get install
+  pkg=X.Y.Z` for just the one package you want will fail with unmet
+  dependencies if apt already resolved a different version for a
+  transitive dependency; list every related package pinned to the same
+  version in one `apt-get install` command instead of installing them
+  one at a time.
+- TensorRT's `trtexec` CLI (needed by `NVIDIA/Audio2Face-3D-SDK`'s own
+  `gen_test_data.py`/`gen_sample_data.py` scripts, and generally useful
+  for any ONNX-to-TensorRT-engine conversion) comes from the separate
+  `libnvinfer-bin` apt package, not `libnvinfer-dev` -- and even once
+  installed, it lands at `/usr/src/tensorrt/bin/trtexec`, not anywhere
+  on `PATH` by default. Add that directory to `PATH` explicitly.
+- `NVIDIA/Audio2Face-3D-SDK`'s `CMakeLists.txt` requires zlib >=1.3.1;
+  Ubuntu 24.04's system zlib is 1.3 -- one version-check line
+  (`find_package(ZLIB 1.3.1 REQUIRED)` -> `1.3`), not a real
+  incompatibility, confirmed by the subsequent build succeeding cleanly.
+- The real, open (non-gated) `NVIDIA/Audio2Face-3D-SDK` builds and runs
+  on the SCC H100 (verified: 147/147 CMake targets, real TensorRT engine
+  conversion, real sample inference on real audio) but its output is
+  NVIDIA's own proprietary per-character shape/vertex basis (their
+  "mark"/"claire"/"james" reference meshes), confirmed by reading
+  `network_info.json` and the model's HuggingFace README directly --
+  NOT ARKit blendshape weights, despite that being how NVIDIA's own
+  docs describe the separate, still-gated NIM microservice. There is
+  no quick path from this SDK's output to our avatar's ARKit blendshapes
+  without a real mesh-retargeting effort. Don't restart this build
+  expecting a different answer; the blocker is the output format, not
+  the environment setup (that part now works fine and is documented
+  in docs/AVATAR_IMPLEMENTATION_PLAN.md).
 
 ---
 
