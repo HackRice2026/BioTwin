@@ -12,7 +12,7 @@ from shared.schemas import (
     AvatarDrivers,
     MetricQuality,
 )
-from modeling.recovery import fit_history, decay
+from modeling.recovery import fit_history
 
 PRIOR = {"resting_hr": (65, 6), "hrv_rmssd": (45, 12), "sleep_minutes": (450, 45), "respiration": (15, 2)}
 # Resting HR, HRV, sleep and respiration drift, so they are estimated over a short
@@ -287,5 +287,4 @@ def drivers(latest, ready, base, quality, now):
         exertion=exertion,
         recovery_progress=progress,
     )
-
 
