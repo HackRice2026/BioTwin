@@ -13,9 +13,9 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "BioTwin · Your recovery, understood",
+        name: "BioTwin · Beyond Numbers",
         short_name: "BioTwin",
-        description: "Your personal wearable recovery twin",
+        description: "Wearables give you numbers. BioTwin gives you understanding.",
         theme_color: "#101515",
         background_color: "#101515",
         display: "standalone",
