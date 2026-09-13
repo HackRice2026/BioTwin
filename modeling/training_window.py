@@ -28,6 +28,7 @@ BUFFER = timedelta(minutes=10)
 MAX_WINDOW = timedelta(minutes=90)
 RISK_BLOCK = timedelta(hours=2)
 RECOVERY_THRESHOLD = 50
+RHYTHM_BLEND_MIN = 120
 INTENSITIES = ["mobility", "light", "moderate", "vigorous"]
 DRAIN_PER_MIN = {"mobility": 0.1, "light": 0.2, "moderate": 0.35, "vigorous": 0.55}
 DRAIN_ASSUMPTION = (
@@ -65,7 +66,14 @@ def _energy_model(trajectory, local, spec):
         return by_hour[low % 24] + (by_hour[(low + 1) % 24] - by_hour[low % 24]) * (hour - low)
 
     if trajectory["basis"] != "model":
-        return lambda minutes: (clock(minutes), rhythm_mae, "time_of_day")
+        # Start from the last real reading (what the header shows) and fade into the
+        # daily rhythm, rather than jumping straight to the rhythm's value for this hour.
+        offset = trajectory["current"] - clock(0)
+        return lambda minutes: (
+            max(0.0, min(100.0, clock(minutes) + offset * math.exp(-minutes / RHYTHM_BLEND_MIN))),
+            rhythm_mae,
+            "time_of_day",
+        )
 
     points = trajectory["points"]
     anchors = [(0, trajectory["current"], points[0]["validation_mae"], "measured")] + [

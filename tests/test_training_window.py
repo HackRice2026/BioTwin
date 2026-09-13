@@ -61,6 +61,15 @@ def test_asked_overnight_the_window_waits_until_after_waking():
     assert datetime.fromisoformat(result["curve"][-1]["time"]) >= datetime(2026, 9, 14, 20, 0, tzinfo=TZ)
 
 
+def test_stale_reading_starts_the_day_from_the_measured_value():
+    now = datetime(2026, 9, 14, 1, 0, tzinfo=TZ)
+    stale = {**rising_trajectory(28), "basis": "rhythm"}
+    result = best_training_window(golden_state(), stale, [], PROFILE, now, "demo")
+    assert result["now"]["energy"] == 28
+    assert result["curve"][0]["value"] == 28
+    assert abs(result["curve"][-1]["value"] - result["curve"][-2]["value"]) < 10
+
+
 def test_window_is_unavailable_without_any_forecast_basis():
     now = datetime(2026, 9, 14, 12, 0, tzinfo=TZ)
     result = best_training_window(
