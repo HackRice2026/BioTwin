@@ -2,29 +2,53 @@ from shared.schemas import NarrationContext
 from zoneinfo import ZoneInfo
 
 
+SIGNAL_LABELS = {
+    "hrv": "HRV",
+    "hrv_rmssd": "HRV",
+    "resting_hr": "resting heart rate",
+    "sleep_debt": "sleep debt",
+}
+
+
+def _signal_label(signal):
+    return SIGNAL_LABELS.get(signal, signal.replace("_", " "))
+
+
+def _coach_time(stamp):
+    return stamp.strftime("%I:%M %p %Z").lstrip("0")
+
+
 def _coach_brief(state, plan, trajectory=None):
     readiness = state.readiness
     label = readiness.state.value.replace("_", " ")
     score = f"{readiness.score:g}" if readiness.score is not None else "unknown"
-    recommendation = "Keep the next step simple and check the plan."
-    if plan and plan.proposals:
-        recommendation = plan.proposals[0].reason
-    elif trajectory and trajectory.get("available") and trajectory.get("points"):
-        recommendation = "Time your effort around where your Body Battery is headed."
-    strongest = sorted(readiness.contributions.items(), key=lambda x: abs(x[1]), reverse=True)[:2]
-    why = []
-    if readiness.score is not None:
-        why.append(f"Readiness is {score}, which is {label} for your pattern.")
-    for signal, value in strongest:
-        why.append(f"{signal.replace('_', ' ')} is one of the stronger drivers at {value:g}.")
+    recommendation = "Keep the next step simple and let the plan pick the cleanest window."
     if plan and plan.proposals:
         p = plan.proposals[0]
         local_start = p.start.astimezone(ZoneInfo(plan.timezone))
-        why.append(f"The current plan option is {p.title.lower()} at {local_start.strftime('%H:%M %Z')}.")
+        duration = int((p.end - p.start).total_seconds() / 60)
+        recommendation = (
+            f"I'd use the {_coach_time(local_start)} opening for "
+            f"a {duration}-minute {p.title.lower()}."
+        )
+    elif trajectory and trajectory.get("available") and trajectory.get("points"):
+        recommendation = "Time your effort around where your energy is headed."
+    strongest = sorted(readiness.contributions.items(), key=lambda x: abs(x[1]), reverse=True)[:2]
+    why = []
+    if readiness.score is not None:
+        why.append(f"Readiness is {score}, which looks like a {label} day for your pattern.")
+    for signal, value in strongest:
+        direction = "helping the score" if value > 0 else "pulling the score down"
+        signal_label = _signal_label(signal)
+        why.append(f"{signal_label[:1].upper()}{signal_label[1:]} is {direction} right now.")
+    if plan and plan.proposals:
+        p = plan.proposals[0]
+        local_start = p.start.astimezone(ZoneInfo(plan.timezone))
+        why.append(f"The cleanest plan option is {p.title.lower()} at {_coach_time(local_start)}.")
     if trajectory and trajectory.get("available") and trajectory.get("points"):
         first = trajectory["points"][0]
         why.append(
-            f"Body Battery is {trajectory['current']:g} now and projects to {first['value']:g} in {first['horizon_minutes']} minutes."
+            f"Energy is {trajectory['current']:g} now and projects to {first['value']:g} in {first['horizon_minutes']} minutes."
         )
     return {
         "role": "friendly data-backed fitness coach",

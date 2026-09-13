@@ -56,16 +56,16 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
 
 def test_plan_time_claims_must_match_coach_evidence(context):
     context = context.model_copy(
-        update={"coach_brief": {"recommendation": "Try light movement at 17:00 UTC."}}
+        update={"coach_brief": {"recommendation": "Try light movement at 5:00 PM UTC."}}
     )
 
     assert guard(
-        "Your best window is 17:00.",
+        "Your best window is 5 PM.",
         context,
         ["coach_brief.recommendation"],
     )
     assert not guard(
-        "Your best window is 18:30.",
+        "Your best window is 6:30 PM.",
         context,
         ["coach_brief.recommendation"],
     )
@@ -79,9 +79,19 @@ def test_coach_brief_keeps_fallback_conversational(context):
     assert "harness output" not in answer.lower()
 
 
+def test_coach_brief_does_not_turn_driver_names_into_day_labels(context):
+    assert context.readiness.state.value.replace("_", " ") in context.coach_brief["headline"]
+    assert "day" in context.coach_brief["headline"]
+    assert "sleep day" not in context.coach_brief["headline"].lower()
+    assert "hrv day" not in context.coach_brief["headline"].lower()
+    assert any("HRV" in reason for reason in context.coach_brief["why"])
+
+
 @pytest.mark.parametrize(
     "answer,evidence",
     [
+        ("Your readiness feels like a sleep day.", ["coach_brief.headline"]),
+        ("Your readiness feels like a resting heart rate day.", ["coach_brief.headline"]),
         ("Your readiness is 9999.", ["readiness.score"]),
         ("Your readiness is ninety nine.", ["readiness.score"]),
         ("Your heart rate is 54.4.", ["facts.999"]),

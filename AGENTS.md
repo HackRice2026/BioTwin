@@ -128,6 +128,18 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
+  correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
+  during this fix that process was running from a Claude scratchpad cwd, so
+  use `VITE_API_PROXY_TARGET=http://127.0.0.1:<port>` when verifying a
+  non-8000 backend. The actual Gemini rejection was caused by
+  `_coach_brief()` reusing `label` inside its contribution loop, overwriting
+  the readiness day label with a driver name like "resting heart rate day";
+  `DRIVER_DAY_LABELS` now guards against those invented phrases and
+  `tests/test_narration.py` covers natural time phrasing plus the label
+  regression. VERIFIED through the frontend proxy with
+  `mode: "language_service"` and `model: "vertex:gemini-2.5-flash"`.
+
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The

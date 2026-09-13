@@ -2,6 +2,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+declare const process: { env: Record<string, string | undefined> };
+
+const apiTarget = process.env.VITE_API_PROXY_TARGET || "http://127.0.0.1:8000";
+const wsTarget = apiTarget.replace(/^http/, "ws");
+
 export default defineConfig({
   plugins: [
     react(),
@@ -61,11 +66,11 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:8000",
-      "/auth": "http://127.0.0.1:8000",
-      "/sources": "http://127.0.0.1:8000",
-      "/ops": "http://127.0.0.1:8000",
-      "/ws": { target: "ws://127.0.0.1:8000", ws: true },
+      "/api": apiTarget,
+      "/auth": apiTarget,
+      "/sources": apiTarget,
+      "/ops": apiTarget,
+      "/ws": { target: wsTarget, ws: true },
     },
   },
   build: {

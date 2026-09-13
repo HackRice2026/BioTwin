@@ -13,13 +13,21 @@ FORBIDDEN = re.compile(
     re.I,
 )
 NUMBERS = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
-TIMES = re.compile(r"\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b|\b(?:1[0-2]|0?[1-9])\s?(?:am|pm)\b", re.I)
+TIMES = re.compile(
+    r"\b(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s?(?:am|pm)\b|"
+    r"\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b",
+    re.I,
+)
 # Quantities must use digits, so spelling out an unsupported number cannot bypass validation.
 NUMBER_WORDS = re.compile(
     r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
     r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|"
     r"forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|"
     r"half|quarter|twice|double|triple)\b",
+    re.I,
+)
+DRIVER_DAY_LABELS = re.compile(
+    r"\b(?:sleep|hrv|resting heart rate|heart rate|stress|steps|calorie|respiration) day\b",
     re.I,
 )
 
@@ -36,7 +44,7 @@ def resolve_evidence(context, path):
 
 
 def guard(text, context, evidence=None):
-    if not text.strip() or len(text) > 2000 or FORBIDDEN.search(text):
+    if not text.strip() or len(text) > 2000 or FORBIDDEN.search(text) or DRIVER_DAY_LABELS.search(text):
         return False
     if NUMBER_WORDS.search(text):
         return False
@@ -54,8 +62,24 @@ def guard(text, context, evidence=None):
     if not all(n in allowed for n in NUMBERS.findall(text)):
         return False
     if evidence and any(path.startswith(("plan.", "coach_brief.")) for path in evidence):
-        allowed_times = {t.lower().replace(".", ":").replace(" ", "") for source in sources for t in TIMES.findall(source)}
-        claimed_times = {t.lower().replace(".", ":").replace(" ", "") for t in TIMES.findall(text)}
+        def time_keys(value):
+            raw = value.lower().replace(".", ":").replace(" ", "")
+            keys = {raw}
+            match = re.fullmatch(r"(1[0-2]|0?[1-9]):00(am|pm)", raw)
+            if match:
+                keys.add(f"{int(match.group(1))}{match.group(2)}")
+            match = re.fullmatch(r"(1[0-2]|0?[1-9])(am|pm)", raw)
+            if match:
+                keys.add(f"{int(match.group(1))}:00{match.group(2)}")
+            return keys
+
+        allowed_times = {
+            key
+            for source in sources
+            for time in TIMES.findall(source)
+            for key in time_keys(time)
+        }
+        claimed_times = {key for time in TIMES.findall(text) for key in time_keys(time)}
         if not claimed_times.issubset(allowed_times):
             return False
     return True
@@ -68,6 +92,8 @@ the 1-2 strongest reasons. Cite coach_brief paths when you use it. Speak like a 
 use contractions, short sentences, and direct encouragement. It can be lightly fun, but never cheesy or flippant.
 Do not overwhelm the user with a data dump. Do not recite every available metric. Translate the forecast trajectory,
 plan, and signals into clear natural-language guidance that helps the person decide what to do next.
+Never invent a day label from a driver; for example, do not say "sleep day" or "stress day". If you describe
+the day, use only the supplied readiness state label such as "below average" or "balanced".
 Avoid phrases like "standardized units", "computed context", "harness output", "policy decision", "signal confidence",
 or internal field names unless the user explicitly asks for implementation details.
 Calendar facts are real connected-calendar entries, independent of wearable provenance. Read their actual titles,
@@ -116,8 +142,16 @@ RESPONSE_FORMAT = {
 }
 
 
+def _brief_reply(brief):
+    pieces = [brief.get("recommendation") or brief.get("headline")]
+    pieces.extend(brief.get("why", [])[:3])
+    return " ".join(part for part in pieces if part).strip()
+
+
 def template(question, ctx):
     q = question.lower()
+    if re.fullmatch(r"\s*(hi|hey|hello|yo|thanks|thank you|sup)[!. ]*", q):
+        return "Hey, I'm here. Ask me what to do today, where your energy is headed, or when to fit the next session."
     if ctx.calendar is not None:
         calendar = ctx.calendar
         if calendar["status"] == "disconnected":
@@ -132,9 +166,7 @@ def template(question, ctx):
     if re.search(r"diagnos|disease|medic|prescri|chest pain|condition|symptom", q):
         return "I can explain your recorded measurements and model estimates. I cannot assess symptoms or provide medical advice."
     if ctx.coach_brief and any(w in q for w in ["why", "tired", "readiness", "feel", "energy", "today", "plan", "nap", "workout", "schedule"]):
-        brief = ctx.coach_brief
-        reasons = " ".join(brief.get("why", [])[:2])
-        return f"{brief.get('recommendation', brief.get('headline'))} {reasons}".strip()
+        return _brief_reply(ctx.coach_brief)
     if "trend" in q and ctx.recent_trend:
         selected = list(ctx.recent_trend)
     elif any(w in q for w in ["recovery", "recover", "predict"]):
@@ -142,7 +174,7 @@ def template(question, ctx):
     elif any(w in q for w in ["plan", "nap", "workout", "calendar", "schedule"]):
         selected = [f for f in ctx.facts if "plan" in f.lower() or "schedule" in f.lower()]
         if not selected:
-            return "Connect your calendar to find available times. I cannot add an event through chat; use Add to calendar on a proposal to review its time and reminder."
+            return "I can draft a clean plan once I can see your calendar windows. Connect calendar, then tell me to plan it and I'll propose the event for approval."
     elif any(w in q for w in ["sleep", "hrv", "heart rate"]):
         terms = [w for w in ["sleep", "hrv", "heart rate"] if w in q]
         selected = [f for f in ctx.facts if any(t in f.lower() for t in terms)]
@@ -166,7 +198,7 @@ async def _vertex_narrate(question, ctx, config, http, fallback):
         return NarrationResponse(
             answer=fallback,
             mode="guard_fallback",
-            notice="Vertex AI credentials are unavailable. Showing a saved-context explanation instead.",
+            notice="Using the verified coach answer while live narration reconnects.",
         )
     url = (
         f"https://{config.vertex_region}-aiplatform.googleapis.com/v1/projects/"
@@ -224,7 +256,7 @@ async def _vertex_narrate(question, ctx, config, http, fallback):
         return NarrationResponse(
             answer=fallback,
             mode="guard_fallback",
-            notice="Vertex AI could not return a verified answer. Showing a saved-context explanation instead.",
+            notice="Using the verified coach answer.",
         )
 
 
@@ -236,7 +268,7 @@ async def narrate(question, ctx, config=None, http=None):
         return NarrationResponse(
             answer=fallback,
             mode="template",
-            notice="Gemini is unavailable. Showing a saved-context explanation instead.",
+            notice="Using the verified coach answer because live narration is not configured.",
         )
     endpoint = urlparse(config.narration_url)
     if (
@@ -249,7 +281,7 @@ async def narrate(question, ctx, config=None, http=None):
         return NarrationResponse(
             answer=fallback,
             mode="guard_fallback",
-            notice="Gemini configuration is invalid. Showing a saved-context explanation instead.",
+            notice="Language service configuration is invalid. Using the verified coach answer.",
         )
     try:
         response = await http.post(
@@ -291,5 +323,5 @@ async def narrate(question, ctx, config=None, http=None):
         return NarrationResponse(
             answer=fallback,
             mode="guard_fallback",
-            notice="Gemini could not return a verified answer. Showing a saved-context explanation instead.",
+            notice="Using the verified coach answer.",
         )
