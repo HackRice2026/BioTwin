@@ -692,7 +692,7 @@ def create_app(config=None):
                 recommended = None
                 if not prepared and u["id"] != "demo" and wants_coach_calendar_draft(question):
                     try:
-                        recommended = await propose_coach_calendar_draft(rt(), owner, u, question, plan)
+                        recommended = await propose_coach_calendar_draft(rt(), owner, u, question, turn["plan"])
                     except (ValueError, httpx.HTTPError):
                         recommended = None
                 if recommended:

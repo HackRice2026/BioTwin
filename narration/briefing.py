@@ -8,9 +8,12 @@ NarrationContext.facts/coach_brief/plan directly, exactly as before this existed
 only saves the fast model the work of organizing what it already had.
 """
 
+import asyncio
 import re
 
 import httpx
+
+from narration.vertex_auth import vertex_token
 
 NUMBERS = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
 
@@ -35,14 +38,8 @@ def _validated(text, allowed_numbers):
     return all(n in allowed_numbers for n in NUMBERS.findall(text))
 
 
-async def curate_briefing(facts, config, http):
-    """Returns a short natural-language briefing over `facts` (a sequence of already-
-    grounded strings, e.g. NarrationContext.facts), or None if curation is unavailable
-    or the model's output can't be verified against the numbers it was given."""
-    if not config.allow_external_narration or not config.narration_api_key or not facts:
-        return None
-    allowed = {n for fact in facts for n in NUMBERS.findall(fact)}
-    prompt = (
+def _prompt(facts):
+    return (
         "Rewrite the following facts about one person's current physiology, forecast, "
         "training plan, and any active what-if comparison into a short internal briefing "
         "(4-6 sentences) for a friendly, non-technical voice coach to read before answering "
@@ -53,6 +50,47 @@ async def curate_briefing(facts, config, http):
         "will never be read aloud verbatim and is not itself evidence; it only orients the "
         "coach.\n\nFacts:\n" + "\n".join(f"- {fact}" for fact in facts)
     )
+
+
+async def _curate_vertex(facts, config, http):
+    try:
+        token = await asyncio.to_thread(vertex_token)
+    except Exception:
+        return None
+    url = (
+        f"https://{config.vertex_region}-aiplatform.googleapis.com/v1/projects/"
+        f"{config.vertex_project_id}/locations/{config.vertex_region}/publishers/google/"
+        f"models/{config.vertex_insight_model}:generateContent"
+    )
+    try:
+        response = await http.post(
+            url,
+            timeout=httpx.Timeout(30, connect=5),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "contents": [{"role": "user", "parts": [{"text": _prompt(facts)}]}],
+                "generationConfig": {
+                    "temperature": 0,
+                    # gemini-2.5-pro can't fully disable thinking (thinkingBudget: 0 is
+                    # rejected -- only the flash tiers allow that), so this pins it to
+                    # its minimum instead and leaves enough room after it for the
+                    # briefing itself; without either, the whole token budget went to
+                    # thinking and the response hit MAX_TOKENS before writing anything.
+                    "maxOutputTokens": 2000,
+                    "thinkingConfig": {"thinkingBudget": 128},
+                },
+            },
+        )
+        response.raise_for_status()
+        candidate = response.json()["candidates"][0]
+        if candidate.get("finishReason") != "STOP":
+            return None
+        return candidate["content"]["parts"][0]["text"].strip()
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+async def _curate_ai_studio(facts, config, http):
     try:
         response = await http.post(
             config.narration_url,
@@ -60,16 +98,37 @@ async def curate_briefing(facts, config, http):
             headers={"Authorization": f"Bearer {config.narration_api_key}"},
             json={
                 "model": config.insight_model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [{"role": "user", "content": _prompt(facts)}],
                 "temperature": 0,
-                "max_tokens": 500,
+                "max_tokens": 1000,
+                "reasoning_effort": "low",
             },
         )
         response.raise_for_status()
         choice = response.json()["choices"][0]
         if choice.get("finish_reason") != "stop":
             return None
-        text = choice["message"]["content"].strip()
+        return choice["message"]["content"].strip()
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
+async def curate_briefing(facts, config, http):
+    """Returns a short natural-language briefing over `facts` (a sequence of already-
+    grounded strings, e.g. NarrationContext.facts), or None if curation is unavailable
+    or the model's output can't be verified against the numbers it was given.
+
+    Mirrors narrate()'s own Vertex-vs-AI-Studio split (narration/service.py) instead of
+    only ever using the AI Studio key: a briefing refresh must not go dark just because
+    the AI Studio key's prepay balance is the thing currently blocked, when Vertex --
+    already configured as the live conversation's own fallback -- bills separately."""
+    if not facts or not config.allow_external_narration:
+        return None
+    allowed = {n for fact in facts for n in NUMBERS.findall(fact)}
+    if config.use_vertex_narration and config.vertex_project_id:
+        text = await _curate_vertex(facts, config, http)
+    elif config.narration_api_key:
+        text = await _curate_ai_studio(facts, config, http)
+    else:
         return None
     return text if _validated(text, allowed) else None

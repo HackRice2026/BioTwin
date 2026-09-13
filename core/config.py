@@ -54,5 +54,9 @@ class Settings(BaseSettings):
     # A stronger, slower model that periodically curates the fast conversational
     # model's per-account context into a short briefing (Runtime._refresh_briefing).
     # Off the live request path -- it runs in the background on a throttle, not once
-    # per turn -- so it can afford to be the bigger of the two models.
+    # per turn -- so it can afford to be the bigger of the two models. Two names
+    # because the AI Studio and Vertex catalogs don't match: AI Studio stopped
+    # serving gemini-2.5-pro to new callers (redirects to gemini-3.1-pro-preview),
+    # while that same "3.1" name 404s on Vertex, which still serves 2.5-pro directly.
     insight_model: str = "gemini-3.1-pro-preview"
+    vertex_insight_model: str = "gemini-2.5-pro"

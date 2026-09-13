@@ -53,6 +53,46 @@ async def test_curate_briefing_unavailable_without_narration_configured():
         assert await curate_briefing(FACTS, config, client) is None
 
 
+@pytest.mark.asyncio
+async def test_curate_briefing_uses_vertex_when_configured_not_the_ai_studio_key(monkeypatch):
+    """A briefing refresh must not go dark just because the AI Studio key's prepay
+    balance is depleted, when Vertex -- already the live conversation's own fallback
+    (narrate()/_vertex_narrate) -- bills through a separate Cloud Billing account."""
+    import narration.briefing as briefing
+
+    monkeypatch.setattr(briefing, "vertex_token", lambda: "fake-vertex-token")
+    calls = []
+
+    def mock(request):
+        calls.append(request)
+        assert request.headers["authorization"] == "Bearer fake-vertex-token"
+        assert "aiplatform.googleapis.com" in str(request.url)
+        assert "gemini-2.5-pro" in str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": "Readiness sits at 62, a balanced day."}]},
+                    }
+                ]
+            },
+        )
+
+    config = Settings(
+        _env_file=None,
+        allow_external_narration=True,
+        use_vertex_narration=True,
+        vertex_project_id="proj",
+        narration_api_key="",  # the AI Studio key is depleted/absent -- Vertex must still work
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(mock)) as client:
+        result = await curate_briefing(FACTS, config, client)
+    assert result == "Readiness sits at 62, a balanced day."
+    assert len(calls) == 1
+
+
 def test_briefing_can_never_be_cited_as_evidence():
     from pathlib import Path
     from modeling.explanations import narration_context
