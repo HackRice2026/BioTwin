@@ -79,13 +79,17 @@ const bodyWs =
   import.meta.env.VITE_BODY_SERVICE_WS || "ws://localhost:8766/ws/body";
 
 // The ONLY bones the EMAGE body-gesture service is allowed to drive --
-// everything else it sends (spine, shoulders, arms, hands, fingers, hips,
-// legs, feet) is ignored outright. Started as a denylist covering just the
-// legs (this rig has no thigh/knee bones, so ankle output landed straight
-// on an isolated foot bone and read as a duckling waddle); tightened to an
-// allowlist of just the neck and head per explicit request -- nothing
-// below the neck should move at all, not even arm gestures while speaking.
-const ALLOWED_EMAGE_BONES = new Set(["Neck", "Head"]);
+// everything else it sends is ignored outright. Went from a denylist
+// (legs only -- this rig has no thigh/knee bones, so ankle output landed
+// straight on an isolated foot bone and read as a duckling waddle), to an
+// allowlist of just neck/head, to empty: EMAGE scores each ~1s audio
+// window independently with no motion continuity carried between windows
+// (see docs/AVATAR_IMPLEMENTATION_PLAN.md), so even neck/head rotation
+// visibly jittered frame to frame -- a real per-window discontinuity, not
+// a rig problem like the legs were. Disabled entirely until that
+// continuity gap is actually fixed; the face-service blendshapes are a
+// separate system and still drive real lip sync while this is off.
+const ALLOWED_EMAGE_BONES = new Set<string>([]);
 
 const demoStates: Record<string, Partial<AvatarSemanticState>> = {
   "1": {

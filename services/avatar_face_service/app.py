@@ -344,11 +344,15 @@ async def _emit_loop(websocket: WebSocket, state: ConnectionState) -> None:
             state.current_viseme = state.viseme_queue.popleft()
             state.last_viseme_at = time.perf_counter()
         elif time.perf_counter() - state.last_viseme_at > STALE_VISEME_S:
-            # The queue ran dry (speech ended, or the model's behind) and
-            # the last real viseme is now stale -- without this, the mouth
-            # would freeze on whatever shape it last had forever, instead
-            # of relaxing back to the idle cycle make_frame(..., None) does.
-            state.current_viseme = None
+            # The queue ran dry (speech ended, connection just opened, or
+            # the model's behind). make_frame(..., None) is a blind cycle
+            # through every mouth shape in turn, meant as a rough stand-in
+            # for when there's no real model at all -- with a real model
+            # loaded, using that here just makes an idle avatar look like
+            # it's perpetually talking. Settle on a closed mouth instead;
+            # only fall through to the cycling placeholder if there's
+            # truly no model driving anything.
+            state.current_viseme = CLOSED if _model is not None else None
         frame = make_frame(timestamp_ms, state.energy, phase, state.current_viseme)
         await websocket.send_json(frame)
         metrics.frames += 1
