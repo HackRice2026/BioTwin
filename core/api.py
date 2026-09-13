@@ -473,17 +473,34 @@ def create_app(config=None):
             if not scored or p.rmse is not None
         ][:30]
 
+    # Google free/busy has no titles, so the timeline borrows today's named agenda entries.
+    # The dashboard polls every minute; two minutes of reuse keeps that off the Calendar API.
+    agenda_titles = {}
+
     async def training_decision(u, current=None, energy_trajectory=None):
         from modeling.forecast import trajectory
 
         current = current or rt().states.get(u["id"]) or rt().compute(u["id"])
+        tz = ZoneInfo(u["profile"].get("timezone", "UTC"))
         if energy_trajectory is None:
-            energy_trajectory = trajectory(rt().history(u["id"]), utcnow(), u["profile"].get("timezone", "UTC"))
+            energy_trajectory = trajectory(rt().history(u["id"]), utcnow(), str(tz))
         try:
             busy, status = await rt().calendar.availability(u)
         except (ValueError, httpx.HTTPError):
             busy, status = [], "unavailable"
-        return best_training_window(current, energy_trajectory, busy, u["profile"], utcnow(), status)
+        events = None
+        if status == "connected":
+            cached = agenda_titles.get(u["id"])
+            if cached and cached[0] > time.monotonic():
+                events = cached[1]
+            else:
+                today = utcnow().astimezone(tz).date()
+                try:
+                    events = (await AgendaService(rt().calendar).list(u, today, today + timedelta(days=1)))["events"]
+                except (ValueError, httpx.HTTPError):
+                    events = None
+                agenda_titles[u["id"]] = (time.monotonic() + 120, events)
+        return best_training_window(current, energy_trajectory, busy, u["profile"], utcnow(), status, events=events)
 
     @app.get("/api/training-window")
     async def training_window(request: Request):

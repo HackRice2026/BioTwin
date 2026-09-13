@@ -199,7 +199,9 @@ def _risks(intervals, energy_at, local, horizon_end):
     ]
 
 
-def best_training_window(state, trajectory, busy, profile, now, calendar_status, spec=None):
+def best_training_window(state, trajectory, busy, profile, now, calendar_status, spec=None, events=None):
+    """`busy` decides (free/busy also covers private calendars); `events`, when given, are
+    the agenda's named entries and only replace the "Busy" labels shown on the timeline."""
     spec = spec or load_trajectory_params()
     tz = ZoneInfo(profile.get("timezone", "UTC"))
     local = now.astimezone(tz)
@@ -211,7 +213,7 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
     latest_end = min(bedtime - timedelta(hours=3), datetime.combine(local.date(), time(22), tz))
     # Asked overnight, "today" still means after waking: bedtime plus the sleep target, a day back.
     wake = bedtime + timedelta(minutes=int(profile.get("target_sleep", 480))) - timedelta(days=1)
-    horizon_end = max(min(bedtime - timedelta(hours=1), local + timedelta(hours=18)), local + timedelta(hours=3))
+    day_end = max(min(bedtime - timedelta(hours=1), local + timedelta(hours=18)), local + timedelta(hours=3))
     evening_at = max(bedtime - timedelta(hours=2), local + timedelta(hours=1))
     base = {
         "issued_at": now.isoformat(),
@@ -232,6 +234,18 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
     intervals = sorted(
         (b.start.astimezone(tz), b.end.astimezone(tz), b.title) for b in busy if b.end.astimezone(tz) > local
     )
+    named = sorted(
+        (datetime.fromisoformat(e["start"]).astimezone(tz), datetime.fromisoformat(e["end"]).astimezone(tz), e.get("title") or "Busy")
+        for e in (events or [])
+        if not e.get("all_day") and datetime.fromisoformat(e["end"]).astimezone(tz) > local
+    )
+    shown = sorted(
+        named + [i for i in intervals if not any(i[0] < n[1] and i[1] > n[0] for n in named)]
+    )
+    # End the day where it stops mattering for this decision -- the last possible session or
+    # the last calendar entry -- instead of drawing hours of empty evening.
+    last_busy = max((e for _, e, _ in shown if e <= day_end), default=local)
+    horizon_end = min(day_end, max(local + timedelta(hours=3), latest_end + timedelta(minutes=30), last_busy))
     horizon_minutes = _minutes(horizon_end, local)
     curve = []
     for minutes in range(0, horizon_minutes + 1, 30):
@@ -266,7 +280,7 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
         **base,
         "now": {"time": local.isoformat(), "energy": now_energy},
         "curve": curve,
-        "busy": [{"start": s.isoformat(), "end": e.isoformat(), "title": t} for s, e, t in intervals if s < horizon_end],
+        "busy": [{"start": s.isoformat(), "end": e.isoformat(), "title": t} for s, e, t in shown if s < horizon_end],
         "risks": risks,
         "recovery": recovery,
         "heart_rate_recovery_tau_s": round(tau) if tau else None,
@@ -288,14 +302,15 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
             window_end = max(end, min(gap_end, cursor + MAX_WINDOW))
             hour = cursor.hour + cursor.minute / 60
             in_risk = any(cursor < r_end and end > r_start for r_start, r_end in risk_spans)
-            score = (
-                0.6 * energy / 100
-                + 0.15 * math.exp(-(((hour - 17) / 2.5) ** 2))
-                + 0.15 * CONFIDENCE_WEIGHT[confidence]
-                + 0.1 * min(1.0, (window_end - cursor) / (session + timedelta(minutes=30)))
-                - (0.25 if in_risk else 0)
-            )
-            candidates.append((score, -cursor.timestamp(), cursor, window_end, energy, confidence))
+            terms = {
+                "energy": 0.6 * energy / 100,
+                "time_of_day": 0.15 * math.exp(-(((hour - 17) / 2.5) ** 2)),
+                "confidence": 0.15 * CONFIDENCE_WEIGHT[confidence],
+                "free_time": 0.1 * min(1.0, (window_end - cursor) / (session + timedelta(minutes=30))),
+                "high_load_penalty": -0.25 if in_risk else 0.0,
+            }
+            score = sum(terms.values())
+            candidates.append((score, -cursor.timestamp(), cursor, window_end, energy, confidence, terms))
         cursor += STEP
 
     if not candidates:
@@ -310,7 +325,7 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
             "scenarios": [],
         }
 
-    _, _, start, window_end, energy, confidence = max(candidates)
+    score, _, start, window_end, energy, confidence, terms = max(candidates, key=lambda c: (c[0], c[1]))
     if readiness.confidence < 0.4 and confidence != "Low":
         confidence = "Moderate" if confidence == "High" else "Low"
     intensity = _intensity(readiness, energy)
@@ -323,7 +338,7 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
         reasons.append(f"Energy projected at {round(energy)} by {clock}, the strongest point in your free time")
     else:
         reasons.append(f"Energy holds near {round(energy)} through {clock}")
-    earlier = [(s, e, t) for s, e, t in intervals if e <= start]
+    earlier = [(s, e, t) for s, e, t in shown if e <= start]
     if calendar_status == "unavailable":
         reasons.append("Calendar not connected, so free time is not checked")
     elif earlier:
@@ -371,6 +386,11 @@ def best_training_window(state, trajectory, busy, profile, now, calendar_status,
             "confidence": confidence,
             "workout": {"title": f"{intensity.title()} session", "intensity": intensity, "minutes": duration},
             "reasons": reasons,
+            "score": {
+                "total": round(score, 3),
+                "candidates": len(candidates),
+                "terms": {name: round(value, 3) for name, value in terms.items()},
+            },
         },
         "evening_at": evening_at.isoformat(),
         "scenarios": scenarios,

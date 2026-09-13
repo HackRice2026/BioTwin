@@ -3865,19 +3865,156 @@ button.primary:hover:not(:disabled) {
   letter-spacing: 0.14em;
   top: -4px;
 }
-.day-lane {
-  background: #ffffff05;
-  border-radius: 99px;
-  height: 8px;
-  margin-top: 12px;
+.day-plot {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr);
+}
+.day-main {
+  min-width: 0;
+}
+.day-axis {
+  height: 150px;
+  margin-top: 8px;
   position: relative;
 }
-.day-lane i {
-  background: #edc17f55;
-  border-radius: 99px;
-  bottom: 0;
+.day-axis span {
+  color: #6f8479;
+  font-size: 9px;
   position: absolute;
-  top: 0;
+  right: 0;
+  transform: translateY(-50%);
+}
+.day-grid {
+  stroke: #ffffff0b;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.day-band.busy {
+  fill: var(--amber);
+  opacity: 0.055;
+}
+.day-events {
+  margin-top: 10px;
+  position: relative;
+}
+.day-event {
+  background: #edc17f2e;
+  border-left: 2px solid var(--amber);
+  border-radius: 6px;
+  height: 20px;
+  min-width: 4px;
+  position: absolute;
+}
+.day-event b {
+  color: #f1dcb4;
+  font-size: 9px;
+  font-weight: 500;
+  left: 6px;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+.day-event.flip b {
+  left: auto;
+  right: calc(100% + 6px);
+}
+.window-eyebrow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.help-tip {
+  display: inline-flex;
+  position: relative;
+}
+.help-trigger {
+  align-items: center;
+  border-radius: 50%;
+  color: var(--muted);
+  display: inline-flex;
+  height: 26px;
+  justify-content: center;
+  opacity: 0.45;
+  transition: opacity 160ms ease, background 160ms ease;
+  width: 26px;
+}
+.help-tip:hover .help-trigger,
+.help-tip.open .help-trigger,
+.help-trigger:focus-visible {
+  background: #ffffff0a;
+  opacity: 1;
+}
+/* Tooltip styled like the app's chart tooltips; hover, focus and tap all open it. */
+.help-popover {
+  background: #202829;
+  border: 1px solid #ffffff20;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px #00000040;
+  color: #e3eee7;
+  display: grid;
+  font-size: 11px;
+  gap: 8px;
+  opacity: 0;
+  padding: 12px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  transform: translateY(-4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  width: min(290px, calc(100vw - 56px));
+  z-index: 20;
+}
+.help-tip:hover .help-popover,
+.help-tip.open .help-popover,
+.help-tip:focus-within .help-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.help-popover > b {
+  font-family: Manrope, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+.help-copy {
+  color: #a5b9ac;
+  line-height: 1.5;
+}
+.help-copy.muted {
+  color: #708b7a;
+  font-size: 10px;
+}
+.help-rows {
+  border-top: 1px solid var(--line);
+  display: grid;
+}
+.help-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+.help-row small {
+  color: #80968a;
+  display: block;
+  font-size: 9px;
+  margin-top: 1px;
+}
+.help-row em {
+  color: #e3eee7;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.help-row.total em {
+  color: var(--green);
+  font-weight: 600;
 }
 .day-ticks {
   height: 34px;
@@ -4034,8 +4171,13 @@ button.primary:hover:not(:disabled) {
   .window-time {
     font-size: 25px;
   }
-  .day-chart {
+  .day-chart,
+  .day-axis {
     height: 124px;
+  }
+  .day-plot {
+    gap: 6px;
+    grid-template-columns: 18px minmax(0, 1fr);
   }
   .day-ticks .minor {
     display: none;

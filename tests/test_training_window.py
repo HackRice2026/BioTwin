@@ -53,6 +53,26 @@ def test_window_avoids_busy_time_with_transition_buffer():
     assert end <= datetime(2026, 9, 14, 20, 0, tzinfo=TZ)
 
 
+def test_named_calendar_events_label_the_timeline_but_free_busy_still_decides():
+    now = datetime(2026, 9, 14, 12, 0, tzinfo=TZ)
+    blocks = [busy(now, 13, 14), busy(now, 15, 16)]
+    events = [
+        {"title": "Design review", "start": blocks[0].start.isoformat(), "end": blocks[0].end.isoformat(), "all_day": False},
+        {"title": "Holiday", "start": "2026-09-14", "end": "2026-09-15", "all_day": True},
+    ]
+    result = best_training_window(golden_state(), rising_trajectory(), blocks, PROFILE, now, "connected", events=events)
+    assert [b["title"] for b in result["busy"]] == ["Design review", "Meeting"]
+
+
+def test_timeline_ends_at_the_last_useful_time_and_score_adds_up():
+    now = datetime(2026, 9, 14, 12, 0, tzinfo=TZ)
+    result = best_training_window(golden_state(), rising_trajectory(), [], PROFILE, now, "connected")
+    assert datetime.fromisoformat(result["curve"][-1]["time"]) == datetime(2026, 9, 14, 20, 30, tzinfo=TZ)
+    score = result["window"]["score"]
+    assert score["candidates"] > 0
+    assert abs(sum(score["terms"].values()) - score["total"]) < 0.01
+
+
 def test_asked_overnight_the_window_waits_until_after_waking():
     now = datetime(2026, 9, 14, 2, 30, tzinfo=TZ)
     result = best_training_window(golden_state(), rising_trajectory(85), [], PROFILE, now, "demo")

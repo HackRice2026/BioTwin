@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from "react";
 import {
   BatteryCharging,
   CalendarClock,
   Check,
   ChevronRight,
+  CircleHelp,
   Dumbbell,
   Star,
   TriangleAlert,
@@ -23,6 +25,80 @@ const duration = (minutes: number) =>
   minutes >= 60
     ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
     : `${minutes} min`;
+
+const signed = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(2)}`;
+
+function WindowHelp({
+  decision,
+}: {
+  decision: Extract<TrainingDecision, { available: true }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const w = decision.window,
+    s = w.score;
+  const rows: [string, number, string][] = s
+    ? [
+        ["Projected energy", s.terms.energy, `60% weight · energy ${w.energy} at the start`],
+        ["Time of day", s.terms.time_of_day, "15% weight · preference peaks around 5 PM"],
+        ["Forecast confidence", s.terms.confidence, `15% weight · ${w.confidence.toLowerCase()} at that hour`],
+        ["Free time", s.terms.free_time, `10% weight · ${w.minutes} free minutes`],
+        ...(s.terms.high_load_penalty
+          ? ([["High-load penalty", s.terms.high_load_penalty, "overlaps a high-load stretch"]] as [string, number, string][])
+          : []),
+      ]
+    : [];
+  return (
+    <span
+      className={`help-tip${open ? " open" : ""}`}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className="help-trigger"
+        aria-label="How this window was calculated"
+        aria-expanded={open}
+        aria-describedby="window-help"
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+        onBlur={() => setOpen(false)}
+      >
+        <CircleHelp size={15} />
+      </button>
+      <span className="help-popover" role="tooltip" id="window-help">
+        <b>How this window was chosen</b>
+        <span className="help-copy">
+          Every free start between waking and three hours before bedtime was
+          scored, skipping anything within 10 minutes of a calendar entry. The
+          highest score wins.
+        </span>
+        {s && (
+          <span className="help-rows">
+            {rows.map(([label, value, detail]) => (
+              <span key={label} className="help-row">
+                <span>
+                  {label}
+                  <small>{detail}</small>
+                </span>
+                <em>{signed(value)}</em>
+              </span>
+            ))}
+            <span className="help-row total">
+              <span>
+                Score
+                <small>best of {s.candidates} possible starts</small>
+              </span>
+              <em>{s.total.toFixed(2)}</em>
+            </span>
+          </span>
+        )}
+        <span className="help-copy muted">
+          Weights are engineering choices, not a fitted model. Effort is capped
+          by readiness and projected energy.
+        </span>
+      </span>
+    </span>
+  );
+}
 
 export function BestWindowCard({
   decision,
@@ -55,10 +131,13 @@ export function BestWindowCard({
     <Panel
       className={`window-card${focus?.kind === "window" ? " is-spoken" : ""}`}
     >
-      <span className="eyebrow">
-        <i />
-        BEST TRAINING WINDOW
-      </span>
+      <div className="window-eyebrow">
+        <span className="eyebrow">
+          <i />
+          BEST TRAINING WINDOW
+        </span>
+        <WindowHelp decision={decision} />
+      </div>
       <h2 className="window-time">
         {clock(w.start, tz)} <span>–</span> {clock(w.end, tz)}
       </h2>
@@ -110,7 +189,19 @@ export function DayForecast({
   focus: Focus;
 }) {
   const curve = decision?.curve;
-  if (!decision || !curve || curve.length < 2) return null;
+  const laneRef = useRef<HTMLDivElement>(null);
+  const [laneWidth, setLaneWidth] = useState(560);
+  const hasCurve = !!curve && curve.length >= 2;
+  useEffect(() => {
+    const lane = laneRef.current;
+    if (!lane || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) =>
+      setLaneWidth(entry.contentRect.width || 560),
+    );
+    observer.observe(lane);
+    return () => observer.disconnect();
+  }, [hasCurve]);
+  if (!decision || !curve || !hasCurve) return null;
   const tz = decision.timezone;
   const t0 = Date.parse(curve[0].time),
     t1 = Date.parse(curve[curve.length - 1].time);
@@ -159,6 +250,24 @@ export function DayForecast({
     });
   ticks.sort((a, b) => a.left - b.left);
   const riskFocus = focus?.kind === "risk" ? focus.index : -1;
+  const gridValues = [100, 75, 50, 25, 0];
+  // Each title runs past its (often short) block, so rows are packed by where the text
+  // ends, measured against the lane's real width. Titles near the right edge sit to the
+  // block's left instead. Past three rows an entry keeps its block and hover title only.
+  const rowEnds: number[] = [];
+  const events = (decision.busy ?? []).map((b) => {
+    const left = x(b.start);
+    const width = Math.max(1.2, x(b.end) - left);
+    const labelPct = ((b.title.length * 5.4 + 16) / Math.max(laneWidth, 1)) * 100;
+    const flip = left + labelPct > 100;
+    const from = flip ? Math.max(0, left + width - labelPct - width) : left;
+    const reach = (flip ? left + width : Math.max(left + width, left + labelPct)) + 0.8;
+    let row = rowEnds.findIndex((end) => end <= from);
+    if (row === -1 && rowEnds.length < 3) row = rowEnds.length;
+    if (row >= 0) rowEnds[row] = reach;
+    return { ...b, left, width, flip, row: Math.max(row, 0), labelled: row >= 0 };
+  });
+  const eventRows = Math.max(1, rowEnds.length);
   return (
     <Panel className="day-forecast">
       <PanelTitle
@@ -171,12 +280,34 @@ export function DayForecast({
       >
         <BatteryCharging size={18} className="green" />
       </PanelTitle>
+      <div className="day-plot">
+      <div className="day-axis" aria-hidden="true">
+        {gridValues.map((v) => (
+          <span key={v} style={{ top: `${y(v)}%` }}>
+            {v}
+          </span>
+        ))}
+      </div>
+      <div className="day-main" ref={laneRef}>
       <div
         className="day-chart"
         role="img"
         aria-label={`Projected energy ${decision.now?.energy} now${window ? `, ${window.energy} at the best window, ${clock(window.start, tz)}` : ""}.`}
       >
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {gridValues.map((v) => (
+            <line key={v} className="day-grid" x1={0} x2={100} y1={y(v)} y2={y(v)} />
+          ))}
+          {events.map((b) => (
+            <rect
+              key={`band${b.start}${b.title}`}
+              className="day-band busy"
+              x={b.left}
+              width={b.width}
+              y={0}
+              height={100}
+            />
+          ))}
           {(decision.risks ?? []).map((risk, index) => (
             <rect
               key={risk.start}
@@ -220,19 +351,27 @@ export function DayForecast({
           </>
         )}
       </div>
-      {!!decision.busy?.length && (
-      <div className="day-lane" aria-label="Busy on your calendar">
-        {decision.busy.map((b) => (
-          <i
-            key={`${b.start}${b.title}`}
-            title={`${b.title} · ${clock(b.start, tz)}–${clock(b.end, tz)}`}
-            style={{
-              left: `${x(b.start)}%`,
-              width: `${Math.max(0.8, x(b.end) - x(b.start))}%`,
-            }}
-          />
-        ))}
-      </div>
+      {events.length > 0 && (
+        <div
+          className="day-events"
+          aria-label="Your calendar on this timeline"
+          style={{ height: `${eventRows * 24 - 4}px` }}
+        >
+          {events.map((b) => (
+            <span
+              key={`${b.start}${b.title}`}
+              className={`day-event${b.flip ? " flip" : ""}`}
+              title={`${b.title} · ${clock(b.start, tz)}–${clock(b.end, tz)}`}
+              style={{
+                left: `${b.left}%`,
+                width: `${b.width}%`,
+                top: `${b.row * 24}px`,
+              }}
+            >
+              {b.labelled && <b>{b.title}</b>}
+            </span>
+          ))}
+        </div>
       )}
       <div className="day-ticks">
         {ticks.map((t) => (
@@ -246,10 +385,12 @@ export function DayForecast({
           </span>
         ))}
       </div>
+      </div>
+      </div>
       <div className="chart-key">
         <span className="green">━ Forecast</span>
         <span>┄ Daily rhythm</span>
-        <span className="amber">▬ Busy</span>
+        <span className="amber">▬ Calendar</span>
         <small>Garmin Body Battery · 0–100</small>
       </div>
       {!!decision.risks?.length && (
