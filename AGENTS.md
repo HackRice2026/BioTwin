@@ -128,6 +128,14 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Shivendra authorized recording the full BioTwin 2.0 redesign
+  in `global context.md`; it is now the central plan. User overrides the
+  default dev workflow: implement on `biotwin2.0` (base `ccfe601` from dev),
+  with logical commits as Shivendra using the existing configured email.
+  Preserve existing PWA icons and both avatar GPU integrations. Design
+  assumption: the persistent Body Battery is a labeled BioTwin estimate
+  from existing computed signals, separate from Garmin’s measured score.
+
 - 2026-09-12 — Origin checking is enforced in **three separate places** in
   core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
   custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
@@ -240,9 +248,6 @@ This file is a living document. The agent MUST:
   screenshotted at 390px and 1280px via a scratch Playwright script (no
   `chromium-cli` in this environment), zero console errors, live BPM
   confirmed actually changing between two screenshots seconds apart.
-- 2026-09-11 — AGENTS.md created. `global context.md` does not exist yet;
-  user will add the central plan later. Until it exists, non-trivial work
-  requires explicit user direction (Prime Directive).
 - 2026-09-12 — Added `src/garmin_grafana/ble_hr_live.py` for true live
   (push-based, not polled) heart-rate streaming during a workout. Garmin
   Connect's cloud API (what `garmin_fetch.py` polls) has no real-time path —
@@ -785,7 +790,8 @@ This file is a living document. The agent MUST:
 
 ## Branch workflow
 
-- Use `dev` for ongoing development and track `origin/dev`.
-- Keep changes in logical commits and push completed, verified work to `origin/dev`.
+- BioTwin 2.0 work uses `biotwin2.0`, branched from `dev`, per Shivendra.
+- Make logical verified commits as Shivendra; push to `origin/biotwin2.0`.
+- Other work follows its explicitly requested branch; do not switch this task to dev.
 - Fetch before synchronizing. Incorporate newer `main` changes into `dev` with a normal merge when needed; preserve existing branch history.
 - Keep local secrets, personal data, dependencies, and build output out of commits.
