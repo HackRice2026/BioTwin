@@ -211,6 +211,80 @@ on the SCC box, `services/avatar_body_service/start.sh` (uses the
 tunneled locally the same way as 8765
 (`ssh -N -L 8766:localhost:8766 scc`).
 
+### Real NVIDIA Audio2Face-3D: built and verified running, but not integrated -- here's exactly why
+
+Added 2026-09-13. Short version: **the actual official SDK genuinely
+builds and runs real inference on this H100** -- verified, not
+assumed. It is **not wired into the app**, and the reason isn't
+another dependency fight: it's a real architectural mismatch between
+what this SDK produces and what our avatar needs, discovered by
+actually inspecting the model's own metadata, not assumed from the
+name.
+
+**What was built and run, for real:**
+- Cloned `NVIDIA/Audio2Face-3D-SDK` (MIT) to `/data/saurav/audio2face-sdk`.
+- Installed real prerequisites the box didn't have: `git-lfs`, `cmake`,
+  `ninja-build`; CUDA Toolkit 12.9 and TensorRT 10.13.3.9 (matching the
+  SDK's own version constraints) via NVIDIA's official apt repo
+  (`developer.download.nvidia.com` -- no NGC/gated login needed for
+  any of this, a genuinely different distribution channel than the
+  NIM/microservice path). One real, trivial build error along the way:
+  the SDK's `CMakeLists.txt` requires zlib >=1.3.1, Ubuntu 24.04 ships
+  1.3 -- relaxed the version check by one line rather than building
+  zlib from source, since the two are compatible in practice.
+- Downloaded the actual (non-gated) model weights from HuggingFace:
+  `nvidia/Audio2Face-3D-v3.0` (diffusion), plus the legacy
+  regression models `v2.3.1-Claire`, `v2.3.1-James`, `v2.3-Mark`.
+  Deliberately skipped `Audio2Emotion` -- that specific model IS
+  gated (license click-through + HF token), and isn't needed for face
+  animation itself.
+- `./build.sh all release` -- succeeded, 147/147 targets, real CUDA/C++
+  compilation against our actual driver/GPU.
+- Converted the downloaded ONNX weights to real TensorRT engines via
+  the SDK's own `gen_test_data.py`/`gen_sample_data.py` scripts (needed
+  `trtexec`, which turned out to live at `/usr/src/tensorrt/bin/`, not
+  on `PATH` by default after the apt install -- and `pydub`, a plain
+  missing pip package). Real trtexec engine builds and benchmarks
+  completed for both the regression and diffusion models (sub-millisecond
+  and ~10ms GPU compute time respectively, on this H100).
+- Ran the actual compiled sample (`sample-a2f-executor`) against the
+  SDK's own real 4-second test audio clip -- both the regression
+  ("mark") and diffusion (v3.0) bundles produced real animation frames
+  across multiple simulated tracks, no errors, no fallback, no
+  synthetic data.
+
+**Why this isn't wired into the app -- checked, not guessed:**
+inspected the actual model metadata (`network_info.json` for the
+"mark" regression model, and the `v3.0` model's own HuggingFace README)
+before assuming anything about output format. Both are explicit:
+output is **facial motion on skin (272 shape coefficients over a
+61,520-vertex mesh specific to NVIDIA's own "mark"/"claire"/"james"
+reference characters), tongue, jaw, and eyes** -- not ARKit blendshape
+weights. Grepped the entire SDK source and docs for "arkit" and common
+ARKit shape names (`jawOpen`, `mouthFunnel`) -- zero real matches. The
+"Audio2Face-3D converts speech into ARKit Blendshapes" claim from
+NVIDIA's own docs describes the **gated NIM microservice**
+(`NVIDIA/Audio2Face-3D-Samples`, obtained through NGC), which does
+that conversion as part of its own server-side pipeline -- it is not a
+capability of this open SDK on its own.
+
+**What it would actually take to use this on our avatar:** the SDK's
+raw output would need to be retargeted from NVIDIA's own character
+mesh/shape-basis onto our completely different GLB mesh -- a real
+deformation-transfer / mesh-fitting problem (find the ARKit blendshape
+weights on our mesh that best reproduce NVIDIA's vertex deltas on
+theirs), not a data-format conversion. That's a bounded but genuinely
+separate research-engineering task, not a quick follow-up, and wasn't
+attempted. The alternative -- gated NGC access to the actual NIM
+microservice, which does emit ARKit blendshapes directly -- was
+already checked for and confirmed unavailable earlier in this project
+(see the Log entries around 2026-09-12/13).
+
+Nothing from this SDK is deployed as a running service; the build
+lives at `/data/saurav/audio2face-sdk` on the SCC box for reference,
+not wired to any port or tmux session. The face service in production
+today is still the ASR-based one described above.
+
 ## How to run what exists now
 
 On SCC, both services should already be running:
