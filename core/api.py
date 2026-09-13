@@ -32,6 +32,7 @@ from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPre
 from core.config import Settings
 from core.runtime import Runtime
 from core.agenda import AgendaService, EventDraft, calendar_question
+from narration.gemini_live import mint_session, system_instruction
 from narration.calendar import prepare_event, calendar_context
 from core.security import hash_password, verify_password
 from core.watch import issue_token, authenticate as authenticate_watch
@@ -295,6 +296,9 @@ def create_app(config=None):
             "demo": u["id"] == "demo",
             "data_source": data_source_label(config.database_url),
             "voice_configured": bool(config.elevenlabs_api_key),
+            # Live is a different mode, not a better ElevenLabs: the model speaks
+            # for itself instead of reading a guarded sentence back.
+            "live_voice": bool(config.gemini_api_key and config.use_gemini_live),
             "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
         }
@@ -638,6 +642,22 @@ def create_app(config=None):
         owner = conversation_owner(request)
         row = rt().store.conversation(owner, conversation_id) if owner else None
         return speech_ticket(owner, row)
+
+    @app.post("/api/twin/live/session")
+    async def live_session(request: Request):
+        """Mint one short-lived token so the browser can talk to Gemini Live directly.
+
+        The grounding is assembled here, from the same turn_context the typed coach
+        uses -- the briefing, the facts, and today's training decision -- and locked
+        into the token, so the browser cannot alter what the voice is allowed to say.
+        The API key stays on the server.
+        """
+        u = user(request)
+        turn = await rt().turn_context(u)
+        instruction = system_instruction(turn["ctx"])
+        session = await mint_session(config, rt().http, instruction)
+        rt().counters["live_sessions"] += 1
+        return session
 
     @app.post("/api/twin/ask")
     async def ask(data: Question, request: Request, response: Response):

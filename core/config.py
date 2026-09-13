@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     narration_api_key: str = ""
     narration_model: str = "gemini-3.1-flash-lite"
     allow_external_narration: bool = False
+    # Gemini Live: a direct AI Studio API key, no Vertex ADC and no OpenAI-compatible
+    # shim. The model speaks to the user itself over a WebSocket, so the numeric
+    # guard in narration/service.py cannot sit between it and the listener -- the
+    # grounding is carried in a locked system instruction instead. Off unless a key
+    # is present AND this is true, like every other external path here.
+    gemini_api_key: str = ""
+    use_gemini_live: bool = False
+    gemini_live_model: str = "gemini-3.1-flash-live-preview"
+    gemini_live_voice: str = "Aoede"
+    # How long a browser may hold a minted session token before it must ask again.
+    gemini_live_token_minutes: int = 10
     # Opt-in alternate narration path: Vertex AI instead of the AI Studio key
     # above. Genuinely different auth (OAuth2 Application Default Credentials,
     # refreshed access tokens -- from `gcloud auth application-default login`
