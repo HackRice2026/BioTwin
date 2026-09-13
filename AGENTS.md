@@ -128,6 +128,14 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
+  selected calendar day. The frontend requests an end-exclusive one-day window,
+  previous/next move one day, and only tasks due on that date appear. The
+  backend keeps its range-capable agenda API for calendar narration and future
+  consumers; the one-day constraint belongs to this UI. VERIFIED in Chrome at
+  1440/390/360px, including day navigation, filters, drafts, confirmed writes
+  and partial/read failure states; production build and 21 frontend tests pass.
+
 - 2026-09-12 — While publishing calendar work, origin/dev advanced with
   watch/forecast and OAuth-return fixes. Merged normally; retained all of them
   alongside the new agenda. The empty-plan card now displays the planner's
@@ -150,8 +158,8 @@ This file is a living document. The agent MUST:
 
 - 2026-09-12 — Calendar follow-up authorized on dev: replace free/busy-only
   display with named events and optional Google Tasks, plus calendar-grounded
-  twin answers and reviewable event drafts. Assumptions: show all readable
-  calendars in a browsable date range; retain explicit Add confirmation.
+  twin answers and reviewable event drafts. Show all readable calendars for one
+  selected day and retain explicit Add confirmation.
   Tasks use a separate read scope and may need renewed Google consent.
 
 - 2026-09-12 — Shivendra explicitly requested merging `biotwin2.0` into

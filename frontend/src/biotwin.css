@@ -2908,44 +2908,6 @@ button.primary:hover:not(:disabled) {
   color: #a8bbb0;
   margin: 16px 0;
 }
-.calendar-week {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  margin-bottom: 24px;
-}
-.calendar-week button {
-  background: #ffffff02;
-  border: 1px solid #ffffff07;
-  border-radius: 14px;
-  color: #a9bbb0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 0 4px;
-  gap: 4px;
-}
-.calendar-week button small {
-  font-size: 11px;
-}
-.calendar-week button b {
-  font-size: 20px;
-  font-weight: 500;
-  color: #e4eee8;
-}
-.calendar-week button span {
-  font-size: 12px;
-  height: 18px;
-  letter-spacing: 3px;
-  color: #8bc5a6;
-}
-.calendar-week button.today {
-  border-color: #8bc5a640;
-}
-.calendar-week button.selected {
-  background: #8bc5a625;
-  border-color: #8bc5a680;
-}
 .calendar-filters {
   justify-content: space-between;
   margin-bottom: 20px;
@@ -3299,24 +3261,8 @@ button.primary:hover:not(:disabled) {
   .calendar-date-picker input {
     width: 100%;
   }
-  .calendar-toolbar > select {
-    align-self: flex-start;
-  }
   .calendar-range-label {
     font-size: 11px;
-  }
-  .calendar-week {
-    gap: 4px;
-    margin-bottom: 18px;
-  }
-  .calendar-week button {
-    border-radius: 9px;
-  }
-  .calendar-week button small {
-    font-size: 9px;
-  }
-  .calendar-week button b {
-    font-size: 17px;
   }
   .calendar-filters {
     flex-wrap: wrap;

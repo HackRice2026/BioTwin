@@ -47,8 +47,6 @@ const clockTime = (s: string, timezone: string) =>
     timeZone: timezone,
   });
 const color = (s: string) => (/^#[0-9a-f]{6}$/i.test(s) ? s : "#8bc5a6");
-const dateOf = (event: CalendarEvent, tz: string) =>
-  event.all_day ? event.start.slice(0, 10) : dayInZone(event.start, tz);
 
 export function CalendarAgenda({
   calendar,
@@ -65,39 +63,28 @@ export function CalendarAgenda({
   asking: boolean;
   compact?: boolean;
 }) {
-  const { agenda, start, days, loading, error, timezone } = calendar;
+  const { agenda, start, loading, error, timezone } = calendar;
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("all");
-  const [selected, setSelected] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState("open");
   const [question, setQuestion] = useState("");
-  useEffect(() => {
-    setSelected(null);
-  }, [start, days]);
   const events = (agenda?.events ?? []).filter(
     (e) =>
       (source === "all" || e.calendar_id === source) &&
       `${e.title} ${e.location ?? ""} ${e.calendar_name}`
         .toLowerCase()
-        .includes(search.toLowerCase()) &&
-      (!selected ||
-        (dateOf(e, timezone) <= selected &&
-          (e.all_day
-            ? e.end.slice(0, 10) > selected
-            : dayInZone(e.end, timezone) >= selected))),
+        .includes(search.toLowerCase()),
   );
   const groups = useMemo(() => {
     const result = new Map<string, CalendarEvent[]>();
     for (const e of events) {
-      const day =
-        selected ?? (dateOf(e, timezone) < start ? start : dateOf(e, timezone));
-      result.set(day, [...(result.get(day) ?? []), e]);
+      result.set(start, [...(result.get(start) ?? []), e]);
     }
     return [...result.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [events, selected, timezone, start]);
+  }, [events, start]);
   const tasks = (agenda?.tasks ?? []).filter(
     (t) =>
-      (!t.due || (t.due >= start && t.due < calendar.end)) &&
+      t.due === start &&
       (taskStatus === "all" ||
         (taskStatus === "done" ? t.completed : !t.completed)) &&
       `${t.title} ${t.list_name}`.toLowerCase().includes(search.toLowerCase()),
@@ -147,8 +134,8 @@ export function CalendarAgenda({
             <div className="calendar-period">
               <button
                 className="icon-button"
-                aria-label="Previous calendar range"
-                onClick={() => calendar.setStart(shiftDay(start, -days))}
+                aria-label="Previous day"
+                onClick={() => calendar.setStart(shiftDay(start, -1))}
               >
                 <ChevronLeft size={18} />
               </button>
@@ -162,8 +149,8 @@ export function CalendarAgenda({
               </button>
               <button
                 className="icon-button"
-                aria-label="Next calendar range"
-                onClick={() => calendar.setStart(shiftDay(start, days))}
+                aria-label="Next day"
+                onClick={() => calendar.setStart(shiftDay(start, 1))}
               >
                 <ChevronRight size={18} />
               </button>
@@ -179,53 +166,15 @@ export function CalendarAgenda({
                 />
               </label>
             </div>
-            <select
-              aria-label="Calendar date range"
-              value={days}
-              onChange={(e) => calendar.setDays(Number(e.target.value))}
-            >
-              <option value={7}>7 days</option>
-              <option value={30}>30 days</option>
-            </select>
           </div>
           <div className="calendar-range-label">
-            {displayDate(start)} —{" "}
-            {displayDate(shiftDay(calendar.end, -1), {
+            {displayDate(start, {
+              weekday: "long",
               month: "long",
               day: "numeric",
               year: "numeric",
             })}
           </div>
-          {days === 7 && (
-            <div
-              className="calendar-week"
-              role="group"
-              aria-label="Filter calendar by day"
-            >
-              {Array.from({ length: days }, (_, i) => shiftDay(start, i)).map(
-                (day) => {
-                  const count = (agenda?.events ?? []).filter(
-                    (e) => dateOf(e, timezone) === day,
-                  ).length;
-                  return (
-                    <button
-                      key={day}
-                      className={`${selected === day ? "selected" : ""} ${day === dayInZone(new Date(), timezone) ? "today" : ""}`}
-                      aria-label={`Show ${day}`}
-                      aria-pressed={selected === day}
-                      onClick={() => setSelected(selected === day ? null : day)}
-                    >
-                      <small>{displayDate(day, { weekday: "short" })}</small>
-                      <b>{day.slice(-2)}</b>
-                      <span>
-                        {count ? "•".repeat(Math.min(count, 3)) : "·"}
-                      </span>
-                    </button>
-                  );
-                },
-              )}
-            </div>
-          )}
           <div className="calendar-filters">
             <label className="calendar-search">
               <Search size={16} />
@@ -249,11 +198,6 @@ export function CalendarAgenda({
               ))}
             </select>
           </div>
-          {selected && (
-            <button className="text-button" onClick={() => setSelected(null)}>
-              Show all days
-            </button>
-          )}
           {error && (
             <p className="calendar-notice" role="alert">
               {error}{" "}
@@ -384,7 +328,7 @@ export function CalendarAgenda({
                         ? "No events match these filters."
                         : agenda?.status === "partial"
                           ? "No events were returned. Some calendars could not refresh."
-                          : "No events in this range. A little breathing room."}
+                          : "No events on this day. A little breathing room."}
                     </p>
                   </div>
                 )}
@@ -437,7 +381,7 @@ export function CalendarAgenda({
                       ? "Grant Google Tasks access in Connections to see your task lists."
                       : agenda?.status === "demo"
                         ? "Connect your account to see your tasks."
-                        : "No matching tasks. Undated tasks appear here too."}
+                        : "No matching tasks due on this day."}
                   </p>
                 )}
               </div>

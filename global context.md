@@ -12,8 +12,10 @@ branch into `dev`. Preserve both branches' history and publish the merge to
 ## Calendar follow-up
 
 On `dev`, show the connected calendar's actual events and available Google Tasks
-in a clean, browsable agenda. Include every provider page in the displayed date
-range, calendar names, recurring instances, all-day entries and event details.
+in a clean, browsable agenda. The UI displays one selected day at a time and
+includes every provider page for that day, calendar names, recurring instances,
+all-day entries and event details. Previous, Today, next and date-picker controls
+change the selected day; events and due tasks outside it stay hidden.
 The twin can read this calendar context and prepare new events; a visible draft
 lets the user review the title, calendar, time and reminder before adding it.
 Refresh after consent and writes. Tasks require their separate read permission;

@@ -5,9 +5,10 @@
 - After merging concurrent watch/forecast updates: **99 Python tests passed,
   3 PostgreSQL-only cases skipped locally**; frontend's **21 tests**, production
   build, Ruff and schema checks pass.
-- `scripts/calendar-check.mjs` verifies consent-return navigation, actual event
-  titles/details, tasks, date/source/search filters, draft review, confirmed write
-  request and agenda refresh, and clear partial/failure states at 1440/390/360px.
+- `scripts/calendar-check.mjs` verifies consent-return navigation, an exact
+  one-day request window, actual event titles/details, tasks due that day,
+  day/source/search filters, draft review, confirmed write request and agenda
+  refresh, and clear partial/failure states at 1440/390/360px.
   Calendar provider responses are controlled test data; no real events are written.
 - Backend tests exercise all calendar/event/task pagination, recurring instances,
   all-day end dates, missing Tasks permission, account isolation, conflicts,

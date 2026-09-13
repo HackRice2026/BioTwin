@@ -18,6 +18,7 @@ let questionBody,
   eventBody,
   writes = 0,
   reads = 0,
+  agendaRequests = [],
   failRead = false,
   partial = false;
 const calendar = {
@@ -35,8 +36,26 @@ const work = {
   color: "#88bafa",
   primary: false,
 };
-const day = new Date().toISOString().slice(0, 10);
-const nextDay = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const dayInChicago = (value) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(value)
+      .map(({ type, value: part }) => [type, part]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+const shiftDay = (value, amount) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+};
+const day = dayInChicago(new Date());
+const nextDay = shiftDay(day, 1);
 const items = [
   {
     id: "one",
@@ -106,6 +125,11 @@ const tasks = [
 await context.route("**/api/calendar/agenda?*", (route) => {
   reads++;
   const params = new URL(route.request().url()).searchParams;
+  const requestRange = {
+    start: params.get("start"),
+    end: params.get("end"),
+  };
+  agendaRequests.push(requestRange);
   if (failRead)
     return route.fulfill({
       status: 502,
@@ -116,7 +140,12 @@ await context.route("**/api/calendar/agenda?*", (route) => {
       start: params.get("start"),
       end: params.get("end"),
       timezone: "America/Chicago",
-      events: items,
+      events: items.filter((event) =>
+        event.all_day
+          ? event.start.slice(0, 10) <= requestRange.start &&
+            event.end.slice(0, 10) > requestRange.start
+          : event.start.slice(0, 10) === requestRange.start,
+      ),
       tasks,
       calendars: [calendar, work],
       warnings: partial
@@ -221,17 +250,21 @@ try {
   await page.getByLabel("Search events and tasks").fill("submission");
   assert.equal(await page.locator(".calendar-event").count(), 1);
   await page.getByLabel("Search events and tasks").fill("");
-  assert.equal(await page.locator(".calendar-task").count(), 2);
+  assert.equal(await page.locator(".calendar-task").count(), 1);
   await page.getByLabel("Filter tasks").selectOption("all");
-  assert.equal(await page.locator(".calendar-task").count(), 3);
-  await page.getByRole("button", { name: `Show ${day}`, exact: true }).click();
-  await page
-    .getByRole("button", { name: "Show all days", exact: true })
-    .click();
+  assert.equal(await page.locator(".calendar-task").count(), 2);
+  assert.equal(await page.getByLabel("Calendar date range").count(), 0);
+  assert.equal(agendaRequests.at(-1).start, day);
+  assert.equal(agendaRequests.at(-1).end, nextDay);
   const previous = reads;
-  await page.getByLabel("Next calendar range").click();
+  await page.getByLabel("Next day").click();
   await page.waitForResponse((r) => r.url().includes("/api/calendar/agenda?"));
   assert.ok(reads > previous);
+  assert.equal(agendaRequests.at(-1).start, nextDay);
+  assert.equal(
+    agendaRequests.at(-1).end,
+    shiftDay(day, 2),
+  );
   await page.getByRole("button", { name: "Today", exact: true }).click();
   await page.getByRole("button", { name: "New event", exact: false }).click();
   const editor = page.getByRole("dialog", { name: "Review calendar event" });
@@ -273,7 +306,7 @@ try {
     .getByText("Google Tasks could not be loaded.", { exact: false })
     .waitFor();
   assert.ok(
-    await page.getByText("Product design review", { exact: true }).isVisible(),
+    await page.getByText("Coffee with the team", { exact: true }).isVisible(),
   );
   failRead = true;
   await page.getByLabel("Refresh calendar events").click();

@@ -78,12 +78,11 @@ export function useCalendar(
 ) {
   const tz = session?.user.profile.timezone || "UTC";
   const [start, setStart] = useState(() => dayInZone(new Date(), tz));
-  const [days, setDays] = useState(7);
   const [agenda, setAgenda] = useState<Agenda | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
-  const end = shiftDay(start, days);
+  const end = shiftDay(start, 1);
   useEffect(() => {
     setStart(dayInZone(new Date(), tz));
     setAgenda(null);
@@ -137,9 +136,7 @@ export function useCalendar(
     error,
     start,
     end,
-    days,
     setStart,
-    setDays,
     refresh,
     timezone: tz,
     online,
