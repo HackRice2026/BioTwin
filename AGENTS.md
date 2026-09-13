@@ -128,6 +128,14 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — While publishing calendar work, origin/dev advanced with
+  watch/forecast and OAuth-return fixes. Merged normally; retained all of them
+  alongside the new agenda. The empty-plan card now displays the planner's
+  explanation instead of asking connected users to connect again. Removed
+  unused imports/format prefixes in incoming scripts because they blocked CI.
+  Kept the redesign's explicit recovery-chart height: the incoming 100% height
+  assumes the removed UI's fixed parent and inflated the new chart to 609px.
+
 - 2026-09-12 — Calendar agenda follows every event/calendar/task page and
   keeps all-day ends exclusive; Tasks failure doesn't discard calendar events.
   Event drafts are account-scoped, expire after an hour and require visible

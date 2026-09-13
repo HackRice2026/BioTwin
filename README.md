@@ -31,7 +31,7 @@ hostname -I
 ipconfig
 ```
 
-Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — live updates and API calls work as on `localhost`. Microphone recording requires a secure browser context: use HTTPS for phone/LAN voice capture; plain HTTP LAN addresses can still use typed chat. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
+Then set `LAN_ORIGIN` in `.env` to that address with the frontend's port, e.g. `LAN_ORIGIN=http://192.168.1.23:5173`, and restart `bash scripts/dev.sh` (or the production server) so the backend accepts it. A teammate on the same WiFi opens `http://192.168.1.23:5173` in their browser — live updates and API calls work as on `localhost`. They need no Google or ElevenLabs setup of their own: narration and speech are server-side, so your host machine's credentials cover every LAN visitor (see docs/INTEGRATIONS.md for the per-machine setup, which is only needed for a separate copy of the app). Microphone recording requires a secure browser context: use HTTPS for phone/LAN voice capture; plain HTTP LAN addresses can still use typed chat. Without `LAN_ORIGIN` set, requests from anything but `localhost`/`127.0.0.1` are rejected (CORS, the `/ws/live` WebSocket, and the POST/PUT/DELETE origin check all enforce it).
 
 Create an adult account from “Connect your own data.” In Connections, import an original Garmin `.FIT` activity or a supported JSON export. `.FIT` activities provide recorded heart rate; they do not necessarily contain sleep or RMSSD HRV. Missing signals stay missing and reduce readiness confidence.
 
@@ -93,6 +93,10 @@ PYTHONPATH=. uv run scripts/onboard_teammate.py --email teammate@example.com --n
 Prints the generated password once (pass `--password` to set your own). Safe to re-run for the same email later to refresh their data with the source account's latest history -- it only ever writes to that one teammate's own rows, tagged `provenance: replay`, never touching anyone else's account.
 
 ## Verification
+
+For the foreground Venu 2 app, device pairing, five-second delivery target,
+measurement limits and hardware verification status, see the
+[watch app setup guide](watch-app/README.md).
 
 ```sh
 uv run pytest -q

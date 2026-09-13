@@ -1,0 +1,202 @@
+[
+ {
+  "calendarDate": "2025-11-01",
+  "values": {
+   "totalSteps": 15366.0,
+   "averageSteps": 7683.0,
+   "wellnessDataDaysCount": 2,
+   "averageDistance": 5943.0,
+   "totalDistance": 11886.0
+  }
+ },
+ {
+  "calendarDate": "2025-11-08",
+  "values": {
+   "totalSteps": 48106.0,
+   "averageSteps": 8017.666666666667,
+   "wellnessDataDaysCount": 6,
+   "averageDistance": 6225.0,
+   "totalDistance": 37350.0
+  }
+ },
+ {
+  "calendarDate": "2025-11-15",
+  "values": {
+   "totalSteps": 49548.0,
+   "averageSteps": 7078.285714285715,
+   "wellnessDataDaysCount": 7,
+   "averageDistance": 12729.857142857143,
+   "totalDistance": 89109.0
+  }
+ },
+ {
+  "calendarDate": "2025-11-22",
+  "values": {
+   "totalSteps": 29471.0,
+   "averageSteps": 4911.833333333333,
+   "wellnessDataDaysCount": 6,
+   "averageDistance": 3869.3333333333335,
+   "totalDistance": 23216.0
+  }
+ },
+ {
+  "calendarDate": "2025-11-29",
+  "values": {
+   "totalSteps": 3977.0,
+   "averageSteps": 1988.5,
+   "wellnessDataDaysCount": 2,
+   "averageDistance": 1538.0,
+   "totalDistance": 3076.0
+  }
+ },
+ {
+  "calendarDate": "2025-12-06",
+  "values": {
+   "totalSteps": 53432.0,
+   "averageSteps": 8905.333333333334,
+   "wellnessDataDaysCount": 6,
+   "averageDistance": 6905.5,
+   "totalDistance": 41433.0
+  }
+ },
+ {
+  "calendarDate": "2025-12-13",
+  "values": {
+   "totalSteps": 33744.0,
+   "averageSteps": 6748.8,
+   "wellnessDataDaysCount": 5,
+   "averageDistance": 5723.6,
+   "totalDistance": 28618.0
+  }
+ },
+ {
+  "calendarDate": "2026-01-31",
+  "values": {
+   "totalSteps": 15555.0,
+   "averageSteps": 7777.5,
+   "wellnessDataDaysCount": 2,
+   "averageDistance": 6068.0,
+   "totalDistance": 12136.0
+  }
+ },
+ {
+  "calendarDate": "2026-02-14",
+  "values": {
+   "totalSteps": 70771.0,
+   "averageSteps": 17692.75,
+   "wellnessDataDaysCount": 4,
+   "averageDistance": 14428.0,
+   "totalDistance": 57712.0
+  }
+ },
+ {
+  "calendarDate": "2026-02-21",
+  "values": {
+   "totalSteps": 66585.0,
+   "averageSteps": 9512.142857142857,
+   "wellnessDataDaysCount": 7,
+   "averageDistance": 7519.714285714285,
+   "totalDistance": 52638.0
+  }
+ },
+ {
+  "calendarDate": "2026-02-28",
+  "values": {
+   "totalSteps": 9192.0,
+   "averageSteps": 4596.0,
+   "wellnessDataDaysCount": 2,
+   "averageDistance": 3557.5,
+   "totalDistance": 7115.0
+  }
+ },
+ {
+  "calendarDate": "2026-03-07",
+  "values": {
+   "totalSteps": 58855.0,
+   "averageSteps": 9809.166666666666,
+   "wellnessDataDaysCount": 6,
+   "averageDistance": 7596.5,
+   "totalDistance": 45579.0
+  }
+ },
+ {
+  "calendarDate": "2026-03-14",
+  "values": {
+   "totalSteps": 17164.0,
+   "averageSteps": 5721.333333333333,
+   "wellnessDataDaysCount": 3,
+   "averageDistance": 4433.333333333333,
+   "totalDistance": 13300.0
+  }
+ },
+ {
+  "calendarDate": "2026-07-25",
+  "values": {
+   "totalSteps": 29955.0,
+   "averageSteps": 5991.0,
+   "wellnessDataDaysCount": 5,
+   "averageDistance": 4380.0,
+   "totalDistance": 21900.0
+  }
+ },
+ {
+  "calendarDate": "2026-08-01",
+  "values": {
+   "totalSteps": 39501.0,
+   "averageSteps": 5643.0,
+   "wellnessDataDaysCount": 7,
+   "averageDistance": 4345.428571428572,
+   "totalDistance": 30418.0
+  }
+ },
+ {
+  "calendarDate": "2026-08-08",
+  "values": {
+   "totalSteps": 9169.0,
+   "averageSteps": 4584.5,
+   "wellnessDataDaysCount": 2,
+   "averageDistance": 3431.0,
+   "totalDistance": 6862.0
+  }
+ },
+ {
+  "calendarDate": "2026-08-15",
+  "values": {
+   "totalSteps": 43585.0,
+   "averageSteps": 7264.166666666667,
+   "wellnessDataDaysCount": 6,
+   "averageDistance": 5495.666666666667,
+   "totalDistance": 32974.0
+  }
+ },
+ {
+  "calendarDate": "2026-08-22",
+  "values": {
+   "totalSteps": 50188.0,
+   "averageSteps": 7169.714285714285,
+   "wellnessDataDaysCount": 7,
+   "averageDistance": 5266.714285714285,
+   "totalDistance": 36867.0
+  }
+ },
+ {
+  "calendarDate": "2026-08-29",
+  "values": {
+   "totalSteps": 50639.0,
+   "averageSteps": 7234.142857142857,
+   "wellnessDataDaysCount": 7,
+   "averageDistance": 5473.714285714285,
+   "totalDistance": 38316.0
+  }
+ },
+ {
+  "calendarDate": "2026-09-05",
+  "values": {
+   "totalSteps": 27695.0,
+   "averageSteps": 5539.0,
+   "wellnessDataDaysCount": 5,
+   "averageDistance": 3824.4,
+   "totalDistance": 19122.0
+  }
+ }
+]

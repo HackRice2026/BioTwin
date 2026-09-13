@@ -29,7 +29,7 @@ class OAuth:
         prefix = "garmin" if provider == "garmin" else "microsoft" if provider == "microsoft-calendar" else "google"
         return getattr(self.config, prefix + "_client_id"), getattr(self.config, prefix + "_client_secret")
 
-    def start(self, provider, user_id):
+    def start(self, provider, user_id, return_to=None):
         client_id, secret = self.credentials(provider)
         if not client_id or not secret or not self.config.token_encryption_key:
             raise ValueError(
@@ -37,10 +37,19 @@ class OAuth:
             )
         state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        # return_to records which of the allowed origins the flow began at, so
+        # consent returns the browser to the app it left rather than to whichever
+        # origin the server happens to call its frontend. The caller validates it
+        # against the allowlist; anything else is dropped here.
         self.store.put(
             user_id,
             "oauth_state",
-            {"provider": provider, "verifier": verifier, "expires": utcnow().timestamp() + 600},
+            {
+                "provider": provider,
+                "verifier": verifier,
+                "expires": utcnow().timestamp() + 600,
+                "return_to": return_to or "",
+            },
             state,
         )
         params = {
@@ -104,6 +113,7 @@ class OAuth:
                 provider,
             )
         self.save(user_id, provider, token)
+        return data.get("return_to") or ""
 
     def token_url(self, provider):
         if provider == "garmin":

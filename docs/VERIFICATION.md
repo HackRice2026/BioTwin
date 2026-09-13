@@ -2,8 +2,9 @@
 
 ## Connected calendar follow-up
 
-- **72 Python tests passed, 3 PostgreSQL-only cases skipped locally**; frontend's
-  **14 tests**, production build, Ruff and schema checks pass.
+- After merging concurrent watch/forecast updates: **99 Python tests passed,
+  3 PostgreSQL-only cases skipped locally**; frontend's **21 tests**, production
+  build, Ruff and schema checks pass.
 - `scripts/calendar-check.mjs` verifies consent-return navigation, actual event
   titles/details, tasks, date/source/search filters, draft review, confirmed write
   request and agenda refresh, and clear partial/failure states at 1440/390/360px.

@@ -347,3 +347,50 @@ async def test_seed_writes_a_full_week_when_calendar_is_empty():
         assert any("Class" in t for t in titles)
         assert any("Work" in t for t in titles)
         assert any("Office hours" in t or "Club" in t for t in titles)
+
+
+def test_consent_returns_to_the_origin_the_flow_started_from():
+    """Consent used to send every browser to frontend_origin, so connecting from
+    the app served on public_url landed on the Vite dev server's port -- a
+    connection-refused page after a connection that had actually succeeded."""
+
+    class Config:
+        frontend_origin = "http://localhost:5173"
+        public_url = "http://localhost:8000"
+        lan_origin = "http://192.168.1.23:5173"
+        token_encryption_key = Fernet.generate_key().decode()
+        google_client_id = "id"
+        google_client_secret = "secret"
+
+    class Store:
+        def __init__(self):
+            self.docs = {}
+
+        def put(self, uid, kind, payload, key=None):
+            self.docs[(uid, kind, key)] = payload
+
+        def take(self, uid, kind, key):
+            return self.docs.pop((uid, kind, key), None)
+
+    from core.oauth import OAuth
+    from urllib.parse import parse_qs, urlsplit
+
+    store = Store()
+    oauth = OAuth(Config(), store, None)
+
+    # Each allowed origin is carried through the state document untouched.
+    for origin in ("http://localhost:8000", "http://localhost:5173", "http://192.168.1.23:5173"):
+        url = oauth.start("google-calendar", "u", origin)
+        state = parse_qs(urlsplit(url).query)["state"][0]
+        assert store.docs[("u", "oauth_state", state)]["return_to"] == origin
+
+    # A missing origin stores nothing, so the caller falls back as before.
+    url = oauth.start("google-calendar", "u", None)
+    state = parse_qs(urlsplit(url).query)["state"][0]
+    assert store.docs[("u", "oauth_state", state)]["return_to"] == ""
+
+    # The redirect URI registered with Google stays public_url regardless of
+    # where the flow began; only the post-consent landing follows the browser.
+    assert parse_qs(urlsplit(url).query)["redirect_uri"] == [
+        "http://localhost:8000/auth/google-calendar/callback"
+    ]

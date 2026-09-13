@@ -22,6 +22,7 @@ from fastapi import (
     Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from urllib.parse import urlsplit
 from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
@@ -32,6 +33,8 @@ from core.runtime import Runtime
 from core.agenda import AgendaService, EventDraft, calendar_question
 from narration.calendar import prepare_event, calendar_context
 from core.security import hash_password, verify_password
+from core.watch import issue_token, authenticate as authenticate_watch
+from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
@@ -81,6 +84,13 @@ class AddEvent(BaseModel):
 class BroadcastSample(BaseModel):
     heart_rate_bpm: float = Field(ge=25, le=250)
     event_time: datetime | None = None
+    # Beat-to-beat intervals, when the sensor reports them. A wrist optical
+    # sensor usually does not; a chest strap does. Carried so RMSSD can be
+    # derived from measured intervals rather than inferred from a rate.
+    rr_ms: list[float] = Field(default_factory=list, max_length=32)
+    # Standard heart-rate service contact bits: False means off-body, which is a
+    # reading to distrust rather than a reading to drop silently.
+    contact: bool | None = None
 
 
 def create_app(config=None):
@@ -312,6 +322,23 @@ def create_app(config=None):
                 )
             ]
         return {"metric": metric, "series": rows}
+
+    @app.get("/api/forecast")
+    async def forecast(request: Request):
+        """One-hour Body Battery forecast from the exported ridge coefficients.
+
+        Returns availability rather than a number when the current Body Battery
+        reading is stale: the model leans on that level heavily enough that
+        extrapolating from an old one would be confidently wrong.
+        """
+        u = user(request)
+        from modeling.forecast import predict
+
+        return predict(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+        )
 
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
@@ -613,16 +640,31 @@ def create_app(config=None):
             "demo": u["id"] == "demo",
         }
 
+    def origin_of(request):
+        """Which allowed origin this request came from, or "" if it is not one
+        of them. Consent has to return the browser somewhere it can actually
+        reach: served from public_url, the Vite dev server, or the LAN address
+        are all normal, and frontend_origin alone is only right for the second."""
+        allowed = [o for o in (config.frontend_origin, config.public_url, config.lan_origin) if o]
+        candidate = request.headers.get("origin") or ""
+        if not candidate:
+            referer = request.headers.get("referer") or ""
+            if referer:
+                parts = urlsplit(referer)
+                candidate = f"{parts.scheme}://{parts.netloc}" if parts.scheme else ""
+        return candidate if candidate in allowed else ""
+
     @app.get("/auth/{provider}/start")
     async def start_oauth(provider: str, request: Request):
-        return {"url": rt().oauth.start(provider, user(request, True)["id"])}
+        uid = user(request, True)["id"]
+        return {"url": rt().oauth.start(provider, uid, origin_of(request))}
 
     @app.get("/auth/{provider}/callback")
     async def oauth_callback(provider: str, request: Request, state: str, code: str = "", error: str = ""):
         uid = user(request, True)["id"]
         if error or not code:
             raise ValueError("Connection was not approved; return to BioTwin and reconnect")
-        await rt().oauth.callback(provider, uid, state, code)
+        return_to = await rt().oauth.callback(provider, uid, state, code)
         if provider in rt().adapters:
             rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
             rt().wakeup.set()
@@ -643,7 +685,7 @@ def create_app(config=None):
         # ("Pacific Standard Time"), not IANA -- saving that into
         # profile.timezone would break every ZoneInfo(...) call downstream
         # instead of just leaving the existing/default zone in place.
-        return RedirectResponse(config.frontend_origin + "/?connected=" + provider)
+        return RedirectResponse((return_to or config.frontend_origin) + "/?connected=" + provider)
 
     @app.delete("/auth/{provider}")
     async def disconnect(provider: str, request: Request):
@@ -659,6 +701,70 @@ def create_app(config=None):
         rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
         rt().wakeup.set()
         return {"status": "queued"}
+
+    @app.post("/api/watch/token")
+    async def watch_token(request: Request):
+        return issue_token(rt().store, user(request, True)["id"])
+
+    @app.delete("/api/watch/token")
+    async def revoke_watch(request: Request):
+        rt().store.remove_doc(user(request, True)["id"], "watch_device")
+        return {"status": "revoked"}
+
+    @app.get("/api/watch")
+    async def watch_status(request: Request):
+        uid = user(request, True)["id"]
+        device = rt().store.get(uid, "watch_device")
+        if uid not in rt().latest_index:
+            rt().compute(uid)
+        readings = {}
+        for metric in WATCH_METRICS:
+            frame = rt().latest_index[uid].get((metric, Provenance.GARMIN_CIQ_LIVE))
+            if frame is not None:
+                readings[metric] = {"value": getattr(frame, metric), "event_time": frame.event_time}
+        return {
+            "paired": bool(device and device["expires"] > utcnow().timestamp()),
+            "expires_at": device["expires_at"] if device else None,
+            "sync": rt().store.get(uid, "watch_sync"),
+            "readings": readings,
+        }
+
+    @app.post("/api/ingest/watch")
+    async def watch_ingest(data: WatchBatch, request: Request):
+        uid = authenticate_watch(rt().store, request.headers.get("x-api-key"))
+        if uid is None:
+            raise HTTPException(401, "Invalid or expired watch token. Pair the watch in Connections.")
+        # Bound load per credential; normal operation makes twelve requests/minute.
+        q = limits[(uid, "watch")]
+        now = time.monotonic()
+        while q and q[0] < now - 60:
+            q.popleft()
+        if len(q) >= 30:
+            raise HTTPException(429, "Watch request limit exceeded", headers={"Retry-After": "5"})
+        q.append(now)
+        # Validate every row before the first write. Retries of partially committed
+        # batches (e.g. after a storage outage) are safe through normal deduplication.
+        records = watch_frames(data, uid, config.retention_days)
+        added = 0
+        for frame in records:
+            added += bool(await rt().ingest(frame, broadcast=False))
+        if added:
+            rt().publish(uid, rt().compute(uid))
+        rt().store.put(
+            uid,
+            "watch_sync",
+            {
+                "received_at": utcnow().isoformat(),
+                "last_event_time": records[-1].event_time.isoformat(),
+                "accepted": added,
+                "duplicates": len(records) - added,
+            },
+        )
+        return {
+            "accepted": added,
+            "duplicates": len(records) - added,
+            "sequence": rt().store.user(uid)["sequence"],
+        }
 
     @app.post("/api/connect/garmin-influx/sync")
     async def sync_garmin_influx(request: Request):
@@ -707,14 +813,23 @@ def create_app(config=None):
     @app.post("/api/ingest/bluetooth")
     async def bluetooth(data: BroadcastSample, request: Request):
         uid = user(request, True)["id"]
+        rmssd = rt().rr_rmssd(uid, data.rr_ms) if data.rr_ms else None
         f = TwinFrame(
             user_id=uid,
             event_time=data.event_time or utcnow(),
             provenance=Provenance.GARMIN_BLE_LIVE,
             heart_rate_bpm=data.heart_rate_bpm,
+            hrv_rmssd_ms=rmssd,
+            # Off-body contact is reported, not hidden: the measurement still
+            # arrives and the model weighs it less.
+            confidence=0.4 if data.contact is False else 1.0,
         )
         committed = await rt().ingest(f)
-        return {"sequence": committed.sequence if committed else None}
+        return {
+            "sequence": committed.sequence if committed else None,
+            "hrv_rmssd_ms": rmssd,
+            "rr_intervals": len(data.rr_ms),
+        }
 
     @app.post("/api/ingest/file")
     async def import_file(request: Request, file: UploadFile = File(...)):

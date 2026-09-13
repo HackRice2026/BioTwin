@@ -121,6 +121,49 @@ Each exchange is saved in the SQL `conversations` table before playback, includi
 
 No API key is sent to the browser. The server refuses narration endpoints outside the configured Google API host/path. Microphone capture needs browser permission. The built-in speech-recognition path and the MediaRecorder fallback are independently exercised by browser tests using simulated speech/streams. The native Gemini audio endpoint also transcribed a generated spoken question live. Physical microphone capture on this user's iPhone has not been exercised.
 
+### Vertex AI instead of an AI Studio key
+
+An AI Studio `NARRATION_API_KEY` bills through a separate prepay-credits
+balance that can deplete while the project's ordinary Cloud Billing is
+perfectly healthy, which surfaces as `429 RESOURCE_EXHAUSTED`. Vertex AI bills
+through normal Cloud Billing instead, so it keeps working when that is the
+problem. Setting it up, once per machine that runs the server:
+
+```bash
+brew install google-cloud-sdk                 # Mac; any gcloud install works
+gcloud auth application-default login         # log in with the account that owns the project
+gcloud services enable aiplatform.googleapis.com --project=<your-project-id>
+```
+
+Find the project ID in the Cloud Console project switcher at the top of
+[console.cloud.google.com](https://console.cloud.google.com). Then in `.env`:
+
+```dotenv
+USE_VERTEX_NARRATION=true
+ALLOW_EXTERNAL_NARRATION=true
+VERTEX_PROJECT_ID=<your-project-id>
+```
+
+Restart the server. Ask the twin anything: `mode` of `language_service` and a
+`model` starting with `vertex:` confirms it, where the template fallback means
+it is not working.
+
+If `gcloud services enable` fails with `PERMISSION_DENIED`, the logged-in
+account does not own that project -- a project AI Studio auto-created for a key
+often belongs to a different identity. Log in again as the owner. `VERTEX_REGION`
+(`us-central1`) and `VERTEX_MODEL` (`gemini-2.5-flash`) rarely need changing,
+and an AI Studio model name does not necessarily exist on Vertex:
+`gemini-2.0-flash` 404s there. `gcloud auth application-default login` writes no
+downloadable key file -- credentials land in `~/.config/gcloud/`, outside the
+repository -- which also sidesteps orgs that block service-account key creation.
+
+**Someone using your running server over the LAN link needs none of this.**
+Narration is server-side: `google.auth.default()` resolves credentials in the
+server process and the browser never calls Gemini, so the credential on the
+host machine already covers every LAN visitor. The steps above are only for
+someone standing up their own separate copy. Full rationale and the
+per-machine verification log are in AGENTS.md, Section 7.
+
 References: [Gemini OpenAI-compatible REST and structured responses](https://ai.google.dev/gemini-api/docs/openai), [Gemini models](https://ai.google.dev/gemini-api/docs/models), [Gemini audio transcription](https://ai.google.dev/gemini-api/docs/audio), [ElevenLabs streaming speech](https://elevenlabs.io/docs/api-reference/text-to-speech/stream).
 
 ## Optional Fitbit / Google Health

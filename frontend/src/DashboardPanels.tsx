@@ -563,7 +563,8 @@ export function PlanPanel({
           <CalendarDays size={26} />
           <p>
             {plan
-              ? "No suitable windows are available right now. Refresh your plan or connect a calendar to find time."
+              ? plan.explanation ||
+                "No suitable windows are available right now. Refresh your plan to check again."
               : "Gathering your schedule…"}
           </p>
         </div>

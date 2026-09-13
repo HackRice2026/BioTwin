@@ -201,3 +201,70 @@ def test_elevenlabs_stream_uses_validated_account_scoped_response(tmp_path):
         assert json.loads(calls[0].content)["text"] == reply["answer"]
         assert calls[0].headers["xi-api-key"] == "test-key"
         assert client.get("/api/voice/" + reply["reply_id"]).status_code == 404
+
+
+def test_rr_rmssd_needs_enough_beats_and_rejects_dropped_ones():
+    """RMSSD from measured intervals, computed in one place.
+
+    An optical sensor that misses a beat reports roughly double the interval,
+    which reads as a large variability swing -- a recovery signal that never
+    happened. Those are discarded rather than smoothed, and nothing is reported
+    until the window holds enough beats to mean anything.
+    """
+    from core.config import Settings
+    from core.runtime import Runtime
+
+    rt = Runtime(Settings())
+
+    assert rt.rr_rmssd("u", [800] * 19) is None, "reported before the window filled"
+
+    rt.rr_buffers.clear()
+    steady = rt.rr_rmssd("u", [800, 810, 795, 805] * 6)
+    assert steady is not None and steady < 20, f"steady beats gave RMSSD {steady}"
+
+    rt.rr_buffers.clear()
+    rt.rr_rmssd("u", [800] * 24)
+    before = rt.rr_rmssd("u", [])
+    rt.rr_buffers.clear()
+    rt.rr_rmssd("u", [800] * 24)
+    after = rt.rr_rmssd("u", [1600, 800])  # a missed beat, then a normal one
+    assert after == before, f"a dropped beat changed RMSSD {before} -> {after}"
+
+    rt.rr_buffers.clear()
+    assert rt.rr_rmssd("u", [50] * 30) is None, "implausible intervals were accepted"
+
+
+def test_forecast_refuses_a_stale_body_battery_reading():
+    """The level carries a standardised coefficient of +19.97 against +4.56 for
+    the next largest input, so a stale reading would produce a confidently wrong
+    number. Refusing is the correct behaviour, and absent secondary inputs fall
+    back to their training mean rather than blocking the forecast."""
+    from datetime import datetime, timedelta, timezone
+    from modeling.forecast import predict, load_params
+    from shared.schemas import TwinFrame, Provenance
+
+    params = load_params()
+    now = datetime(2026, 9, 12, 15, 0, tzinfo=timezone.utc)
+
+    def level(minutes_ago, value):
+        return TwinFrame(user_id="u", event_time=now - timedelta(minutes=minutes_ago),
+                         provenance=Provenance.GARMIN_FIT_REPLAY, body_battery_pct=value)
+
+    stale = predict([level(45, 60)], now, "UTC", params)
+    assert stale["available"] is False
+    assert "stale" in stale["reason"]
+
+    fresh = predict([level(2, 60), level(62, 70)], now, "UTC", params)
+    assert fresh["available"] is True
+    assert 0 <= fresh["forecast"] <= 100
+    assert fresh["current"] == 60
+    # the hour-old reading was found, so the trend is real rather than assumed
+    assert "bb_current_change_1h" not in fresh["imputed_inputs"]
+    # heart rate, REM and stress were absent and are reported as filled in
+    for absent in ("hr_last", "rem_sleep_min", "stress_max"):
+        assert absent in fresh["imputed_inputs"]
+
+    # A falling battery must forecast lower than a rising one from the same level.
+    falling = predict([level(2, 60), level(62, 80)], now, "UTC", params)
+    rising = predict([level(2, 60), level(62, 40)], now, "UTC", params)
+    assert falling["forecast"] < rising["forecast"]
