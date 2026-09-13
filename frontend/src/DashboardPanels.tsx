@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -8,7 +8,6 @@ import {
   Flame,
   Footprints,
   Heart,
-  Leaf,
   LoaderCircle,
   Moon,
   RefreshCw,
@@ -23,8 +22,30 @@ import {
   SignalChart,
   SleepChart,
   Sparkline,
+  TrajectoryChart,
 } from "./Charts";
 import type { Topic } from "./topics";
+
+export function currentMetricValue(
+  field: string,
+  data: Dashboard,
+): number | null {
+  const latest = data.state?.latest;
+  if (!latest) return null;
+  if (field === "sleep") {
+    return latest.sleep?.total_minutes == null
+      ? null
+      : latest.sleep.total_minutes / 60;
+  }
+  return (
+    (latest[field as keyof typeof latest] as number | null | undefined) ?? null
+  );
+}
+
+export function hasCurrentMetric(field: string, data: Dashboard) {
+  return currentMetricValue(field, data) != null;
+}
+
 export const signalDefinitions = [
   {
     field: "heart_rate_bpm",
@@ -179,13 +200,8 @@ export function Metric({
   onClick: () => void;
 }) {
   const def = signalDefinitions.find((s) => s.field === field)!;
-  const latest = data.state?.latest;
-  const n =
-    field === "sleep"
-      ? latest?.sleep?.total_minutes == null
-        ? null
-        : latest.sleep.total_minutes / 60
-      : (latest?.[field as keyof typeof latest] as number | null);
+  const n = currentMetricValue(field, data);
+  if (n == null) return null;
   const rows =
     field === "sleep"
       ? data.sleep.map((s) => ({
@@ -367,47 +383,194 @@ export function SignalDetail({
 export function ReadinessPanel({ data }: { data: Dashboard }) {
   const r = data.state!.readiness,
     score = r.score;
+  const workout = data.plan?.proposals.find((proposal) => proposal.kind === "workout");
+  const nap = data.plan?.proposals.find((proposal) => proposal.kind === "nap");
+  const sleepHours = Math.round((data.session?.user.profile.target_sleep ?? 480) / 60);
+  const actions =
+    score == null
+      ? [
+          {
+            id: "baseline",
+            title: "Build today's baseline",
+            detail: "Wear your watch through the day so Forecast can personalize tomorrow.",
+            icon: Activity,
+            tone: "blue",
+          },
+          {
+            id: "sleep",
+            title: `Protect ${sleepHours} hours of sleep`,
+            detail: "Set a wind-down time that makes your target sleep window realistic.",
+            icon: Moon,
+            tone: "blue",
+          },
+          {
+            id: "hydrate",
+            title: "Hydrate consistently",
+            detail: "Keep water nearby and spread it through your day.",
+            icon: Wind,
+            tone: "green",
+          },
+        ]
+      : score < 45
+        ? [
+            {
+              id: "cardio",
+              title: "Light cardio",
+              detail: workout
+                ? `${workout.title} is your calendar-aware movement option today.`
+                : "Choose an easy walk, bike ride or mobility session; keep the effort light.",
+              icon: Activity,
+              tone: "green",
+            },
+            {
+              id: "nap",
+              title: "Power nap",
+              detail: nap
+                ? `${nap.title} is available in your plan. Keep it to the planned window.`
+                : "Take a short early-afternoon reset if your schedule allows.",
+              icon: Moon,
+              tone: "blue",
+            },
+            {
+              id: "sleep",
+              title: `Protect ${sleepHours} hours of sleep`,
+              detail: "Start your wind-down early and leave space to recharge tonight.",
+              icon: Moon,
+              tone: "blue",
+            },
+            {
+              id: "hydrate",
+              title: "Hydrate consistently",
+              detail: "Keep water nearby and take regular breaks to drink.",
+              icon: Wind,
+              tone: "green",
+            },
+          ]
+        : score < 65
+          ? [
+              {
+                id: "cardio",
+                title: "Light cardio",
+                detail: workout
+                  ? `${workout.title} fits your calendar and current readiness.`
+                  : "Use a steady, conversational-effort session today.",
+                icon: Activity,
+                tone: "green",
+              },
+              {
+                id: "focus",
+                title: "Schedule one focus block",
+                detail: "Use your strongest part of the day for one important task.",
+                icon: Flame,
+                tone: "amber",
+              },
+              {
+                id: "sleep",
+                title: `Keep your ${sleepHours}-hour sleep target`,
+                detail: "A consistent sleep window supports tomorrow's forecast.",
+                icon: Moon,
+                tone: "blue",
+              },
+              {
+                id: "hydrate",
+                title: "Hydrate consistently",
+                detail: "Keep water nearby and take regular breaks to drink.",
+                icon: Wind,
+                tone: "green",
+              },
+            ]
+          : [
+              {
+                id: "cardio",
+                title: "Heavy cardio",
+                detail: workout
+                  ? `${workout.title} is the intensity your plan supports today.`
+                  : "Use today for your harder training session if it fits your schedule.",
+                icon: Activity,
+                tone: "green",
+              },
+              {
+                id: "focus",
+                title: "Use a high-focus block",
+                detail: "Put your most demanding work in a protected calendar window.",
+                icon: Flame,
+                tone: "amber",
+              },
+              {
+                id: "sleep",
+                title: `Keep your ${sleepHours}-hour sleep target`,
+                detail: "Finish your training and work with enough room to wind down.",
+                icon: Moon,
+                tone: "blue",
+              },
+              {
+                id: "hydrate",
+                title: "Hydrate consistently",
+                detail: "Support your activity by drinking regularly through the day.",
+                icon: Wind,
+                tone: "green",
+              },
+            ];
+  const drivers = Object.entries(r.contributions)
+    .sort(([, left], [, right]) => Math.abs(right) - Math.abs(left))
+    .slice(0, 2)
+    .map(([name, contribution]) =>
+      `${humanize(name)} ${contribution >= 0 ? "supports" : "limits"} today's load`,
+    );
   return (
-    <Panel className="readiness-panel">
-      <PanelTitle title="Ready for today" note="Your personal readiness">
-        <Leaf size={19} className="green" />
+    <Panel className="readiness-panel forecast-panel current-battery-panel">
+      <PanelTitle title="Current Body Battery" note="Your energy reserve">
+        <Battery size={19} className="green" />
       </PanelTitle>
-      <div className="readiness-body">
-        <div
-          className="readiness-ring"
-          style={{
-            background: `conic-gradient(var(--green) ${(score ?? 0) * 3.6}deg, #ffffff0a 0deg)`,
-          }}
+      <div className="forecast-summary current-battery-summary">
+        <span
+          className="readiness-battery"
+          role="img"
+          aria-label={
+            score == null
+              ? "Body Battery is awaiting a reading"
+              : `Body Battery ${value(score)} percent`
+          }
         >
-          <div>
-            <strong>{value(score)}</strong>
-            <small>READINESS</small>
-          </div>
-        </div>
+          <Battery aria-hidden="true" />
+          <b>{score == null ? "—" : `${value(score)}%`}</b>
+        </span>
         <div>
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
           </span>
-          <h3>
-            {score == null
-              ? "Your story starts here."
-              : score >= 65
-                ? "A little more in the tank."
-                : score >= 45
-                  ? "Find your own rhythm."
-                  : "Make room to recharge."}
-          </h3>
-          <p>
-            Sleep, heart-rate variability and rest, relative to your pattern.
-          </p>
+          <h3>{score == null ? "Your first plan starts here." : "Readiness for today"}</h3>
+          <p>{drivers.length ? drivers.join(" · ") : "Forecast will adapt as more wearable data arrives."}</p>
         </div>
       </div>
-      <div className="confidence-row">
-        <span>Estimate confidence</span>
-        <b>{value(r.confidence * 100)}%</b>
+      <div className="forecast-heading recommendation-heading">
+        <div>
+          <span>Support your energy</span>
+          <h3>Today’s recommendations</h3>
+        </div>
+        <small>{value(r.confidence * 100)}% confidence</small>
       </div>
-      <div className="meter">
-        <i style={{ width: `${r.confidence * 100}%` }} />
+      <div className="forecast-recommendations" role="region" aria-label="Body Battery recommendations">
+        <div className="forecast-actions" role="list" aria-label="Today's Body Battery recommendations">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <article
+              key={action.id}
+              className="forecast-action"
+              role="listitem"
+            >
+              <span className={`forecast-action-icon ${action.tone}`}>
+                <Icon size={16} />
+              </span>
+              <span className="forecast-action-copy">
+                <b>{action.title}</b>
+                <small>{action.detail}</small>
+              </span>
+            </article>
+          );
+        })}
+        </div>
       </div>
     </Panel>
   );
@@ -427,6 +590,37 @@ export function RecoveryPanel({ data }: { data: Dashboard }) {
         <span>┄ Estimated</span>
         <small>Model estimate</small>
       </div>
+    </Panel>
+  );
+}
+export function TomorrowPanel({ data }: { data: Dashboard }) {
+  const trajectory = data.trajectory;
+  return (
+    <Panel className="body-battery-forecast-panel">
+      <PanelTitle title="Body Battery forecast" note="Your projected energy reserve">
+        <Battery size={18} className="green" />
+      </PanelTitle>
+      {trajectory?.available ? (
+        <>
+          <div className="forecast-chart">
+            <TrajectoryChart
+              measured={trajectory.measured}
+              points={trajectory.points}
+            />
+          </div>
+          <p className="forecast-credibility">
+            Prediction based on our mathematical numerical calculations and your recent numbers.
+          </p>
+        </>
+      ) : (
+        <div className="empty-state">
+          <Battery size={22} />
+          <p>
+            {trajectory?.reason ??
+              "Waiting for a Body Battery reading from your watch."}
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }

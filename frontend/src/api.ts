@@ -75,6 +75,7 @@ export type Forecast =
 export type Session = {
   user: { id: string; name: string; email: string; profile: Profile };
   demo: boolean;
+  data_source: "sqlite" | "postgres" | "supabase" | "database";
   voice_configured: boolean;
   narration_configured: boolean;
   retention_days: number;
@@ -129,4 +130,127 @@ export type Trajectory =
       model: string;
       reason?: string;
       note: string;
+    };
+export type TrainingScenario = {
+  key: "now" | "best" | "rest";
+  start: string | null;
+  energy: number | null;
+  evening_energy: number;
+  recovery_load: "Low" | "Medium" | "High";
+  intensity: string;
+  recommended: boolean;
+};
+export type ModelDetail = {
+  horizon: string;
+  matlab_model: string;
+  matlab_mae: number;
+  baseline: string;
+  baseline_mae: number;
+  running: string;
+  running_mae: number;
+  ml_wins: boolean;
+};
+type DecisionDay = {
+  now: { time: string; energy: number };
+  curve: {
+    time: string;
+    minutes: number;
+    value: number;
+    confidence: "High" | "Moderate" | "Low";
+    method: string;
+  }[];
+  busy: { start: string; end: string; title: string }[];
+  risks: { start: string; end: string; label: string; reasons: string[] }[];
+  recovery: {
+    threshold: number;
+    minutes: number;
+    at: string;
+    confidence: string;
+  } | null;
+  heart_rate_recovery_tau_s: number | null;
+  readiness: number | null;
+};
+type DecisionBase = {
+  issued_at: string;
+  timezone: string;
+  calendar_status: "connected" | "demo" | "unavailable";
+  model_details: ModelDetail[];
+  assumption: string;
+};
+/** GET /api/training-window -- decided by modeling/training_window.py; the coach
+    narrates this same object, so nothing here is recomputed in the browser. */
+export type TrainingDecision =
+  | (DecisionBase &
+      Partial<DecisionDay> & {
+        available: false;
+        reason: string;
+        scenarios?: TrainingScenario[];
+      })
+  | (DecisionBase &
+      DecisionDay & {
+        available: true;
+        window: {
+          start: string;
+          end: string;
+          minutes: number;
+          energy: number;
+          confidence: "High" | "Moderate" | "Low";
+          workout: { title: string; intensity: string; minutes: number };
+          reasons: string[];
+          score?: {
+            total: number;
+            candidates: number;
+            terms: {
+              energy: number;
+              time_of_day: number;
+              confidence: number;
+              free_time: number;
+              high_load_penalty: number;
+            };
+          };
+        };
+        evening_at: string;
+        scenarios: TrainingScenario[];
+      });
+export type SimulatePoint = {
+  horizon_minutes: number;
+  value: number;
+  validation_mae: number;
+};
+export type DayScenario = {
+  id:
+    | "current_plan"
+    | "train_now"
+    | "train_best_window"
+    | "extra_steps"
+    | "recovery_break";
+  label: string;
+  summary: string;
+  points: SimulatePoint[];
+  decision: {
+    best_window: string;
+    workout: string;
+    evening_state: number;
+    activity_load: string;
+  };
+  confidence: "low" | "medium" | "high";
+};
+export type DaySimulation =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      generated_at: string;
+      basis: "model" | "rhythm";
+      current: number;
+      baseline: DayScenario;
+      scenarios: DayScenario[];
+      selected_scenario_id: DayScenario["id"];
+      controls: {
+        steps: number;
+        step_min: number;
+        step_max: number;
+        recovery_minutes: number;
+      };
+      coach_summary: string;
+      assumptions: string[];
     };

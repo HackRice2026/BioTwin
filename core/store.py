@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+import time
 from datetime import timedelta, datetime
 from pathlib import Path
 from threading import RLock
@@ -93,23 +94,70 @@ outbox = Table(
 )
 
 
+POSTGRES_CONNECT_ARGS = {
+    "connect_timeout": 5,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+    "tcp_user_timeout": 5000,
+}
+POSTGRES_SESSION_SETTINGS = (
+    "SET statement_timeout = 10000",
+    "SET lock_timeout = 5000",
+    "SET idle_in_transaction_session_timeout = 10000",
+)
+
+
+def engine_options(url):
+    options = {"pool_pre_ping": True}
+    if url.startswith("sqlite"):
+        options["connect_args"] = {"check_same_thread": False}
+    elif url.startswith("postgresql"):
+        options.update(
+            connect_args=POSTGRES_CONNECT_ARGS,
+            pool_recycle=300,
+            pool_timeout=5,
+        )
+    return options
+
+
+def configure_postgres_connection(dbapi, _connection_record):
+    """Bound every server-side wait on each newly opened pooled session."""
+    previous_autocommit = dbapi.autocommit
+    try:
+        dbapi.autocommit = True
+        with dbapi.cursor() as cursor:
+            for statement in POSTGRES_SESSION_SETTINGS:
+                cursor.execute(statement)
+    finally:
+        dbapi.autocommit = previous_autocommit
+
+
 class Store:
     def __init__(self, url: str):
         if url.startswith("sqlite:///./"):
             Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-        self.engine = create_engine(
-            url,
-            connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
-            pool_pre_ping=True,
-        )
+        self.engine = create_engine(url, **engine_options(url))
         if url.startswith("sqlite"):
 
             @event.listens_for(self.engine, "connect")
             def configure(dbapi, _):
                 dbapi.execute("PRAGMA journal_mode=WAL")
                 dbapi.execute("PRAGMA busy_timeout=10000")
+        elif url.startswith("postgresql"):
+            event.listen(self.engine, "connect", configure_postgres_connection)
 
         self.lock = RLock()
+        # Every request calls session_user() to authenticate, so on a networked
+        # (Supabase/Postgres) database this was one blocking round-trip per
+        # request minimum -- a single voice turn fires several requests (ask,
+        # speech ticket, audio stream, history poll) back to back, and each one
+        # froze the whole event loop waiting on the network. A session token is
+        # immutable once issued, so a few seconds of staleness costs nothing;
+        # this cache turns a burst of requests into one DB hit.
+        self._session_cache: dict[str, tuple[dict | None, float]] = {}
+        self._session_cache_ttl = 4.0
         metadata.create_all(self.engine)
 
     def user(self, user_id):
@@ -130,6 +178,21 @@ class Store:
                 )
             )
 
+    def ensure_guest(self, user_id):
+        """Anonymous demo visitors write conversations/documents under a synthetic
+        "guest:<hash>" owner id (see conversation_owner in api.py) so their questions
+        stay private from other visitors sharing the public demo data. Every such
+        write sits behind a real foreign key to `users` on Postgres though -- SQLite
+        never enforced it, so this only surfaces once a Postgres-backed deployment is
+        used: every guest write fails there without this placeholder row existing
+        first. Idempotent; tolerates a concurrent request creating it first."""
+        if self.user(user_id):
+            return
+        try:
+            self.create_user(user_id, f"{user_id}@guest.invalid", "", "Guest", {})
+        except IntegrityError:
+            pass
+
     def save_profile(self, user_id, profile):
         with self.engine.begin() as c:
             c.execute(update(users).where(users.c.id == user_id).values(profile=profile))
@@ -149,6 +212,9 @@ class Store:
     def session_user(self, token):
         if not token:
             return None
+        cached = self._session_cache.get(token)
+        if cached and cached[1] > time.monotonic():
+            return cached[0]
         with self.engine.connect() as c:
             row = c.execute(
                 select(sessions.c.user_id).where(
@@ -156,9 +222,12 @@ class Store:
                     sessions.c.expires > utcnow().timestamp(),
                 )
             ).first()
-        return self.user(row[0]) if row else None
+        found = self.user(row[0]) if row else None
+        self._session_cache[token] = (found, time.monotonic() + self._session_cache_ttl)
+        return found
 
     def end_session(self, token):
+        self._session_cache.pop(token, None)
         with self.engine.begin() as c:
             c.execute(delete(sessions).where(sessions.c.hash == hashlib.sha256(token.encode()).hexdigest()))
 
@@ -414,7 +483,14 @@ class Store:
                 c.execute(
                     select(documents).where(
                         documents.c.kind.in_(
-                            ["speech", "oauth_state", "calendar_draft", "conversation_draft"]
+                            [
+                                "speech",
+                                "oauth_state",
+                                "calendar_draft",
+                                "conversation_draft",
+                                "conversation_calendar_event",
+                                "pending_calendar_draft",
+                            ]
                         )
                     )
                 )

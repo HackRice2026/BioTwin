@@ -6,7 +6,7 @@ import pytest
 
 from core.config import Settings
 from modeling.explanations import narration_context
-from narration.service import guard, narrate
+from narration.service import guard, narrate, template
 from shared.schemas import TwinState
 
 
@@ -54,9 +54,52 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
     assert result.notice is None
 
 
+def test_plan_time_claims_must_match_coach_evidence(context):
+    context = context.model_copy(
+        update={"coach_brief": {"recommendation": "Try light movement at 5:00 PM UTC."}}
+    )
+
+    assert guard(
+        "Your best window is 5 PM.",
+        context,
+        ["coach_brief.recommendation"],
+    )
+    assert not guard(
+        "Your best window is 6:30 PM.",
+        context,
+        ["coach_brief.recommendation"],
+    )
+
+
+def test_coach_brief_keeps_fallback_conversational(context):
+    answer = template("How am I doing today?", context)
+
+    assert context.coach_brief["recommendation"] in answer
+    assert "standardized units" not in answer
+    assert "harness output" not in answer.lower()
+
+
+def test_coach_brief_does_not_turn_driver_names_into_day_labels(context):
+    assert context.readiness.state.value.replace("_", " ") in context.coach_brief["headline"]
+    assert "day" in context.coach_brief["headline"]
+    assert "sleep day" not in context.coach_brief["headline"].lower()
+    assert "hrv day" not in context.coach_brief["headline"].lower()
+    assert any("HRV" in reason for reason in context.coach_brief["why"])
+
+
+def test_coach_brief_why_list_is_allowed_as_curated_evidence(context):
+    assert guard(
+        "Readiness is 54.9, which looks like a balanced day for your pattern.",
+        context,
+        ["coach_brief.why"],
+    )
+
+
 @pytest.mark.parametrize(
     "answer,evidence",
     [
+        ("Your readiness feels like a sleep day.", ["coach_brief.headline"]),
+        ("Your readiness feels like a resting heart rate day.", ["coach_brief.headline"]),
         ("Your readiness is 9999.", ["readiness.score"]),
         ("Your readiness is ninety nine.", ["readiness.score"]),
         ("Your heart rate is 54.4.", ["facts.999"]),

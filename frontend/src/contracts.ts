@@ -347,6 +347,7 @@ export interface BusyInterval {
 }
 export interface NarrationContext {
   calendar?: Calendar;
+  coach_brief?: CoachBrief;
   readiness: Readiness;
   baseline_summary: Baseline;
   recent_trend?: RecentTrend;
@@ -355,6 +356,9 @@ export interface NarrationContext {
   facts?: Facts;
   provenance?: Provenance | null;
   quality?: Quality1;
+}
+export interface CoachBrief {
+  [k: string]: unknown;
 }
 export interface Quality1 {
   [k: string]: MetricQuality;

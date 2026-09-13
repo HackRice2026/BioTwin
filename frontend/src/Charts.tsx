@@ -19,7 +19,12 @@ import type {
   SimulationOverlay,
   DayOutlook,
 } from "./contracts";
-import { humanize, type MetricPoint, type SleepPoint } from "./api";
+import {
+  humanize,
+  type DayScenario,
+  type MetricPoint,
+  type SleepPoint,
+} from "./api";
 
 const grid = "#ffffff0b";
 const tooltip = {
@@ -385,6 +390,44 @@ export function ReadinessChart({
   );
 }
 
+// The trained model only answers at 1h/3h/6h (see matlab/params_trajectory.json)
+// -- these are the real predictions, so they get a bigger, labeled dot. The
+// axis still runs to 10h purely for visual headroom; no data exists past 6h,
+// and none is invented to fill it.
+const MODEL_HORIZONS_H = [1, 3, 6];
+function ForecastDot(props: {
+  cx?: number;
+  cy?: number;
+  payload?: { hours: number };
+}) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || !payload) return null;
+  if (!MODEL_HORIZONS_H.includes(payload.hours)) {
+    return <circle cx={cx} cy={cy} r={3} fill="var(--green)" />;
+  }
+  return (
+    <g>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={5}
+        fill="var(--green)"
+        stroke="#0c1512"
+        strokeWidth={2}
+      />
+      <text
+        x={cx}
+        y={cy - 12}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+        fill="var(--green)"
+      >
+        {payload.hours}h
+      </text>
+    </g>
+  );
+}
 export function TrajectoryChart({
   measured,
   points,
@@ -420,7 +463,20 @@ export function TrajectoryChart({
       high: Math.min(100, p.value + p.validation_mae),
     })),
   ];
-  const first = rows.length ? rows[0].hours : -1;
+  const first = Math.floor(Math.min(-1, ...measured.map((m) => -m.minutes_ago / 60)));
+  const last = Math.ceil(
+    Math.max(1, ...points.map((p) => p.horizon_minutes / 60)),
+  );
+  const ticks = Array.from(
+    new Set([
+      first,
+      -6,
+      -3,
+      0,
+      ...points.map((p) => p.horizon_minutes / 60),
+      last,
+    ]),
+  ).filter((hour) => hour >= first && hour <= last);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={rows} margin={{ top: 12, right: 8, left: -22, bottom: 0 }}>
@@ -428,11 +484,11 @@ export function TrajectoryChart({
         <XAxis
           dataKey="hours"
           type="number"
-          domain={[Math.floor(first), 6]}
-          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6].filter(
-            (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
-          )}
-          tickFormatter={(h: number) => (h === 0 ? referenceLabel : h < 0 ? `${h}h` : `+${h}h`)}
+          domain={[first, last]}
+          ticks={ticks}
+          tickFormatter={(h: number) =>
+            h === 0 ? referenceLabel : h < 0 ? `${h}h` : `+${h}h`
+          }
           tick={tick}
           axisLine={false}
           tickLine={false}
@@ -473,9 +529,107 @@ export function TrajectoryChart({
           stroke="var(--green)"
           strokeWidth={2}
           strokeDasharray="5 4"
-          dot={{ r: 3, fill: "var(--green)", stroke: "none" }}
+          dot={ForecastDot}
           connectNulls
           isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function SimulateDayChart({
+  baseline,
+  scenario,
+}: {
+  baseline: DayScenario;
+  scenario: DayScenario;
+}) {
+  const rows = baseline.points.map((base) => {
+    const alternate = scenario.points.find(
+      (p) => p.horizon_minutes === base.horizon_minutes,
+    );
+    return {
+      hours: base.horizon_minutes / 60,
+      baseline: base.value,
+      scenario: alternate?.value,
+      low:
+        alternate == null
+          ? undefined
+          : Math.max(0, alternate.value - alternate.validation_mae),
+      high:
+        alternate == null
+          ? undefined
+          : Math.min(100, alternate.value + alternate.validation_mae),
+    };
+  });
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart
+        data={rows}
+        margin={{ top: 14, right: 8, left: -22, bottom: 0 }}
+      >
+        <CartesianGrid vertical={false} stroke={grid} />
+        <XAxis
+          dataKey="hours"
+          type="number"
+          domain={[0, 6]}
+          ticks={[0, 1, 3, 6]}
+          tickFormatter={(h: number) => (h === 0 ? "now" : `+${h}h`)}
+          tick={tick}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={tick}
+          domain={[0, 100]}
+          axisLine={false}
+          tickLine={false}
+        />
+        <Tooltip
+          contentStyle={tooltip}
+          labelFormatter={(h) => (Number(h) === 0 ? "Now" : `In ${h}h`)}
+          formatter={(v, name) => [
+            `${v}%`,
+            name === "baseline"
+              ? "Current plan"
+              : name === "scenario"
+                ? scenario.label
+                : name === "high"
+                  ? "Upper"
+                  : "Lower",
+          ]}
+        />
+        <Area
+          dataKey="high"
+          stroke="none"
+          fill="#8fc4ff"
+          fillOpacity={0.11}
+          isAnimationActive={false}
+        />
+        <Area
+          dataKey="low"
+          stroke="none"
+          fill="#17221e"
+          fillOpacity={1}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="baseline"
+          name="Current plan"
+          stroke="#8aa095"
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          dot={{ r: 3, fill: "#8aa095" }}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="scenario"
+          name={scenario.label}
+          stroke="#8fc4ff"
+          strokeWidth={2.8}
+          dot={{ r: 4, fill: "#8fc4ff", stroke: "#0c1512", strokeWidth: 2 }}
+          isAnimationActive
         />
       </ComposedChart>
     </ResponsiveContainer>

@@ -128,16 +128,31 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
-- 2026-09-13 — Demo data and Battery Broadcast completed for the signed-in
-  account. The complete deduplicated Garmin export was reconciled into
-  `garmin_fit_replay` measurements without committing personal health data.
+- 2026-09-13 — During the `origin/dev` merge, retained the incoming training
+  window, scenario simulation, coach UI and dynamic forecast horizon while
+  preserving progressive metric loading, fixed Day/Week/28-day chart domains,
+  replay-aware forecast labels, Garmin provenance/detail breakdowns, explicit
+  missing-HRV copy and pairing-token styling. Do not restore `dataMin/dataMax`
+  on `SignalChart`; it makes different selected ranges look identical. Merge
+  verification: 129 backend tests passed / 3 skipped, 24 frontend tests passed,
+  production build passed and generated schema contracts matched.
+  The live Supabase browser pass is not verified: `Store.history()` over the
+  imported account exceeded the configured 10-second statement timeout, and
+  rollback then hit the idle-transaction timeout. This made localhost page
+  loads time out even though the isolated suites passed; do not call the live
+  deployment healthy until that query path is made efficient.
+
+- 2026-09-13 — Demo data and Battery Forecast (formerly Broadcast) completed
+  for the signed-in account. The complete deduplicated Garmin export was
+  reconciled into `garmin_fit_replay` measurements without committing personal
+  health data.
   Daily details now preserve total calories, distance, min/max HR, Body Battery
   at wake, stress-zone minutes and intensity minutes; legitimate zero-minute
   days remain zero. The Signals UI shows Garmin provenance and breakdowns for
   calories, sleep, steps, stress and Body Battery. RMSSD HRV is absent from the
   source export and remains explicitly absent. A signed-in Chrome check passed
   all 13 available signal series with zero page errors.
-  Battery Broadcast now uses the exported MATLAB ridge coefficients whenever a
+  Battery Forecast now uses the exported MATLAB ridge coefficients whenever a
   current reading is fresh; when stale, it runs the same model as a historical
   replay anchored to the last real watch sample and labels the anchor instead
   of claiming a forecast from now. Verified replay: ridge/8 inputs/23 training
@@ -176,7 +191,143 @@ This file is a living document. The agent MUST:
   `DATABASE_URL` with a temporary local database for tests: one API test
   instantiates plain `Settings()` and otherwise reaches the live database; a
   connection failure can also expand the credential-bearing URL in a traceback.
+- 2026-09-13 — Merged `simulate-my-day` into `dev`. Its `/api/simulate/day`
+  endpoint applies deterministic planning overlays to the existing MATLAB
+  Body Battery trajectory for current-plan, train-now, best-window, extra-step
+  and recovery-break scenarios. The frontend loads it alongside the existing
+  training-window decision, so both cards and the coach retain their separate
+  sources of truth. Scenario effects are planning estimates, not measured or
+  causal physiology; the UI and `docs/SIMULATE_MY_DAY.md` say so.
+  The Battery Forecast modal scrolls internally and keeps its Close control
+  available when scenario controls make the content taller than the viewport.
 
+- 2026-09-13 — Best Training Window leads the Overview: `modeling/training_window.py`
+  decides one window from readiness + `forecast.trajectory` + calendar busy time +
+  profile duration, served at `/api/training-window` and folded into the coach's
+  `coach_brief`/`facts` only for training-style questions (`TRAINING_QUESTION` in
+  `core/api.py`), so the card and the spoken answer cannot disagree. Projected
+  energy is Garmin Body Battery; slot confidence follows the answering predictor's
+  validation MAE (High ≤3, Moderate ≤6, else Low), so anything past 3h is labelled
+  rhythm-only. Session drain, recovery load and the window score weights are
+  engineering assumptions, labelled in the UI. No session starts before wake
+  (bedtime + target_sleep) -- an early build recommended 2:40 AM when asked at 2:30
+  AM. The MATLAB detail shows boosted/bagged tree results beside what actually runs
+  (ridge at 1h, trend + clock at 3h, time of day at 6h); the tree models are not
+  deployed. The synthetic demo now emits Body Battery so the feature renders there.
+  The template fallback previously answered "When should I work out?" with "not in
+  my current context" because it matched "workout" but not "work out".
+
+- 2026-09-13 — The persistent Body Battery header must still render before a
+  Garmin reading is available: it uses an em dash and “Awaiting a reading,”
+  while retaining the Battery Forecast control. Browser checks cover the
+  product contract rather than obsolete presentation details: the current
+  coach-mascot hero, Battery Forecast naming, and only metrics present in the
+  account’s data. Voice checks use the coach microphone, transcript history
+  lives under Connections, and account/calendar checks use the current Log in
+  control and measured Body Battery label.
+
+- 2026-09-13 — After merging a shared-schema change, CI caught stale generated
+  `frontend/src/contracts.ts` even though the local build passed. Run
+  `npm run types` from `frontend/`, then `bash scripts/check_schema.sh` from the
+  repository root whenever `shared/schemas` or a branch containing schema work
+  is merged.
+
+- 2026-09-13 — The overview's left insight panel is **Current Body Battery**:
+  it presents the existing readiness score inside a battery icon and shows
+  contained, scrollable recommendations derived from readiness, signal
+  contributions, profile sleep target and calendar-aware plan proposals.
+  These are deliberately non-interactive recommendations, never assignments or
+  completion tracking. Training is light below readiness 65 and “heavy cardio”
+  appears only at 65 or above; hydration avoids prescribing a universal volume.
+  The paired panel is **Body Battery forecast**; its chart domain ends at the
+  latest prediction instead of leaving empty future-axis space.
+- 2026-09-12 — Connected the local FastAPI server to Supabase project
+  `xdosufbwuvstfkhllenh`. The direct database hostname is IPv6-only and did
+  not resolve on this machine; the verified working connection is the free
+  session pooler (`aws-0-us-east-1.pooler.supabase.com:5432`, user
+  `postgres.xdosufbwuvstfkhllenh`). Added
+  `scripts/migrate_sqlite_account.py`, an idempotent email-scoped transfer for
+  an existing SQLite account and its measurements/documents/sessions/
+  conversations. Migrated `sapnilb15@gmail.com`: 196 measurements, 8
+  documents, 1 active session, and 5 conversations; a second run left the
+  counts unchanged. All 196 transferred measurements have `synthetic`
+  provenance (they are not Garmin-origin data). `/healthz` returned 200 and
+  `/ops/status` reported `storage: postgres` with no runtime errors. A fresh
+  remote database takes roughly two minutes to seed the default demo because
+  startup performs hundreds of individual network writes before binding port
+  8000.
+
+- 2026-09-12 — Began the Supabase migration on branch `database`. Decision:
+  Supabase is the hosted PostgreSQL engine, but FastAPI remains the only data
+  API and continues to own BioTwin authentication/sessions. The schema keeps a
+  unique email on `users` and relates Garmin measurements and every other
+  account artifact through the stable internal `users.id`; email is not used
+  as a repeated foreign key. The migration enables RLS and revokes direct
+  `anon`/`authenticated` access instead of adding browser policies, because
+  exposing personal health tables through Supabase clients is out of scope.
+  Added `supabase/migrations/202609120001_biotwin_schema.sql` and
+  `docs/SUPABASE.md`. The official MCP is authenticated and scoped to project
+  `xdosufbwuvstfkhllenh` with project-read/database-read/database-write access;
+  the migration was applied remotely as version `20260913005949`
+  (`biotwin_schema`). Verified all six tables, cascading foreign keys, the
+  measurement dedupe constraint, RLS on every table, and no grants to `anon`
+  or `authenticated`; the new tables were empty after creation. Supabase's
+  advisor reports the intentional no-policy RLS state and expected unused-index
+  notices on the empty schema. It also reports a pre-existing SECURITY DEFINER
+  function, `public.rls_auto_enable()`, executable by `anon` and
+  `authenticated`; this unrelated warning was not modified without approval.
+  The automatic OAuth attempt requested incompatible default scopes; explicit
+  Supabase scopes succeeded.
+- 2026-09-13 — Diagnosed a backend process that still listened on port 8000
+  and accepted WebSockets while every HTTP route, including the database-free
+  `/healthz`, hung indefinitely. A macOS process sample showed the uvloop main
+  thread blocked inside Psycopg `wait_c` polling the existing Supabase session
+  pooler connection. A fresh, timeout-bounded connection to the same database
+  succeeded immediately, and `pg_stat_activity` showed no long-running query or
+  lock wait. This isolates the failure to a stuck/stale client-side pooler socket,
+  not an executing database query. `Store` currently performs synchronous
+  SQLAlchemy/Psycopg calls directly in async request/WebSocket paths and configures
+  `pool_pre_ping` but no connection/query/socket timeout, so one stuck database
+  operation blocks the entire event loop and even prevents `/healthz` responses.
+  Fixed on `testing`: PostgreSQL sessions now have bounded connect, TCP, query,
+  lock, idle-transaction and pool waits; dead connections are pre-pinged and
+  connections recycle after five minutes. The always-on outbox poll and
+  maintenance database work run through `asyncio.to_thread` instead of occupying
+  the event loop. WebSocket session lookup and first-state computation are also
+  moved off-loop; this was the remaining 5–10 second stall observed whenever a
+  browser reconnected after server restart. Two regression tests deliberately
+  make recurring Store calls slow and verify the event loop remains responsive.
+  VERIFIED against the real
+  Supabase pooler (`statement_timeout=10s`, `lock_timeout=5s`) and the running
+  backend: warm `/readyz` 0.23s, `/api/session` 0.16s, and `/healthz` 0.001s;
+  full backend suite 112 passed / 3 skipped.
+
+- 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
+  correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
+  during this fix that process was running from a Claude scratchpad cwd, so
+  use `VITE_API_PROXY_TARGET=http://127.0.0.1:<port>` when verifying a
+  non-8000 backend. The actual Gemini rejection was caused by
+  `_coach_brief()` reusing `label` inside its contribution loop, overwriting
+  the readiness day label with a driver name like "resting heart rate day";
+  `DRIVER_DAY_LABELS` now guards against those invented phrases and
+  `tests/test_narration.py` covers natural time phrasing plus the label
+  regression. VERIFIED through the frontend proxy with
+  `mode: "language_service"` and `model: "vertex:gemini-2.5-flash"`.
+
+- 2026-09-13 — Shared data source check: Supabase in this app means the
+  backend `DATABASE_URL` points at Supabase Postgres; there is no separate
+  browser Supabase client. `/api/session.data_source` and `/ops/status.storage`
+  now expose the active backend (`sqlite`, `postgres`, or `supabase`). If they
+  say `sqlite`, the UI/Gemini/calendar stack is still reading local data even
+  if the screen looks connected. Dashboard metric cards/details now hide
+  unpopulated latest fields instead of rendering dashes as if they were data.
+
+- 2026-09-13 — Voice loop behavior: the coach flow is now meant to be
+  conversational (`record question -> Gemini -> ElevenLabs -> re-arm mic`) once
+  voice mode is activated. Space activates voice mode only when focus is not in
+  an editable/control element. "Hey twin" wake listening uses browser speech
+  recognition only after microphone permission is already granted; browsers do
+  not allow a reliable always-on hotword before that.
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The
@@ -285,7 +436,6 @@ This file is a living document. The agent MUST:
   Preserve existing PWA icons and both avatar GPU integrations. Design
   assumption: the persistent Body Battery is a labeled BioTwin estimate
   from existing computed signals, separate from Garmin’s measured score.
-
 - 2026-09-12 — Origin checking is enforced in **three separate places** in
   core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
   custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
@@ -637,6 +787,15 @@ This file is a living document. The agent MUST:
 
 > Facts that are expensive to re-derive. Verify before relying on them;
 > delete when stale.
+
+- Supabase integration deliberately reuses the existing SQLAlchemy/PostgreSQL
+  storage contract. Do not add a second browser-side Supabase data path or put
+  service/database credentials in `VITE_*`. Apply the checked-in migration via
+  a project-scoped Supabase MCP connection, and keep `DATABASE_URL` server-only.
+  Use Supabase's session pooler on IPv4-only networks. To preserve an existing
+  local login and its owned data, run `PYTHONPATH=. uv run
+  scripts/migrate_sqlite_account.py --email EMAIL` after setting the target
+  `DATABASE_URL`; the command is safe to repeat.
 
 - `scripts/*.py` import `core`/`shared` as top-level packages, which only
   resolve if the project root is on `PYTHONPATH` -- `uv run

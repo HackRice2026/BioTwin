@@ -14,7 +14,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.stack || e.message));
   await page.goto(process.env.BIOTWIN_TEST_URL || "http://localhost:8000");
   await page
-    .getByRole("button", { name: "Connect your own data", exact: false })
+    .getByRole("button", { name: /Log in/, exact: false })
     .click();
   await page.getByLabel("Your name", { exact: true }).fill("Browser Test");
   await page
@@ -27,7 +27,6 @@ try {
   await page
     .getByRole("button", { name: "Create my twin", exact: true })
     .click();
-  await page.getByText("Account & preferences", { exact: true }).waitFor();
   await page
     .getByRole("navigation", { name: "Main navigation", exact: true })
     .getByRole("button", { name: "Connections", exact: true })

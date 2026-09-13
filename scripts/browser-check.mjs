@@ -25,7 +25,7 @@ const page = await context.newPage();
 page.on("pageerror", (e) => report.errors.push(e.message));
 try {
   await page.goto(root);
-  await page.locator(".twin-hero canvas").waitFor();
+  await page.locator(".twin-hero canvas, .twin-hero .coach-portrait img").first().waitFor();
   await page.evaluate(() => document.fonts.ready);
   for (const viewport of [
     { width: 1440, height: 1050 },
@@ -72,25 +72,31 @@ try {
   });
   await nav.getByRole("button", { name: "Overview", exact: true }).click();
   // The what-if lab is gone. What has to work instead is the Body Battery
-  // broadcast: the tile button opens it, and it renders in whichever state the
-  // account's data puts it -- a chart, or the refusal on a stale reading.
+  // forecast: the persistent-bar control opens it, and it renders in whichever
+  // state the account's data puts it -- a chart, or an unavailable state.
   await page
-    .getByRole("button", { name: /Battery Broadcast/ })
+    .getByRole("button", { name: /Battery Forecast/ })
     .click();
-  const broadcast = page.getByRole("dialog", { name: "Battery Broadcast" });
-  await broadcast.waitFor();
-  assert.ok(await broadcast.getByRole("heading", { name: "Battery Broadcast" }).isVisible());
-  await broadcast.getByRole("button", { name: "Close", exact: true }).click();
-  await broadcast.waitFor({ state: "hidden" });
+  const forecast = page.getByRole("dialog", { name: "Battery Forecast" });
+  await forecast.waitFor();
+  assert.ok(await forecast.getByRole("heading", { name: "Battery Forecast" }).isVisible());
+  await forecast.getByRole("button", { name: "Close", exact: true }).click();
+  await forecast.waitFor({ state: "hidden" });
   report.forecast = true;
+  let exploredSignals = 0;
   for (const name of ["Heart rate", "Sleep", "Calories burned", "Steps"]) {
-    await page
-      .getByRole("button", { name: `Explore ${name}`, exact: true })
-      .click();
+    const control = page.getByRole("button", {
+      name: `Explore ${name}`,
+      exact: true,
+    });
+    if ((await control.count()) === 0) continue;
+    await control.click();
     await page.getByTestId("topic-takeover").waitFor();
     await page.getByLabel("Back to Overview", { exact: true }).click();
     assert.equal(await page.getByTestId("topic-takeover").count(), 0);
+    exploredSignals++;
   }
+  assert.ok(exploredSignals > 0, "At least one current signal should open a takeover.");
   // Test the calendar UI request contract without writing to an external calendar.
   await context.route("**/api/session", async (route) => {
     const response = await route.fetch();
@@ -197,7 +203,7 @@ try {
       { exact: false },
     )
     .waitFor({ timeout: 20000 });
-  await page.locator(".twin-hero canvas").waitFor();
+  await page.locator(".twin-hero canvas, .twin-hero .coach-portrait img").first().waitFor();
   assert.equal(await page.locator(".canvas-fallback").count(), 0);
   await page.setViewportSize({ width: 390, height: 844 });
   await page

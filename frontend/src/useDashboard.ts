@@ -7,6 +7,8 @@ import {
   type Session,
   type Forecast,
   type Trajectory,
+  type TrainingDecision,
+  type DaySimulation,
 } from "./api";
 import type {
   DailyPlan,
@@ -49,6 +51,9 @@ export function useDashboard() {
   const [outlook, setOutlook] = useState<DayOutlook | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [trajectory, setTrajectory] = useState<Trajectory | null>(null);
+  const [decision, setDecision] = useState<TrainingDecision | null>(null);
+  const [daySimulation, setDaySimulation] =
+    useState<DaySimulation | null>(null);
   const [notice, notify] = useState("");
   const [loadingPlan, setLoadingPlan] = useState(false);
   const revision = useRef(0);
@@ -61,6 +66,8 @@ export function useDashboard() {
     setPredictions([]);
     setForecast(null);
     setTrajectory(null);
+    setDecision(null);
+    setDaySimulation(null);
     setPlan(null);
     setOutlook(null);
     setAccountKey((k) => k + 1);
@@ -111,7 +118,7 @@ export function useDashboard() {
           if (!stopped) setTrajectory(result);
         })
         .catch(() => {
-          if (!stopped) notify("Battery Broadcast could not refresh.");
+          if (!stopped) notify("Battery Forecast could not refresh.");
         });
       const metricRequests = metricNames.map(async (metric) => {
         const result = await api<{ series: MetricPoint[] }>(
@@ -132,6 +139,8 @@ export function useDashboard() {
         "/api/predictions",
         "/api/plan/today",
         "/api/outlook",
+        "/api/training-window",
+        "/api/simulate/day",
       ];
       const [metricResults, sleepResult, results] = await Promise.all([
         Promise.allSettled(metricRequests),
@@ -141,12 +150,15 @@ export function useDashboard() {
         )),
       ]);
       if (stopped) return;
-      const [h, p, pl, out] = results;
+      const [h, p, pl, out, tw, sim] = results;
+      if (tw.status === "fulfilled") setDecision(tw.value as TrainingDecision);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
       if (p.status === "fulfilled")
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (sim.status === "fulfilled")
+        setDaySimulation(sim.value as DaySimulation);
       if (
         metricResults.some((result) => result.status === "rejected") ||
         sleepResult.status === "rejected" ||
@@ -170,12 +182,24 @@ export function useDashboard() {
     try {
       const p = await post<DailyPlan>("/api/plan/refresh");
       if (current === revision.current) setPlan(p);
+      const d = await api<TrainingDecision>("/api/training-window");
+      if (current === revision.current) setDecision(d);
     } catch {
       notify(
         "Your calendar could not refresh. Check your connection and try again.",
       );
     } finally {
       setLoadingPlan(false);
+    }
+  }
+  async function simulateDay(steps: number) {
+    try {
+      const next = await api<DaySimulation>(
+        `/api/simulate/day?steps=${Math.round(steps)}`,
+      );
+      setDaySimulation(next);
+    } catch {
+      notify("The day simulation could not refresh. Try again shortly.");
     }
   }
   function series(field: string): MetricPoint[] {
@@ -217,6 +241,9 @@ export function useDashboard() {
     outlook,
     forecast,
     trajectory,
+    decision,
+    daySimulation,
+    simulateDay,
     prediction,
     notice,
     notify,

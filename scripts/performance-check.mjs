@@ -10,7 +10,10 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 await page.goto(process.env.BIOTWIN_TEST_URL || "http://localhost:8000");
 // The what-if lab that used to drive this measurement is gone; the animated
 // twin on the overview is what actually costs frames now.
-await page.locator(".twin-hero canvas").waitFor();
+await page
+  .locator(".twin-hero canvas, .twin-hero .coach-portrait img")
+  .first()
+  .waitFor();
 console.log("Measuring 60 seconds of the animated twin at desktop resolution.");
 const stats = await page.evaluate(
   () =>

@@ -16,14 +16,12 @@ import {
   Pause,
   Radio,
   Send,
-  Sparkles,
   Volume2,
   X,
 } from "lucide-react";
-import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
-import { api, post, value } from "./api";
-import { TrajectoryChart } from "./Charts";
+import { api, post, value, type DayScenario } from "./api";
+import { SimulateDayChart, TrajectoryChart } from "./Charts";
 import { useDashboard } from "./useDashboard";
 import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
 import type { CalendarDraft } from "./useCalendar";
@@ -31,6 +29,7 @@ import { useTwinConversation } from "./useTwinConversation";
 import { questionTopic, type Topic } from "./topics";
 import {
   CalendarDay,
+  hasCurrentMetric,
   Metric,
   Panel,
   PanelTitle,
@@ -38,13 +37,14 @@ import {
   Range,
   ReadinessDetails,
   ReadinessPanel,
-  RecoveryPanel,
   SignalDetail,
   signalDefinitions,
+  TomorrowPanel,
   topicSignal,
 } from "./DashboardPanels";
 import type { CaptionWord } from "./captions";
-import type { SimulationOverlay } from "./contracts";
+import { BestWindowCard, DayForecast, FuturePaths } from "./TrainingWindow";
+import { spokenFocus, spokenSoFar, wantsComparison } from "./trainingFocus";
 
 type Page =
   "Overview" | "Signals" | "Daily plan" | "Connections";
@@ -121,7 +121,11 @@ export default function BioTwinApp() {
   );
   const [auth, setAuth] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [forecastOpen, setForecastOpen] = useState(false);
+  const [compare, setCompare] = useState(false);
+  const [scenarioId, setScenarioId] =
+    useState<DayScenario["id"]>("extra_steps");
+  const [daySteps, setDaySteps] = useState(5000);
   const [takeover, setTakeover] = useState<{
     topic: Topic;
     question: string;
@@ -133,12 +137,8 @@ export default function BioTwinApp() {
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
-  const [mobile, setMobile] = useState(
-    () => matchMedia("(max-width: 760px)").matches,
-  );
   const input = useRef<HTMLInputElement>(null);
   const transcript = useRef<HTMLDivElement>(null);
-  const noOverlay = useRef<SimulationOverlay | null>(null);
   const autoTopic = useRef(false);
   const conversation = useTwinConversation({
     open: true,
@@ -153,8 +153,18 @@ export default function BioTwinApp() {
       setPage("Daily plan");
       setEventEditor(draft);
     },
+    onCalendarEvent: () => {
+      autoTopic.current = false;
+      setTakeover(null);
+      setEventEditor(null);
+      setPage("Daily plan");
+      void data.calendar.refresh();
+      void data.refreshPlan();
+      data.notify("Added to your Google Calendar. Your agenda is updating.");
+    },
     onQuestion: (text, calendarMode) => {
       const topic = calendarMode ? "plan" : questionTopic(text);
+      setCompare(wantsComparison(text));
       setPage("Overview");
       setHistoryOpen(false);
       autoTopic.current = !!topic;
@@ -170,7 +180,14 @@ export default function BioTwinApp() {
       }
     },
   });
-  const { speaking, listening, asking, transcribing } = conversation;
+  const {
+    speaking,
+    listening,
+    asking,
+    transcribing,
+    voiceLoop,
+    wakeListening,
+  } = conversation;
   const phase = listening
     ? "Listening"
     : transcribing
@@ -179,19 +196,50 @@ export default function BioTwinApp() {
         ? "Thinking"
         : speaking
           ? "Speaking"
-          : "Here with you";
-  useEffect(() => {
-    const query = matchMedia("(max-width: 760px)");
-    const update = () => setMobile(query.matches);
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
+          : voiceLoop
+            ? "Waiting for you"
+            : wakeListening
+              ? "Say Hey twin"
+              : "Here with you";
   useEffect(() => {
     setAdded([]);
     setEventEditor(null);
     setTakeover(null);
+    setCompare(false);
     autoTopic.current = false;
   }, [data.accountKey]);
+  useEffect(() => {
+    if (data.daySimulation?.available)
+      setDaySteps(data.daySimulation.controls.steps);
+  }, [data.daySimulation]);
+  useEffect(() => {
+    const editable = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      return (
+        element?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
+          element?.tagName ?? "",
+        )
+      );
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (
+        e.code !== "Space" ||
+        e.repeat ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        editable(e.target)
+      )
+        return;
+      e.preventDefault();
+      setPage("Overview");
+      setHistoryOpen(false);
+      conversation.microphone();
+    };
+    document.addEventListener("keydown", keydown);
+    return () => document.removeEventListener("keydown", keydown);
+  }, [conversation]);
   useEffect(() => {
     if (!historyOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -264,19 +312,63 @@ export default function BioTwinApp() {
     }
   }
   const actions = { reminder, setReminder, adding, added, book };
-  const demo = status === "offline" || session?.demo;
   // The measured Garmin level, not energy_reserve_pct: that one is readiness
   // rescaled by recovery progress, an estimate, and this tile says "current".
   const battery = state?.latest?.body_battery_pct ?? null;
   const batteryAt = state?.quality?.body_battery_pct?.event_time;
+  const visibleSignals = signalDefinitions.filter((m) =>
+    hasCurrentMetric(m.field, data),
+  );
+  const overviewTopics: Record<string, Topic> = {
+    heart_rate_bpm: "heart",
+    sleep: "sleep",
+    active_kcal: "calories",
+    steps: "steps",
+  };
+  const overviewSignals = signalDefinitions
+    .filter((m) => m.field in overviewTopics)
+    .filter((m) => hasCurrentMetric(m.field, data));
   const recentReply = conversation.messages
     .filter((m) => m.role === "twin")
     .at(-1);
   const answer = recentReply?.text ?? "";
+  const focus = spokenFocus(
+    speaking
+      ? spokenSoFar(conversation.captionWords, conversation.audioTime) ||
+          conversation.activeAnswer
+      : answer,
+    data.decision,
+  );
+  const decisionCards = (
+    <>
+      <div className="decision-grid">
+        <BestWindowCard
+          decision={data.decision}
+          focus={focus}
+          onCompare={() => setCompare(true)}
+        />
+        <DayForecast decision={data.decision} focus={focus} />
+      </div>
+      {compare && (
+        <FuturePaths
+          decision={data.decision}
+          focus={focus}
+          onClose={() => setCompare(false)}
+        />
+      )}
+    </>
+  );
   const talk = () => {
     navigate("Overview");
     requestAnimationFrame(() => input.current?.focus());
   };
+  const daySimulation = data.daySimulation?.available
+    ? data.daySimulation
+    : null;
+  const activeScenario =
+    daySimulation?.scenarios.find((s) => s.id === scenarioId) ??
+    daySimulation?.scenarios.find((s) => s.id === "extra_steps") ??
+    daySimulation?.baseline;
   const navButtons = navigation.map((item) => (
     <button
       key={item.name}
@@ -309,6 +401,12 @@ export default function BioTwinApp() {
         <button className="text-button" onClick={conversation.stopSpeaking}>
           <Pause size={14} />
           Stop speaking
+        </button>
+      )}
+      {voiceLoop && (
+        <button className="text-button" onClick={conversation.deactivateVoice}>
+          <X size={14} />
+          End voice chat
         </button>
       )}
     </div>
@@ -357,19 +455,6 @@ export default function BioTwinApp() {
         <div className="nav-caption">YOUR PERSONAL SPACE</div>
         <nav aria-label="Main navigation">{navButtons}</nav>
         <div className="nav-bottom">
-          <div className="nav-note">
-            <span className="green">
-              <Sparkles size={19} />
-            </span>
-            <p>
-              A little more in tune
-              <br />
-              with yourself.
-            </p>
-            <button onClick={talk}>
-              Talk to your twin <ArrowUpRight size={15} />
-            </button>
-          </div>
           <button
             className="account-control"
             onClick={() =>
@@ -383,10 +468,12 @@ export default function BioTwinApp() {
               <b>
                 {session && !session.demo
                   ? session.user.name || "Your account"
-                  : "Your personal twin"}
+                  : "Log in"}
               </b>
               <small>
-                {session?.demo ? "Make it yours" : "Account & preferences"}
+                {session && !session.demo
+                  ? "Account & preferences"
+                  : "Sign in or create an account"}
               </small>
             </div>
             <ChevronRight size={16} />
@@ -401,14 +488,10 @@ export default function BioTwinApp() {
         >
           <Leaf size={22} />
         </button>
-        <div className="bar-location">
-          <span>MY BIOTWIN</span>
-          <b>{page}</b>
-        </div>
         <div
           className="body-battery"
           title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
-          aria-label={`Body Battery ${battery == null ? "awaiting a reading" : battery + " percent"}`}
+          aria-label={`Body Battery ${battery == null ? "awaiting a reading" : `${battery} percent`}`}
         >
           <div>
             <b>Body Battery</b>
@@ -434,75 +517,36 @@ export default function BioTwinApp() {
             <b>{battery == null ? "—" : `${battery}%`}</b>
           </div>
           <button
-            className="bar-twin battery-broadcast"
-            onClick={() => setBroadcastOpen(true)}
-            aria-label="Battery Broadcast: where the model expects this to go"
-            title="Battery Broadcast"
+            className="bar-twin battery-forecast"
+            onClick={() => setForecastOpen(true)}
+            aria-label="Battery Forecast: where the model expects this to go"
+            title="Battery Forecast"
           >
             <Radio size={16} />
-            <span>Battery Broadcast</span>
+            <span>Battery Forecast</span>
           </button>
         </div>
-        <button
-          className={`bar-twin ${speaking || listening ? "active" : ""}`}
-          onClick={talk}
-          aria-label={`Twin ${phase}`}
-        >
-          <AudioLines size={18} />
-          <span>{phase}</span>
-        </button>
-        <button
-          className="icon-btn history-launch"
-          aria-label="Conversation history"
-          onClick={() => setHistoryOpen(true)}
-        >
-          <History size={20} />
-        </button>
       </header>
       <main className="workspace" id="main-content">
         <div className="page-intro">
-          <div>
-            <span className="eyebrow">
-              {new Date().toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </span>
-            <h1>
-              {page === "Overview"
-                ? `Your daily rhythm${session && !session.demo && session.user.name ? ", " + session.user.name.split(" ")[0] : ""}.`
-                : page}
-            </h1>
-            <p>{descriptions[page]}</p>
-          </div>
-          <span className={`connection-pill ${status}`}>
-            <i />
-            {status === "offline"
-              ? "Offline example"
-              : status === "connecting"
-                ? "Connecting"
-                : demo
-                  ? "Preview workspace"
-                  : "Connected"}
-          </span>
+          {page !== "Overview" && (
+            <div>
+              <span className="eyebrow">
+                {new Date().toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+              <h1>{page}</h1>
+              <p>{descriptions[page]}</p>
+            </div>
+          )}
         </div>
         {status === "offline" && (
           <div className="notice offline-notice" role="status">
             You're viewing an offline example. Your personal measurements aren't
             updating.<button onClick={data.reset}>Reconnect</button>
-          </div>
-        )}
-        {demo && status === "online" && (
-          <div className="preview-note">
-            <span>
-              {state?.provenance_banner === "synthetic"
-                ? "Explore with example measurements."
-                : "Previewing shared wearable measurements."}
-            </span>
-            <button onClick={() => setAuth(true)}>
-              Connect your own data <ArrowUpRight size={13} />
-            </button>
           </div>
         )}
         {!state && (
@@ -522,19 +566,15 @@ export default function BioTwinApp() {
                 YOUR DIGITAL TWIN
               </span>
               <h2>
-                In sync
+                Beyond
                 <br />
-                <em>with you.</em>
+                <em>Numbers</em>
               </h2>
               <p>
-                Your signals, brought to life.
+                Wearables give you numbers.
                 <br />
-                Ask your twin what's on your mind.
+                BioTwin gives you understanding.
               </p>
-              <span className="hero-state">
-                <span className="status-dot" />
-                {phase}
-              </span>
               <div className="hero-prompts">
                 {["How did I sleep?", "When should I work out?"].map((q) => (
                   <button
@@ -549,18 +589,43 @@ export default function BioTwinApp() {
               </div>
             </div>
             <div className="hero-avatar">
-              <Avatar
-                live={data.live}
-                overlay={
-                  noOverlay
-                }
-                state={state}
-                reduced={reduced}
-                speaking={speaking}
-                listening={listening}
-                thinking={asking}
-                compact={mobile || !!takeover}
-              />
+              <div
+                className={`coach-presence ${listening ? "listening" : ""}${speaking ? " speaking" : ""}${asking || transcribing ? " thinking" : ""}`}
+                aria-label={`BioTwin coach ${phase}`}
+              >
+                <div className="coach-portrait">
+                  <img src="/assets/coach-mascot.png" alt="" />
+                </div>
+                <div className="coach-control">
+                  <button
+                    type="button"
+                    className={`coach-mic ${listening ? "listening" : ""}`}
+                    disabled={asking}
+                    aria-label={listening ? "Stop listening" : "Start listening"}
+                    aria-pressed={listening}
+                    onClick={conversation.microphone}
+                  >
+                    <span aria-hidden="true" />
+                    <Mic size={24} />
+                  </button>
+                  <div className="coach-status">
+                    <b>{phase}</b>
+                    <span>
+                      {listening
+                        ? "Say it naturally"
+                        : speaking
+                          ? "Answering out loud"
+                          : asking || transcribing
+                            ? "Reading the room"
+                            : wakeListening
+                              ? "Say Hey twin"
+                              : voiceLoop
+                                ? "Waiting for you"
+                                : "Tap the mic"}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="hero-composer">
               <form
@@ -603,17 +668,6 @@ export default function BioTwinApp() {
                   )}
                 </button>
               </form>
-              <span className="composer-hint">
-                {listening
-                  ? "Listening · tap to finish"
-                  : transcribing
-                    ? "Turning your voice into words…"
-                    : "Made personal by your data"}
-                <button onClick={() => setHistoryOpen(true)}>
-                  <History size={13} />
-                  History
-                </button>
-              </span>
             </div>
           </section>
         )}
@@ -654,6 +708,7 @@ export default function BioTwinApp() {
                   />
                 ) : takeover.topic === "plan" ? (
                   <>
+                    {decisionCards}
                     <CalendarAgenda
                       calendar={data.calendar}
                       compact
@@ -667,7 +722,7 @@ export default function BioTwinApp() {
                 ) : (
                   <>
                     <ReadinessPanel data={data} />
-                    <RecoveryPanel data={data} />
+                    <TomorrowPanel data={data} />
                   </>
                 )}
               </div>
@@ -686,6 +741,7 @@ export default function BioTwinApp() {
                   </button>
                 </div>
               )}
+              {decisionCards}
               <div className="section-label">
                 <h2>Your essentials</h2>
                 <button onClick={() => navigate("Signals")}>
@@ -693,22 +749,26 @@ export default function BioTwinApp() {
                 </button>
               </div>
               <div className="essentials-grid">
-                {signalDefinitions.slice(0, 4).map((m, i) => (
+                {overviewSignals.map((m) => (
                   <Metric
                     key={m.field}
                     field={m.field}
                     data={data}
                     onClick={() =>
-                      explore(
-                        (["heart", "sleep", "calories", "steps"] as Topic[])[i],
-                      )
+                      explore(overviewTopics[m.field] ?? "heart")
                     }
                   />
                 ))}
+                {!overviewSignals.length && (
+                  <div className="empty-state">
+                    <Activity size={22} />
+                    <p>Connect wearable data to fill this overview.</p>
+                  </div>
+                )}
               </div>
               <div className="overview-insights">
                 <ReadinessPanel data={data} />
-                <RecoveryPanel data={data} />
+                <TomorrowPanel data={data} />
               </div>
               <div className="section-label">
                 <h2>A little room for yourself</h2>
@@ -726,11 +786,19 @@ export default function BioTwinApp() {
               <Range data={data} />
             </div>
             <div className="signals-grid">
-              {signalDefinitions.map((m) => (
+              {visibleSignals.map((m) => (
                 <Panel key={m.field}>
                   <SignalDetail field={m.field} data={data} />
                 </Panel>
               ))}
+              {!visibleSignals.length && (
+                <Panel>
+                  <div className="empty-state">
+                    <Activity size={22} />
+                    <p>Connect wearable data to show your measurements.</p>
+                  </div>
+                </Panel>
+              )}
             </div>
             <ReadinessDetails data={data} />
           </>
@@ -867,28 +935,28 @@ export default function BioTwinApp() {
           <span>Talk to your twin</span>
         </button>
       )}
-      {broadcastOpen && (
+      {forecastOpen && (
         <div
           className="modal-backdrop history-backdrop"
-          onClick={() => setBroadcastOpen(false)}
+          onClick={() => setForecastOpen(false)}
         >
           <section
-            className="history-dialog glass"
+            className="history-dialog forecast-dialog glass"
             role="dialog"
             aria-modal="true"
-            aria-label="Battery Broadcast"
+            aria-label="Battery Forecast"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="panel-title">
               <div>
-                <h2>Battery Broadcast</h2>
+                <h2>Battery Forecast</h2>
                 <p>Where your fitted model expects this to go</p>
               </div>
               <Radio size={18} className="green" />
             </div>
             {data.trajectory?.available ? (
               <>
-                <div className="broadcast-chart">
+                <div className="forecast-chart">
                   <TrajectoryChart
                     measured={data.trajectory.measured}
                     points={data.trajectory.points}
@@ -936,6 +1004,82 @@ export default function BioTwinApp() {
                     {data.trajectory.imputed_inputs.join(", ")}
                   </small>
                 )}
+                {daySimulation && activeScenario && (
+                  <div className="simulate-day">
+                    <div className="simulate-heading">
+                      <div>
+                        <span className="eyebrow">SIMULATE MY DAY</span>
+                        <h3>Move the day. Watch the future change.</h3>
+                      </div>
+                      <span className="pill blue">
+                        {daySimulation.basis === "model"
+                          ? "Model + rhythm"
+                          : "Rhythm estimate"}
+                      </span>
+                    </div>
+                    <div className="scenario-rail" aria-label="Choose a scenario">
+                      {daySimulation.scenarios
+                        .filter((s) => s.id !== "current_plan")
+                        .map((scenario) => (
+                          <button
+                            key={scenario.id}
+                            className={
+                              activeScenario.id === scenario.id ? "selected" : ""
+                            }
+                            onClick={() => setScenarioId(scenario.id)}
+                          >
+                            <b>{scenario.label}</b>
+                            <small>{scenario.summary}</small>
+                          </button>
+                        ))}
+                    </div>
+                    {activeScenario.id === "extra_steps" && (
+                      <label className="steps-control">
+                        <span>
+                          Additional activity <b>+{daySteps.toLocaleString()} steps</b>
+                        </span>
+                        <input
+                          type="range"
+                          min={daySimulation.controls.step_min}
+                          max={daySimulation.controls.step_max}
+                          step={500}
+                          value={daySteps}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setDaySteps(next);
+                            void data.simulateDay(next);
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div className="simulate-visual">
+                      <SimulateDayChart
+                        baseline={daySimulation.baseline}
+                        scenario={activeScenario}
+                      />
+                    </div>
+                    <div className="simulate-decisions">
+                      {[
+                        ["Best window", activeScenario.decision.best_window],
+                        ["Workout", activeScenario.decision.workout],
+                        [
+                          "Evening state",
+                          `${value(activeScenario.decision.evening_state, 1)}%`,
+                        ],
+                        ["Activity load", activeScenario.decision.activity_load],
+                      ].map(([label, metric]) => (
+                        <div key={label}>
+                          <small>{label}</small>
+                          <b>{metric}</b>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="coach-readout">{daySimulation.coach_summary}</p>
+                    <small className="setup-note">
+                      {daySimulation.assumptions.join(" ")}
+                    </small>
+                  </div>
+                )}
               </>
             ) : (
               <div className="empty-state">
@@ -946,7 +1090,7 @@ export default function BioTwinApp() {
                 </p>
               </div>
             )}
-            <button className="primary" onClick={() => setBroadcastOpen(false)}>
+            <button className="primary" onClick={() => setForecastOpen(false)}>
               Close
             </button>
           </section>

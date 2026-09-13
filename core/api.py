@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -27,7 +28,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.exc import IntegrityError, OperationalError
-from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPrediction
+from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPrediction, NarrationResponse
 from core.config import Settings
 from core.runtime import Runtime
 from core.agenda import AgendaService, EventDraft, calendar_question
@@ -41,8 +42,20 @@ from ingestion.normalizer import METRICS
 from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
+from modeling.training_window import best_training_window
 from narration.service import narrate
 from narration.transcription import transcribe
+
+
+def data_source_label(database_url: str) -> str:
+    url = database_url.lower()
+    if url.startswith("sqlite"):
+        return "sqlite"
+    if "supabase" in url:
+        return "supabase"
+    if url.startswith("postgres"):
+        return "postgres"
+    return "database"
 
 
 class AuthInput(BaseModel):
@@ -74,6 +87,84 @@ class Question(BaseModel):
 class AddEvent(BaseModel):
     proposal_id: str
     reminder_minutes: int = Field(default=10, ge=0, le=10080)
+
+
+APPROVAL_RE = re.compile(
+    r"\b(yes|yeah|yep|go ahead|approve|confirm|book it|add it|do it|put it|sounds good|looks good)\b",
+    re.I,
+)
+COACH_DRAFT_RE = re.compile(
+    r"\b(recommend|suggest|draft|plan|when should|best window|find me|workout|movement|nap)\b",
+    re.I,
+)
+
+
+TRAINING_QUESTION = re.compile(
+    r"work ?out|train|exercise|session|gym|\brun\b|lift|when should|best time|window|what if|instead|"
+    r"\brest\b|skip|recover|energy|battery|meeting|busy|today|tonight|afternoon|evening",
+    re.I,
+)
+
+
+def wants_pending_calendar_approval(question):
+    return bool(APPROVAL_RE.search(question))
+
+
+def wants_coach_calendar_draft(question):
+    return bool(COACH_DRAFT_RE.search(question)) and not re.search(
+        r"\b(add|create|book|put|remind)\b|\bschedule\s+(a|an|the|my|me)\b",
+        question,
+        re.I,
+    )
+
+
+async def approve_pending_calendar_event(runtime, owner, u):
+    pending = runtime.store.get(owner, "pending_calendar_draft")
+    if not pending:
+        return None
+    created = await AgendaService(runtime.calendar).confirm(u, pending["id"])
+    runtime.store.remove_doc(owner, "pending_calendar_draft")
+    title = pending.get("title", "that plan")
+    return (
+        NarrationResponse(
+            answer=f"Done, I added {title} to your Google Calendar.",
+            mode="template",
+        ),
+        created,
+    )
+
+
+async def propose_coach_calendar_draft(runtime, owner, u, question, plan):
+    if not plan or not plan.proposals:
+        return None
+    q = question.lower()
+    proposal = next((p for p in plan.proposals if p.kind in q), plan.proposals[0])
+    draft = await AgendaService(runtime.calendar).draft(
+        u,
+        {
+            "title": f"BioTwin · {proposal.title}",
+            "start": proposal.start.isoformat(),
+            "end": proposal.end.isoformat(),
+            "calendar_id": "primary",
+            "location": "",
+            "notes": proposal.reason,
+            "reminder_minutes": 10,
+        },
+    )
+    runtime.store.put(owner, "pending_calendar_draft", draft, require_user=True)
+    local_start = proposal.start.astimezone(ZoneInfo(plan.timezone))
+    local_end = proposal.end.astimezone(ZoneInfo(plan.timezone))
+    return (
+        NarrationResponse(
+            answer=(
+                f"I'd recommend {proposal.title.lower()} from {local_start.strftime('%I:%M %p').lstrip('0')} "
+                f"to {local_end.strftime('%I:%M %p').lstrip('0')}. {proposal.reason} "
+                "Want me to add it to your Google Calendar?"
+            ),
+            mode="template",
+        ),
+        draft,
+    )
 
 
 class BroadcastSample(BaseModel):
@@ -199,6 +290,7 @@ def create_app(config=None):
         return {
             "user": public_user(u),
             "demo": u["id"] == "demo",
+            "data_source": data_source_label(config.database_url),
             "voice_configured": bool(config.elevenlabs_api_key),
             "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
@@ -353,6 +445,30 @@ def create_app(config=None):
             u["profile"].get("timezone", "UTC"),
         )
 
+    @app.get("/api/simulate/day")
+    async def simulate_my_day(
+        request: Request,
+        steps: int = Query(default=5000, ge=0, le=10000),
+        recovery_minutes: int = Query(default=30, ge=10, le=60),
+    ):
+        """Deterministic what-if scenarios layered on the fitted trajectory.
+
+        The MATLAB forecast remains the baseline. These branches change only
+        the planning assumptions, so the UI can compare futures without asking a
+        language model to invent physiology.
+        """
+        u = user(request)
+        from modeling.day_simulation import simulate_day
+
+        return simulate_day(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+            await rt().get_plan(u),
+            steps,
+            recovery_minutes,
+        )
+
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
         return (await state(request)).baseline_summary
@@ -380,6 +496,43 @@ def create_app(config=None):
             for p in sorted(values, key=lambda p: p.issued_at, reverse=True)
             if not scored or p.rmse is not None
         ][:30]
+
+    # Google free/busy has no titles, so the timeline borrows today's named agenda entries.
+    # The dashboard polls every minute; two minutes of reuse keeps that off the Calendar API.
+    agenda_titles = {}
+
+    async def training_decision(u, current=None, energy_trajectory=None):
+        from modeling.forecast import trajectory
+
+        current = current or rt().states.get(u["id"]) or rt().compute(u["id"])
+        tz = ZoneInfo(u["profile"].get("timezone", "UTC"))
+        if energy_trajectory is None:
+            energy_trajectory = trajectory(rt().history(u["id"]), utcnow(), str(tz))
+        try:
+            busy, status = await rt().calendar.availability(u)
+        except (ValueError, httpx.HTTPError):
+            busy, status = [], "unavailable"
+        events = None
+        if status == "connected":
+            cached = agenda_titles.get(u["id"])
+            if cached and cached[0] > time.monotonic():
+                events = cached[1]
+            else:
+                today = utcnow().astimezone(tz).date()
+                try:
+                    events = (await AgendaService(rt().calendar).list(u, today, today + timedelta(days=1)))["events"]
+                except (ValueError, httpx.HTTPError):
+                    events = None
+                agenda_titles[u["id"]] = (time.monotonic() + 120, events)
+        return best_training_window(current, energy_trajectory, busy, u["profile"], utcnow(), status, events=events)
+
+    @app.get("/api/training-window")
+    async def training_window(request: Request):
+        """When to train today: current readiness + the per-horizon Body Battery forecast +
+        calendar busy time + workout duration, decided by modeling/training_window.py.
+        The voice coach receives this same decision as grounding, so the card and the
+        spoken answer cannot disagree."""
+        return await training_decision(user(request))
 
     @app.get("/api/plan/today")
     async def plan(request: Request):
@@ -458,7 +611,9 @@ def create_app(config=None):
                 max_age=604800,
             )
         # The public demo's measurements are shared; visitors' questions never are.
-        return "guest:" + hashlib.sha256(token.encode()).hexdigest()
+        guest = "guest:" + hashlib.sha256(token.encode()).hexdigest()
+        rt().store.ensure_guest(guest)
+        return guest
 
     def transcript(row):
         return {
@@ -526,10 +681,36 @@ def create_app(config=None):
                     }
                 )
         stored = rt().store.get(u["id"], "plan")
+        plan = DailyPlan.model_validate(stored) if stored else None
+        if plan is None and u["id"] != "demo" and wants_coach_calendar_draft(question):
+            try:
+                plan = await rt().get_plan(u)
+            except (ValueError, httpx.HTTPError):
+                plan = None
+        outlook = daily_outlook(current, u["profile"], utcnow())
+        energy_trajectory = None
+        try:
+            from modeling.forecast import trajectory
+
+            energy_trajectory = trajectory(
+                rt().history(u["id"]),
+                utcnow(),
+                u["profile"].get("timezone", "UTC"),
+            )
+        except (ValueError, OSError, KeyError, TypeError):
+            energy_trajectory = None
+        decision = (
+            await training_decision(u, current, energy_trajectory)
+            if TRAINING_QUESTION.search(question)
+            else None
+        )
         ctx = narration_context(
             current,
-            DailyPlan.model_validate(stored) if stored else None,
+            plan,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
+            outlook,
+            energy_trajectory,
+            decision,
         )
         agenda = None
         if data.calendar_mode or calendar_question(question):
@@ -539,17 +720,43 @@ def create_app(config=None):
             owner, data.request_id, question, ctx.model_dump(mode="json")
         )
         if created:
-            prepared = (
-                await prepare_event(question, agenda, u, AgendaService(rt().calendar), config, rt().http)
-                if agenda
+            approved = (
+                await approve_pending_calendar_event(rt(), owner, u)
+                if u["id"] != "demo" and wants_pending_calendar_approval(question)
                 else None
             )
-            if prepared:
-                answer, draft = prepared
-                if draft:
-                    rt().store.put(owner, "conversation_draft", draft, data.request_id, require_user=True)
+            if approved:
+                answer, calendar_event = approved
+                rt().store.put(
+                    owner, "conversation_calendar_event", calendar_event, data.request_id, require_user=True
+                )
             else:
-                answer = await narrate(question, ctx, config, rt().http)
+                prepared = (
+                    await prepare_event(question, agenda, u, AgendaService(rt().calendar), config, rt().http)
+                    if agenda
+                    else None
+                )
+                recommended = None
+                if not prepared and u["id"] != "demo" and wants_coach_calendar_draft(question):
+                    try:
+                        recommended = await propose_coach_calendar_draft(rt(), owner, u, question, plan)
+                    except (ValueError, httpx.HTTPError):
+                        recommended = None
+                if recommended:
+                    answer, draft = recommended
+                    rt().store.put(owner, "conversation_draft", draft, data.request_id, require_user=True)
+                    calendar_event = None
+                elif prepared:
+                    answer, draft, calendar_event = prepared
+                    if draft:
+                        rt().store.put(owner, "conversation_draft", draft, data.request_id, require_user=True)
+                    if calendar_event:
+                        rt().store.put(
+                            owner, "conversation_calendar_event", calendar_event, data.request_id, require_user=True
+                        )
+                else:
+                    answer = await narrate(question, ctx, config, rt().http)
+                    calendar_event = None
             row = rt().store.complete_conversation(owner, data.request_id, answer)
         elif row["mode"] == "pending":
             raise HTTPException(409, "Your twin is still answering this question. Try again shortly.")
@@ -560,6 +767,7 @@ def create_app(config=None):
             "grounded": True,
             **speech_ticket(owner, row),
             "calendar_draft": rt().store.get(owner, "conversation_draft", data.request_id),
+            "calendar_event": rt().store.get(owner, "conversation_calendar_event", data.request_id),
         }
 
     @app.get("/api/voice/{reply_id}")
@@ -978,7 +1186,7 @@ def create_app(config=None):
     async def ops(request: Request):
         u = user(request)
         return {
-            "storage": "sqlite" if config.database_url.startswith("sqlite") else "postgres",
+            "storage": data_source_label(config.database_url),
             "demo": u["id"] == "demo",
             "counters": dict(rt().counters),
             "clients": len(rt().subscribers[u["id"]]),
@@ -996,9 +1204,11 @@ def create_app(config=None):
         if ws.headers.get("origin") not in allowed:
             await ws.close(code=1008)
             return
-        u = rt().store.session_user(ws.cookies.get("biotwin_session"))
+        u = await asyncio.to_thread(
+            rt().store.session_user, ws.cookies.get("biotwin_session")
+        )
         if not u and config.demo_enabled:
-            u = rt().store.user("demo")
+            u = await asyncio.to_thread(rt().store.user, "demo")
         if not u:
             await ws.close(code=1008)
             return
@@ -1012,7 +1222,9 @@ def create_app(config=None):
                 await ws.close(code=1008)
                 return
             last = int(hello.get("last_sequence", 0))
-            current = rt().states.get(uid) or rt().compute(uid)
+            current = rt().states.get(uid)
+            if current is None:
+                current = await asyncio.to_thread(rt().compute, uid)
             states = [s for s in rt().buffers[uid] if s.sequence > last]
             if last and states and rt().buffers[uid][0].sequence <= last + 1:
                 await ws.send_json({"type": "resume", "from": states[0].sequence})

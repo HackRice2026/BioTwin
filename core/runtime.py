@@ -288,7 +288,11 @@ class Runtime:
         if normalized.event_time > utcnow() + timedelta(minutes=5):
             raise ValueError("Measurement time is too far in the future")
         async with self.ingest_lock:
-            existing = self.history(normalized.user_id)
+            existing = (
+                self.history(normalized.user_id)
+                if broadcast
+                else self.store.history(normalized.user_id, limit=1)
+            )
             committed = self.store.append(normalized)
             if not committed:
                 self.counters["duplicates_suppressed"] += 1
@@ -297,10 +301,17 @@ class Runtime:
             if existing and committed.event_time < existing[-1].event_time - timedelta(minutes=5):
                 self.refit_due.add(uid)
                 self.counters["late_frames"] += 1
-            if not existing or committed.event_time >= existing[-1].event_time:
-                existing.append(committed)
-            else:
-                insort_right(existing, committed, key=lambda f: (f.event_time, f.sequence))
+            if broadcast:
+                if not existing or committed.event_time >= existing[-1].event_time:
+                    existing.append(committed)
+                else:
+                    insort_right(existing, committed, key=lambda f: (f.event_time, f.sequence))
+            elif uid in self.history_cache:
+                cached = self.history_cache[uid]
+                if not cached or committed.event_time >= cached[-1].event_time:
+                    cached.append(committed)
+                else:
+                    insort_right(cached, committed, key=lambda f: (f.event_time, f.sequence))
             if uid in self.latest_index:
                 self.index_frame(uid, committed)
             self.counters[f"frames_{committed.provenance.value}"] += 1
@@ -364,9 +375,13 @@ class Runtime:
 
     async def sync(self, uid, provider, since=None):
         count = 0
+        scanned = 0
         async for frame in self.adapters[provider].backfill(uid, since or utcnow() - timedelta(days=7)):
+            scanned += 1
             if await self.ingest(frame, broadcast=False):
                 count += 1
+            if scanned % 25 == 0:
+                await asyncio.sleep(0)
         self.publish(uid, self.compute(uid, refit=True))
         self.store.put(uid, "sync", {"at": utcnow().isoformat(), "count": count, "status": "ok"}, provider)
 
@@ -448,7 +463,14 @@ class Runtime:
             # the BLE bridge already retries its connection.
             while True:
                 try:
-                    await self.sync(uid, "garmin_influx")
+                    self.influx_sync_status[uid] = {"status": "backfilling"}
+                    recent = self.store.history(uid, limit=1)
+                    since = (
+                        recent[-1].event_time - timedelta(minutes=10)
+                        if recent
+                        else utcnow() - timedelta(days=7)
+                    )
+                    await self.sync(uid, "garmin_influx", since)
                     self.influx_sync_status[uid] = {"status": "live"}
                     async for frame in self.adapters["garmin_influx"].stream(uid):
                         await self.ingest(frame)
@@ -489,7 +511,11 @@ class Runtime:
 
     async def worker(self):
         while True:
-            job = self.store.claim()
+            # The Store uses synchronous SQLAlchemy. Polling the remote outbox
+            # directly here would monopolize the event loop for every database
+            # round trip (or until a failed socket times out), freezing unrelated
+            # HTTP and WebSocket traffic. Keep the always-on poll off the loop.
+            job = await asyncio.to_thread(self.store.claim)
             if not job:
                 self.wakeup.clear()
                 try:
@@ -500,12 +526,14 @@ class Runtime:
             try:
                 provider, payload = job["provider"], job["payload"]
                 if provider == "sync":
-                    if self.store.user(payload["user_id"]):
+                    if await asyncio.to_thread(self.store.user, payload["user_id"]):
                         await self.sync(payload["user_id"], payload["provider"])
                 elif provider == "fitbit":
                     for notification in payload if isinstance(payload, list) else [payload]:
                         data = notification["data"]
-                        uid = self.lookup_identity("fitbit", data["healthUserId"])
+                        uid = await asyncio.to_thread(
+                            self.lookup_identity, "fitbit", data["healthUserId"]
+                        )
                         if not uid:
                             continue
                         if data["operation"] == "DELETE":
@@ -529,7 +557,9 @@ class Runtime:
                 elif provider == "garmin":
                     for dataset, entries in payload.items():
                         for data in entries:
-                            uid = self.lookup_identity("garmin", data["userId"])
+                            uid = await asyncio.to_thread(
+                                self.lookup_identity, "garmin", data["userId"]
+                            )
                             if not uid:
                                 continue
                             if "callbackURL" in data:
@@ -553,9 +583,9 @@ class Runtime:
                             for summary in summaries:
                                 for f in parse_summary(summary, uid):
                                     await self.ingest(f)
-                self.store.finish(job)
+                await asyncio.to_thread(self.store.finish, job)
             except Exception as exc:
-                self.store.finish(job, type(exc).__name__)
+                await asyncio.to_thread(self.store.finish, job, type(exc).__name__)
                 self.counters["worker_failures"] += 1
                 self.errors["worker"] = type(exc).__name__
 
@@ -610,21 +640,27 @@ class Runtime:
             try:
                 await self.oauth.refresh_due()
                 if iteration % 5 == 0:
-                    for provider, conn in self.store.docs(None, "connection"):
+                    connections = await asyncio.to_thread(self.store.docs, None, "connection")
+                    for provider, conn in connections:
                         if conn["status"] != "connected":
                             continue
                         uid = conn["user_id"]
                         try:
                             if provider == "google-calendar":
-                                await self.calendar.sync_events(self.store.user(uid))
+                                account = await asyncio.to_thread(self.store.user, uid)
+                                await self.calendar.sync_events(account)
                             else:
                                 await self.sync(uid, provider, utcnow() - timedelta(minutes=10))
                         except Exception as exc:
-                            self.store.put(
-                                uid, "sync", {"status": "error", "error": type(exc).__name__}, provider
+                            await asyncio.to_thread(
+                                self.store.put,
+                                uid,
+                                "sync",
+                                {"status": "error", "error": type(exc).__name__},
+                                provider,
                             )
                 if iteration % 60 == 0:
-                    self.store.purge(self.config.retention_days)
+                    await asyncio.to_thread(self.store.purge, self.config.retention_days)
                     cutoff = utcnow() - timedelta(days=self.config.retention_days)
                     for uid, history in self.history_cache.items():
                         self.history_cache[uid] = [f for f in history if f.event_time >= cutoff]
@@ -632,7 +668,7 @@ class Runtime:
                     self.readiness_inputs.clear()
                 # Expired measurements stop driving live pulse even when the vendor is silent.
                 for uid in list(self.states):
-                    if uid != "demo" and self.store.user(uid):
+                    if uid != "demo" and await asyncio.to_thread(self.store.user, uid):
                         self.publish(uid, self.compute(uid))
                 iteration += 1
             except Exception as exc:

@@ -229,7 +229,7 @@ try {
     );
     assert.ok(
       await page
-        .getByRole("meter", { name: "Body Battery estimate" })
+        .getByRole("meter", { name: "Body Battery, measured" })
         .isVisible(),
     );
   }

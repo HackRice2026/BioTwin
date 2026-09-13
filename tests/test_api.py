@@ -36,7 +36,9 @@ def test_auth_requires_adult_and_private_data_is_authenticated(client):
     state = client.get("/api/state").json()
     assert state["latest"] is None
     assert state["readiness"]["score"] is None
-    assert "password" not in client.get("/api/session").text
+    session = client.get("/api/session")
+    assert "password" not in session.text
+    assert session.json()["data_source"] == "sqlite"
 
 
 def test_import_idempotence_and_late_event_recompute(client):
@@ -353,3 +355,65 @@ def test_the_trajectory_replays_the_model_when_the_reading_is_too_old_for_now():
         "America/Chicago",
     )
     assert nothing["available"] is False
+
+
+def test_simulate_my_day_layers_scenarios_on_the_forecast():
+    from datetime import datetime, timedelta, timezone as tzmod
+    from modeling.day_simulation import simulate_day
+    from shared.schemas import TwinFrame, Provenance
+
+    now = datetime(2026, 9, 12, 18, 0, tzinfo=tzmod.utc)
+    history = [
+        TwinFrame(
+            user_id="u",
+            event_time=now - timedelta(minutes=m),
+            provenance=Provenance.GARMIN_FIT_REPLAY,
+            body_battery_pct=float(62 - m // 20),
+            heart_rate_bpm=72,
+            stress_max=35,
+        )
+        for m in range(0, 120, 5)
+    ]
+
+    result = simulate_day(history, now + timedelta(minutes=5), "America/Chicago", steps=8000)
+    assert result["available"] is True
+    scenarios = {s["id"]: s for s in result["scenarios"]}
+    assert set(scenarios) == {
+        "current_plan",
+        "train_now",
+        "train_best_window",
+        "extra_steps",
+        "recovery_break",
+    }
+    baseline_evening = scenarios["current_plan"]["decision"]["evening_state"]
+    assert scenarios["extra_steps"]["decision"]["evening_state"] < baseline_evening
+    assert scenarios["train_now"]["decision"]["activity_load"] == "High"
+    assert scenarios["recovery_break"]["decision"]["evening_state"] <= baseline_evening + 4.1
+    assert "scenario overlays" in " ".join(result["assumptions"])
+
+
+def test_simulate_my_day_endpoint_uses_account_frames(client):
+    from datetime import timedelta
+
+    register(client)
+    now = utcnow()
+    payload = [
+        {
+            "event_time": (now - timedelta(minutes=m)).isoformat(),
+            "body_battery_pct": 65 - m // 20,
+            "heart_rate_bpm": 74,
+            "stress_max": 34,
+        }
+        for m in range(0, 120, 5)
+    ]
+    imported = client.post(
+        "/api/ingest/file",
+        files={"file": ("garmin.json", json.dumps(payload), "application/json")},
+    )
+    assert imported.status_code == 200, imported.text
+    response = client.get("/api/simulate/day?steps=8000")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["available"] is True
+    assert result["controls"]["steps"] == 8000
+    assert any(s["id"] == "extra_steps" for s in result["scenarios"])
