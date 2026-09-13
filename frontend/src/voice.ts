@@ -113,7 +113,8 @@ export class TwinVoice {
       events.status("");
       events.ended?.();
     };
-    this.player.ontimeupdate = () => events.captions?.(this.timeline.words(), this.player.currentTime);
+    this.player.ontimeupdate = () =>
+      events.captions?.(this.timeline.words(), this.player.currentTime);
     this.player.onpause = () => events.speaking(false);
     this.player.onerror = () => {
       if (!signal.aborted) {
@@ -141,6 +142,8 @@ export class TwinVoice {
           "No usable speech was returned. Your text answer is saved.",
         );
       const canStream =
+        (timed ||
+          response.headers.get("content-type")?.startsWith("audio/mpeg")) &&
         typeof MediaSource !== "undefined" &&
         MediaSource.isTypeSupported("audio/mpeg") &&
         response.body;
@@ -162,20 +165,34 @@ export class TwinVoice {
         chunks.push(bytes);
         emitAvatarAudio(bytes.slice(0));
         if (buffer) {
-          await event(buffer, "updateend", signal, () => buffer!.appendBuffer(bytes));
-          if (!started) { started = true; void this.resume(); }
+          await event(buffer, "updateend", signal, () =>
+            buffer!.appendBuffer(bytes),
+          );
+          if (!started) {
+            started = true;
+            void this.resume();
+          }
         }
       };
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("No speech stream was returned. Your text answer is saved.");
+      if (!reader)
+        throw new Error(
+          "No speech stream was returned. Your text answer is saved.",
+        );
       const decoder = new TextDecoder();
       let pending = "";
       const processLine = async (line: string) => {
         if (!line.trim()) return;
-        const chunk = JSON.parse(line) as { audio_base64?: string; alignment?: Alignment; normalized_alignment?: Alignment };
+        const chunk = JSON.parse(line) as {
+          audio_base64?: string;
+          alignment?: Alignment;
+          normalized_alignment?: Alignment;
+        };
         this.timeline.append(chunk.normalized_alignment ?? chunk.alignment);
         if (chunk.audio_base64) {
-          const bytes = Uint8Array.from(atob(chunk.audio_base64), c => c.charCodeAt(0));
+          const bytes = Uint8Array.from(atob(chunk.audio_base64), (c) =>
+            c.charCodeAt(0),
+          );
           await append(bytes.buffer);
         }
       };
@@ -187,7 +204,8 @@ export class TwinVoice {
           pending += decoder.decode(value, { stream: true });
           let index: number;
           while ((index = pending.indexOf("\n")) >= 0) {
-            const line = pending.slice(0, index); pending = pending.slice(index + 1);
+            const line = pending.slice(0, index);
+            pending = pending.slice(index + 1);
             await processLine(line);
           }
         } else await append(new Uint8Array(value).buffer);
@@ -202,7 +220,10 @@ export class TwinVoice {
         new Blob(chunks, { type: "audio/mpeg" }),
       );
       this.urls.push(this.cached);
-      if (!canStream) { this.player.src = this.cached; await this.resume(); }
+      if (!canStream) {
+        this.player.src = this.cached;
+        await this.resume();
+      }
     } catch (error) {
       if (signal.aborted) return;
       this.player.pause();

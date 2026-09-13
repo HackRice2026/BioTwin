@@ -200,20 +200,27 @@ export function useTwinConversation({
       if (request !== speechRequest.current || currentEpoch !== epoch.current)
         return;
       if (!voice.current) voice.current = new TwinVoice();
-      await voice.current.play(reply.id, `/api/voice/${ticket.reply_id}?timestamps=true`, {
-        speaking: (active) => {
-          setSpeaking(active);
-          if (active) setNeedsTap(false);
+      await voice.current.play(
+        reply.id,
+        `/api/voice/${ticket.reply_id}?timestamps=true`,
+        {
+          speaking: (active) => {
+            setSpeaking(active);
+            if (active) setNeedsTap(false);
+          },
+          status: setVoiceNotice,
+          error: (message) => {
+            setVoiceError(true);
+            setVoiceNotice(message);
+          },
+          blocked: () => setNeedsTap(true),
+          ended: () => callbacks.current.onSpeechEnd?.(),
+          captions: (words, time) => {
+            setCaptionWords(words);
+            setAudioTime(time);
+          },
         },
-        status: setVoiceNotice,
-        error: (message) => {
-          setVoiceError(true);
-          setVoiceNotice(message);
-        },
-        blocked: () => setNeedsTap(true),
-        ended: () => callbacks.current.onSpeechEnd?.(),
-        captions: (words, time) => { setCaptionWords(words); setAudioTime(time); },
-      });
+      );
     } catch (error) {
       if (request !== speechRequest.current || currentEpoch !== epoch.current)
         return;
@@ -243,7 +250,9 @@ export function useTwinConversation({
         action: "listen",
         gaze: "user",
       });
-    } else if (/show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)) {
+    } else if (
+      /show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)
+    ) {
       emitAvatarSemantic({
         action: "squat",
         gaze: "workout",
