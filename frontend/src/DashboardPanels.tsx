@@ -397,6 +397,58 @@ export function RecoveryPanel({ data }: { data: Dashboard }) {
     </Panel>
   );
 }
+export function ForecastPanel({ data }: { data: Dashboard }) {
+  const forecast = data.forecast;
+  if (!forecast) return null;
+  return (
+    <Panel>
+      <PanelTitle
+        title="Body Battery, an hour ahead"
+        note="Ridge model fitted in MATLAB on 23 of your own days"
+      >
+        <Battery size={18} className="green" />
+      </PanelTitle>
+      {forecast.available ? (
+        <>
+          <div className="signal-stats">
+            <div>
+              <small>Measured now</small>
+              <b>{value(forecast.current)}</b>
+            </div>
+            <div>
+              <small>In {forecast.horizon_minutes} minutes</small>
+              <b>{value(forecast.forecast)}</b>
+            </div>
+            <div>
+              <small>Typical error</small>
+              <b>&plusmn; {value(forecast.validation_mae, 1)}</b>
+            </div>
+          </div>
+          {/* Named rather than hidden: an input that fell back to its training
+              mean is not a measurement, and the card should not imply it was. */}
+          {forecast.imputed_inputs.length > 0 && (
+            <small className="setup-note">
+              {forecast.imputed_inputs.length} of 8 inputs unavailable, filled
+              with their training average: {forecast.imputed_inputs.join(", ")}
+            </small>
+          )}
+          <small className="setup-note">
+            Predicts Garmin&rsquo;s Body Battery, a proprietary composite.
+            Personalised to one person, not clinically validated.
+          </small>
+        </>
+      ) : (
+        /* Refusing is the designed behaviour, not an error state: the current
+           level dominates the model, so a stale reading would read as
+           confident and be wrong. */
+        <div className="empty-state">
+          <Battery size={22} />
+          <p>{forecast.reason}</p>
+        </div>
+      )}
+    </Panel>
+  );
+}
 export function ReadinessDetails({ data }: { data: Dashboard }) {
   const state = data.state!;
   return (

@@ -28,6 +28,7 @@ import { useTwinConversation } from "./useTwinConversation";
 import { questionScenario, questionTopic, type Topic } from "./topics";
 import {
   CalendarDay,
+  ForecastPanel,
   LabPanel,
   Metric,
   Panel,
@@ -636,6 +637,7 @@ export default function BioTwinApp() {
                   <>
                     <ReadinessPanel data={data} />
                     <RecoveryPanel data={data} />
+                    <ForecastPanel data={data} />
                   </>
                 )}
               </div>
@@ -677,6 +679,7 @@ export default function BioTwinApp() {
               <div className="overview-insights">
                 <ReadinessPanel data={data} />
                 <RecoveryPanel data={data} />
+                <ForecastPanel data={data} />
               </div>
               <div className="section-label">
                 <h2>A little room for yourself</h2>

@@ -5,6 +5,7 @@ import {
   type MetricPoint,
   type SleepPoint,
   type Session,
+  type Forecast,
 } from "./api";
 import type {
   DailyPlan,
@@ -44,6 +45,7 @@ export function useDashboard() {
   const [predictions, setPredictions] = useState<RecoveryPrediction[]>([]);
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [outlook, setOutlook] = useState<DayOutlook | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
   const [notice, notify] = useState("");
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [simulation, setSimulation] = useState<SimulationOverlay | null>(null);
@@ -58,6 +60,7 @@ export function useDashboard() {
     setSleep([]);
     setHistory([]);
     setPredictions([]);
+    setForecast(null);
     setPlan(null);
     setOutlook(null);
     clearSimulation();
@@ -110,6 +113,7 @@ export function useDashboard() {
         "/api/predictions",
         "/api/plan/today",
         "/api/outlook",
+        "/api/forecast",
       ];
       const results = await Promise.allSettled(
         requests.map((path) =>
@@ -124,7 +128,7 @@ export function useDashboard() {
           next[m] = (r.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(metricNames.length);
+      const [s, h, p, pl, out, fc] = results.slice(metricNames.length);
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -132,6 +136,7 @@ export function useDashboard() {
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (fc.status === "fulfilled") setForecast(fc.value as Forecast);
       if (results.some((r) => r.status === "rejected"))
         notify(
           "Some measurements could not refresh. Please try again shortly.",
@@ -217,6 +222,7 @@ export function useDashboard() {
     history,
     plan,
     outlook,
+    forecast,
     prediction,
     notice,
     notify,
