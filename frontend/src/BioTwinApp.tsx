@@ -365,10 +365,12 @@ export default function BioTwinApp() {
               <b>
                 {session && !session.demo
                   ? session.user.name || "Your account"
-                  : "Your personal twin"}
+                  : "Log in"}
               </b>
               <small>
-                {session?.demo ? "Make it yours" : "Account & preferences"}
+                {session && !session.demo
+                  ? "Account & preferences"
+                  : "Sign in or create an account"}
               </small>
             </div>
             <ChevronRight size={16} />
