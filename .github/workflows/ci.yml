@@ -46,6 +46,7 @@ jobs:
           node scripts/browser-check.mjs
           node scripts/voice-check.mjs
           node scripts/account-check.mjs
+          node scripts/calendar-check.mjs
         env:
           BIOTWIN_TEST_BUNDLED_CHROMIUM: 'true'
       - uses: actions/upload-artifact@v4

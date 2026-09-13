@@ -64,13 +64,19 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
-Connect from BioTwin. Scopes are `calendar.readonly` and `calendar.events`: the second scope implements the user's explicit event/reminder requirement. The primary calendar timezone is read after consent. The event cache uses incremental sync tokens; a 410 response discards the sync token and refetches. FreeBusy remains authoritative for conflicts.
+Connect from BioTwin. Scopes are `calendar.readonly`, `calendar.events`, and `tasks.readonly`. Enable the Google Tasks API too if Tasks should appear. Existing connections can reconnect to grant the additional Tasks scope; declining it does not hide calendar events. The primary calendar timezone is read after consent, and the app opens Daily plan. The agenda fetches every provider page across all readable Google calendars in the displayed 7- or 30-day range, with recurring instances expanded. FreeBusy remains authoritative for conflicts.
+
+Daily plan now shows named events, all-day entries, details/links and task lists, with date navigation, search and calendar/task filters. It refreshes after connecting/adding, on window focus, and every minute while visible. Changing the date range exposes earlier or later events; there is no first-page event cutoff.
+
+Ask the twin about the displayed calendar, or ask it to add an event with a title, date and time. Vertex/Gemini receives only the supplied calendar facts alongside the existing wearable context. New events appear as editable drafts. The review panel's **Add to calendar** button performs the write; a draft alone never books. **New event** also works without Gemini. The selected writable Google calendar is checked for conflicts, the event includes the reviewed reminder, and stable provider IDs prevent duplicate retries. No attendees or invitations are added. Drafts expire after an hour. Planner-generated wellness proposals retain their existing modeling constraints.
 
 Daily plan → choose the reminder lead time → click the arrow on a proposal. The server requires an authentic stored proposal, rechecks current model constraints and calendar availability, then inserts an idempotently identified event in the primary calendar. It includes one popup reminder. No attendees are added and no invitations are sent. Clinical data and readiness values are not placed into the calendar description. Google Calendar and device settings control delivery of the reminder; BioTwin does not claim it can guarantee a notification on a sleeping phone.
 
 The server supports multiple calendar IDs through profile settings (`calendar_ids`); the default is `primary`. It refuses to present an empty, verified schedule if a selected calendar returns an error.
 
 References: [Create events](https://developers.google.com/workspace/calendar/api/guides/create-events), [Reminders and notifications](https://developers.google.com/workspace/calendar/api/concepts/reminders), [Incremental synchronization](https://developers.google.com/workspace/calendar/api/guides/sync).
+
+Agenda references: [Calendar list](https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list), [Expanded event listing](https://developers.google.com/workspace/calendar/api/v3/reference/events/list), [Tasks listing](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/list), [Tasks scopes](https://developers.google.com/workspace/tasks/auth).
 
 ## Outlook Calendar, events and reminders
 
