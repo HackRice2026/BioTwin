@@ -8,6 +8,7 @@ import {
   Flame,
   Footprints,
   Heart,
+  Leaf,
   LoaderCircle,
   Moon,
   RefreshCw,
@@ -519,21 +520,20 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
     );
   return (
     <Panel className="readiness-panel forecast-panel current-battery-panel">
-      <PanelTitle title="Current Body Battery" note="Your energy reserve">
-        <Battery size={19} className="green" />
+      <PanelTitle title="Readiness" note="Your recovery signal, not Body Battery">
+        <Leaf size={19} className="green" />
       </PanelTitle>
       <div className="forecast-summary current-battery-summary">
         <span
-          className="readiness-battery"
+          className="readiness-score"
           role="img"
           aria-label={
             score == null
-              ? "Body Battery is awaiting a reading"
-              : `Body Battery ${value(score)} percent`
+              ? "Readiness is awaiting a reading"
+              : `Readiness ${value(score)} percent`
           }
         >
-          <Battery aria-hidden="true" />
-          <b>{score == null ? "—" : `${value(score)}%`}</b>
+          {score == null ? "—" : `${value(score)}%`}
         </span>
         <div>
           <span className="pill green">
@@ -550,8 +550,8 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
         </div>
         <small>{value(r.confidence * 100)}% confidence</small>
       </div>
-      <div className="forecast-recommendations" role="region" aria-label="Body Battery recommendations">
-        <div className="forecast-actions" role="list" aria-label="Today's Body Battery recommendations">
+      <div className="forecast-recommendations" role="region" aria-label="Readiness recommendations">
+        <div className="forecast-actions" role="list" aria-label="Today's recommendations">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
@@ -609,7 +609,9 @@ export function TomorrowPanel({ data }: { data: Dashboard }) {
             />
           </div>
           <p className="forecast-credibility">
-            Prediction based on our mathematical numerical calculations and your recent numbers.
+            {trajectory.basis === "model"
+              ? "From the ridge model fitted in MATLAB on your current level and recent trend."
+              : "Your last reading was too old for the fitted model, so this uses your own hour-of-day rhythm instead."}
           </p>
         </>
       ) : (

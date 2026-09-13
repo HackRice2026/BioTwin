@@ -766,10 +766,12 @@ export default function BioTwinApp() {
                   </div>
                 )}
               </div>
-              <div className="overview-insights">
-                <ReadinessPanel data={data} />
-                <TomorrowPanel data={data} />
-              </div>
+              {/* Body Battery's own projected curve already lives in "Your day ahead"
+                  above (decisionCards), with the calendar overlay and MATLAB detail
+                  TomorrowPanel doesn't have -- showing it again here was the same
+                  trajectory twice on one screen. Readiness's own recommendations stay,
+                  since nothing else on this page covers them. */}
+              <ReadinessPanel data={data} />
               <div className="section-label">
                 <h2>A little room for yourself</h2>
                 <button onClick={() => navigate("Daily plan")}>
@@ -1011,7 +1013,7 @@ export default function BioTwinApp() {
                         <span className="eyebrow">SIMULATE MY DAY</span>
                         <h3>Move the day. Watch the future change.</h3>
                       </div>
-                      <span className="pill blue">
+                      <span className="pill green">
                         {daySimulation.basis === "model"
                           ? "Model + rhythm"
                           : "Rhythm estimate"}

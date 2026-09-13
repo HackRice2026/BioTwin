@@ -467,6 +467,7 @@ def create_app(config=None):
             await rt().get_plan(u),
             steps,
             recovery_minutes,
+            decision=await training_decision(u),
         )
 
     @app.get("/api/baseline")

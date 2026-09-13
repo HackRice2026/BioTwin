@@ -1011,12 +1011,6 @@ button.primary:hover:not(:disabled) {
   min-width: 0;
   height: 38px;
 }
-.overview-insights {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin-top: 18px;
-}
 .readiness-body {
   display: flex;
   align-items: center;
@@ -1068,6 +1062,7 @@ button.primary:hover:not(:disabled) {
 .current-battery-panel,
 .body-battery-forecast-panel {
   min-width: 0;
+  margin-top: 18px;
 }
 .forecast-summary {
   display: flex;
@@ -1093,28 +1088,22 @@ button.primary:hover:not(:disabled) {
   gap: 16px;
   padding: 8px 0 14px;
 }
-.readiness-battery {
+/* Deliberately not battery-shaped: this is the readiness score, not Body
+   Battery, and the two must never look interchangeable. */
+.readiness-score {
+  align-items: center;
+  background: #8cdfb014;
+  border: 1px solid #8cdfb02a;
+  border-radius: 16px;
   color: #8cdfb0;
-  display: grid;
-  flex: 0 0 88px;
-  height: 48px;
-  place-items: center;
-  position: relative;
-  width: 88px;
-}
-.readiness-battery > svg {
-  height: 48px;
-  stroke-width: 1.5;
-  width: 88px;
-}
-.readiness-battery > b {
-  color: #ecfff1;
-  font-size: 13px;
-  left: 0;
-  letter-spacing: -0.4px;
-  position: absolute;
-  text-align: center;
-  width: 74px;
+  display: flex;
+  flex: 0 0 72px;
+  font-family: Manrope, sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  height: 56px;
+  justify-content: center;
+  letter-spacing: -0.5px;
 }
 .current-battery-summary h3 {
   font-size: 16px;
@@ -2556,10 +2545,8 @@ button.primary:hover:not(:disabled) {
     font-size: 8px;
     max-width: 65px;
   }
-  .overview-insights {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+  .current-battery-panel,
+  .body-battery-forecast-panel {
     margin-top: 14px;
   }
   .panel-title h2 {
@@ -3183,11 +3170,6 @@ button.primary:hover:not(:disabled) {
   line-height: 1.2;
   margin: 5px 0 0;
 }
-.pill.blue {
-  color: #a9cdf9;
-  border-color: #8fc4ff33;
-  background: #8fc4ff12;
-}
 .scenario-rail {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3204,9 +3186,9 @@ button.primary:hover:not(:disabled) {
   color: #9bad9f;
 }
 .scenario-rail > button.selected {
-  color: #d9e8ff;
-  border-color: #8fc4ff55;
-  background: linear-gradient(180deg, #8fc4ff18, #8fc4ff08);
+  color: #d9ffe8;
+  border-color: #8ce5b055;
+  background: linear-gradient(180deg, #8ce5b018, #8ce5b008);
 }
 .scenario-rail b,
 .simulate-decisions b,
@@ -3231,7 +3213,7 @@ button.primary:hover:not(:disabled) {
 }
 .steps-control input {
   width: 100%;
-  accent-color: #8fc4ff;
+  accent-color: var(--green);
   margin-top: 8px;
 }
 .simulate-visual {
@@ -3239,7 +3221,7 @@ button.primary:hover:not(:disabled) {
   border-radius: 14px;
   border: 1px solid #ffffff0f;
   background:
-    radial-gradient(circle at 20% 0%, #8fc4ff12, transparent 34%),
+    radial-gradient(circle at 20% 0%, #8ce5b012, transparent 34%),
     #ffffff03;
   padding: 8px 8px 4px;
 }
