@@ -2838,3 +2838,10 @@ button.primary:hover:not(:disabled) {
   height: 220px;
   margin: 4px 0 14px;
 }
+/* The broadcast button sits inside .body-battery, whose 15px gap is tuned for
+   the label-and-meter pair; bar-twin's 22px left padding would push the meter
+   off-centre there, so only the divider and spacing are adjusted. */
+.battery-broadcast {
+  padding-left: 15px;
+  white-space: nowrap;
+}

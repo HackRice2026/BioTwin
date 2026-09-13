@@ -416,12 +416,13 @@ export default function BioTwinApp() {
             <b>{battery == null ? "—" : `${battery}%`}</b>
           </div>
           <button
-            className="icon-btn"
+            className="bar-twin battery-broadcast"
             onClick={() => setBroadcastOpen(true)}
-            aria-label="Body Battery broadcast: where the model expects this to go"
-            title="Body Battery broadcast"
+            aria-label="Battery Broadcast: where the model expects this to go"
+            title="Battery Broadcast"
           >
             <Radio size={16} />
+            <span>Battery Broadcast</span>
           </button>
         </div>
         <button
@@ -822,12 +823,12 @@ export default function BioTwinApp() {
             className="history-dialog glass"
             role="dialog"
             aria-modal="true"
-            aria-label="Body Battery broadcast"
+            aria-label="Battery Broadcast"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="panel-title">
               <div>
-                <h2>Body Battery broadcast</h2>
+                <h2>Battery Broadcast</h2>
                 <p>Where your fitted model expects this to go</p>
               </div>
               <Radio size={18} className="green" />

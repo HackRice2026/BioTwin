@@ -75,11 +75,11 @@ try {
   // broadcast: the tile button opens it, and it renders in whichever state the
   // account's data puts it -- a chart, or the refusal on a stale reading.
   await page
-    .getByRole("button", { name: /Body Battery broadcast/ })
+    .getByRole("button", { name: /Battery Broadcast/ })
     .click();
-  const broadcast = page.getByRole("dialog", { name: "Body Battery broadcast" });
+  const broadcast = page.getByRole("dialog", { name: "Battery Broadcast" });
   await broadcast.waitFor();
-  assert.ok(await broadcast.getByRole("heading", { name: "Body Battery broadcast" }).isVisible());
+  assert.ok(await broadcast.getByRole("heading", { name: "Battery Broadcast" }).isVisible());
   await broadcast.getByRole("button", { name: "Close", exact: true }).click();
   await broadcast.waitFor({ state: "hidden" });
   report.forecast = true;
