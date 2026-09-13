@@ -4385,3 +4385,29 @@ button.primary:hover:not(:disabled) {
   border-color: #8ce5b0;
   color: #8ce5b0;
 }
+/* Live transcript: what was actually said, so a listener can follow along and a
+   demo has something on screen while the voice talks. */
+.live-transcript {
+  margin-top: 14px;
+  max-height: 168px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.live-transcript p {
+  margin: 0;
+  color: #cfe0d5;
+}
+.live-transcript p.you {
+  color: #93a99b;
+}
+.live-transcript b {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6f8a7b;
+  margin-bottom: 2px;
+}

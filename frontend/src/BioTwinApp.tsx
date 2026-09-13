@@ -129,12 +129,28 @@ export default function BioTwinApp() {
   // existing microphone button does.
   const [liveState, setLiveState] = useState<LiveState>("idle");
   const [liveNotice, setLiveNotice] = useState("");
+  // One line per turn: fragments append to the last line of the same speaker, so
+  // the panel reads as a conversation rather than a wall of partial words.
+  const [liveLines, setLiveLines] = useState<{ who: "twin" | "you"; text: string }[]>([]);
+  const turnOpen = useRef(false);
   const live = useRef<GeminiLive | null>(null);
   if (!live.current) {
     live.current = new GeminiLive({
       onState: (state, detail) => {
         setLiveState(state);
         setLiveNotice(detail ?? "");
+      },
+      onTranscript: (who, text) =>
+        setLiveLines((lines) => {
+          const last = lines[lines.length - 1];
+          if (last && last.who === who && turnOpen.current) {
+            return [...lines.slice(0, -1), { who, text: last.text + text }];
+          }
+          turnOpen.current = true;
+          return [...lines.slice(-20), { who, text }];
+        }),
+      onTurnEnd: () => {
+        turnOpen.current = false;
       },
     });
   }
@@ -606,19 +622,6 @@ export default function BioTwinApp() {
                   <img src="/assets/coach-mascot.png" alt="" />
                 </div>
                 <div className="coach-control">
-                  <button
-                    type="button"
-                    className={`coach-mic ${listening ? "listening" : ""}`}
-                    disabled={asking}
-                    aria-label={
-                      listening ? "Stop voice input and answer" : "Start voice input"
-                    }
-                    aria-pressed={listening}
-                    onClick={conversation.microphone}
-                  >
-                    <span aria-hidden="true" />
-                    <Mic size={24} />
-                  </button>
                   {session?.live_voice && (
                     <button
                       type="button"
@@ -655,19 +658,25 @@ export default function BioTwinApp() {
                       {liveNotice
                         ? liveNotice
                         : liveState === "listening"
-                          ? "Live — just talk, it hears you"
+                          ? "Just talk — your twin is listening"
                           : liveState === "speaking"
-                            ? "Live — answering"
-                            : listening
-                        ? "Tap again to stop and answer"
-                        : speaking
-                          ? "Answering out loud"
-                          : asking || transcribing
-                            ? "Reading the room"
-                            : "Tap to start voice input"}
+                            ? "Answering out loud"
+                            : liveState === "connecting"
+                              ? "Opening the line"
+                              : "Start a live conversation, or type below"}
                     </span>
                   </div>
                 </div>
+                {liveLines.length > 0 && (
+                  <div className="live-transcript" aria-live="polite">
+                    {liveLines.map((line, i) => (
+                      <p key={i} className={line.who}>
+                        <b>{line.who === "twin" ? "Twin" : "You"}</b>
+                        {line.text}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="hero-composer">

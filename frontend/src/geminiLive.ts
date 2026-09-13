@@ -31,8 +31,14 @@ export type LiveState = "idle" | "connecting" | "listening" | "speaking" | "erro
 
 type Handlers = {
   onState: (state: LiveState, detail?: string) => void;
-  /** Transcript text, when the model returns any alongside the audio. */
-  onText?: (text: string) => void;
+  /**
+   * Transcript of what was said, as it is said. `who` separates the two sides so
+   * the caller can show them differently; text arrives in fragments and should be
+   * appended, not replaced.
+   */
+  onTranscript?: (who: "twin" | "you", text: string) => void;
+  /** A turn ended, so the next fragment starts a new line rather than continuing. */
+  onTurnEnd?: () => void;
 };
 
 const CHUNK = 2048;
@@ -170,12 +176,22 @@ export class GeminiLive {
       return;
     }
 
+    // The reply is audio; these are Gemini's own transcriptions of both sides,
+    // enabled in the setup the server sends.
+    const spoken = content.outputTranscription?.text;
+    if (spoken) this.handlers.onTranscript?.("twin", spoken);
+    const heard = content.inputTranscription?.text;
+    if (heard) this.handlers.onTranscript?.("you", heard);
+
     for (const part of content.modelTurn?.parts ?? []) {
-      if (part.text) this.handlers.onText?.(part.text);
+      if (part.text) this.handlers.onTranscript?.("twin", part.text);
       const audio = part.inlineData?.data;
       if (audio) this.play(audio, this.session?.output_sample_rate ?? 24000);
     }
-    if (content.turnComplete) this.handlers.onState("listening");
+    if (content.turnComplete) {
+      this.handlers.onTurnEnd?.();
+      this.handlers.onState("listening");
+    }
   }
 
   private play(base64: string, rate: number) {
