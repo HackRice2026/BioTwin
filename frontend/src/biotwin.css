@@ -3629,3 +3629,374 @@ button.primary:hover:not(:disabled) {
     justify-self: start;
   }
 }
+
+/* Best Training Window: the recommendation, the day behind it, and the alternatives.
+   Everything reuses the glass panel, eyebrow, pill, chart-key and disclosure styles;
+   highlights follow the coach's speech through .is-spoken with the same 160-220ms eases. */
+.decision-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+  gap: 18px;
+  margin-top: 18px;
+  align-items: stretch;
+}
+.window-card,
+.day-forecast {
+  min-width: 0;
+  animation: panel-in 420ms ease both;
+  transition: border-color 220ms ease;
+}
+.window-card.is-spoken {
+  border-color: #8ce5b045;
+}
+.window-time {
+  font-size: 30px;
+  line-height: 1.2;
+  letter-spacing: -0.05em;
+  margin: 12px 0 14px;
+}
+.window-time span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.window-facts {
+  display: grid;
+  margin: 0;
+}
+.window-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.window-facts.compact > div {
+  padding: 6px 0;
+}
+.window-facts dt {
+  color: var(--muted);
+}
+.window-facts dd {
+  margin: 0;
+  color: #e3eee7;
+  font-weight: 500;
+  text-align: right;
+}
+.window-facts .load-high {
+  color: var(--red);
+}
+.window-facts .load-medium {
+  color: var(--amber);
+}
+.window-facts .load-low {
+  color: var(--green);
+}
+.window-why {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 14px 0 6px;
+  padding: 0;
+}
+.window-why li {
+  color: #a5b9ac;
+  font-size: 11px;
+  line-height: 1.5;
+  padding-left: 13px;
+  position: relative;
+}
+.window-why li::before {
+  background: var(--green);
+  border-radius: 50%;
+  content: "";
+  height: 5px;
+  left: 0;
+  opacity: 0.7;
+  position: absolute;
+  top: 7px;
+  width: 5px;
+}
+.day-chart {
+  height: 150px;
+  margin-top: 8px;
+  position: relative;
+}
+.day-chart svg {
+  height: 100%;
+  inset: 0;
+  overflow: visible;
+  position: absolute;
+  width: 100%;
+}
+.day-chart path,
+.day-chart rect {
+  vector-effect: non-scaling-stroke;
+}
+.day-area {
+  fill: var(--green);
+  opacity: 0.04;
+}
+.day-forecast .chart-key {
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.day-forecast .chart-key span {
+  white-space: nowrap;
+}
+.day-line {
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.day-line.rhythm {
+  opacity: 0.6;
+  stroke-dasharray: 5 4;
+}
+.day-band {
+  transition: opacity 220ms ease;
+}
+.day-band.window {
+  fill: var(--green);
+  opacity: 0.08;
+}
+.day-band.window.is-spoken {
+  opacity: 0.2;
+}
+.day-band.risk {
+  fill: var(--red);
+  opacity: 0.05;
+}
+.day-band.risk.is-spoken {
+  opacity: 0.14;
+}
+.day-dot,
+.day-star,
+.day-best-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.day-dot {
+  background: var(--green);
+  border: 2px solid #0c1512;
+  border-radius: 50%;
+  height: 10px;
+  transform: translate(-30%, -50%);
+  width: 10px;
+}
+.day-star {
+  align-items: center;
+  background: #17221e;
+  border: 1px solid #8ce5b055;
+  border-radius: 50%;
+  color: var(--green);
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  transition: transform 220ms ease, border-color 220ms ease;
+  width: 24px;
+}
+.day-star.is-spoken {
+  border-color: var(--green);
+  transform: translate(-50%, -50%) scale(1.15);
+}
+.day-best-label {
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  top: -4px;
+}
+.day-lane {
+  background: #ffffff05;
+  border-radius: 99px;
+  height: 8px;
+  margin-top: 12px;
+  position: relative;
+}
+.day-lane i {
+  background: #edc17f55;
+  border-radius: 99px;
+  bottom: 0;
+  position: absolute;
+  top: 0;
+}
+.day-ticks {
+  height: 34px;
+  margin-top: 8px;
+  position: relative;
+}
+.day-ticks span {
+  color: #839087;
+  font-size: 9px;
+  position: absolute;
+  text-align: center;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.day-ticks span.first {
+  text-align: left;
+  transform: none;
+}
+.day-ticks span.last {
+  text-align: right;
+  transform: translateX(-100%);
+}
+.day-ticks b {
+  color: #c4d7cb;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+.day-ticks .best,
+.day-ticks .best b {
+  color: var(--green);
+}
+.day-notes {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+.day-note {
+  align-items: center;
+  background: #ffffff03;
+  border: 1px solid #ffffff0c;
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 4px 9px;
+  padding: 9px 10px;
+  transition: background 220ms ease, border-color 220ms ease;
+}
+.day-note b {
+  color: #e3eee7;
+  font-weight: 500;
+}
+.day-note span {
+  color: #a5b9ac;
+}
+.day-note small {
+  color: #80968a;
+  font-size: 9px;
+  margin-left: auto;
+}
+.day-note.risk.is-spoken {
+  background: #f58b910a;
+  border-color: #f58b9140;
+}
+.day-notes .setup-note {
+  margin-top: 0;
+}
+.model-rows {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+.model-rows > div {
+  background: #ffffff03;
+  border: 1px solid #ffffff0c;
+  border-radius: 12px;
+  padding: 10px;
+}
+.model-rows small {
+  color: #8cdfb0;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.model-rows b {
+  color: #e3eee7;
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 5px 0 2px;
+}
+.model-rows p {
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 2px 0 0;
+}
+.model-rows .baseline-wins b {
+  color: var(--amber);
+}
+.model-rows .model-running {
+  color: #708b7a;
+}
+.future-paths {
+  animation: panel-in 320ms ease both;
+  margin-top: 18px;
+}
+.path-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.path-card {
+  background: #ffffff03;
+  border: 1px solid #ffffff0c;
+  border-radius: 16px;
+  padding: 14px;
+  transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+}
+.path-card .window-facts {
+  margin-top: 8px;
+}
+.path-card.recommended {
+  background: #8ce5b008;
+  border-color: #8ce5b035;
+}
+/* Spoken focus is a neutral lift, so it never reads as the green "Recommended" state. */
+.path-card.is-spoken {
+  background: #ffffff07;
+  border-color: #ffffff30;
+  transform: translateY(-3px);
+}
+.path-card.recommended.is-spoken {
+  border-color: #8ce5b066;
+}
+.path-card .pill {
+  margin-top: 10px;
+}
+.topic-takeover .decision-grid {
+  margin: 0 0 18px;
+}
+@media (max-width: 1100px) {
+  .decision-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .decision-grid {
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .window-time {
+    font-size: 25px;
+  }
+  .day-chart {
+    height: 124px;
+  }
+  .day-ticks .minor {
+    display: none;
+  }
+  .day-note small {
+    margin-left: 0;
+    width: 100%;
+  }
+  .day-forecast .chart-key small {
+    margin-left: 0;
+    width: 100%;
+  }
+  .model-rows,
+  .path-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .future-paths {
+    margin-top: 14px;
+  }
+}

@@ -1,3 +1,4 @@
+from datetime import datetime
 from shared.schemas import NarrationContext
 from zoneinfo import ZoneInfo
 
@@ -63,9 +64,52 @@ def _coach_brief(state, plan, trajectory=None):
     }
 
 
-def narration_context(state, plan=None, readiness_history=(), outlook=None, trajectory=None):
+def _decision_facts(decision):
+    """The training-window decision as plain sentences. Numbers and times are copied from
+    modeling/training_window.py verbatim so guard() can hold the answer to them."""
+    tz = ZoneInfo(decision["timezone"])
+
+    def at(stamp):
+        return _coach_time(datetime.fromisoformat(stamp).astimezone(tz))
+
+    if not decision.get("available"):
+        return [decision["reason"]] if decision.get("reason") else []
+    w = decision["window"]
+    facts = [
+        f"Your best training window is {at(w['start'])} to {at(w['end'])}: projected energy {w['energy']} at the start, "
+        f"{w['minutes']} free minutes, a {w['workout']['minutes']}-minute {w['workout']['intensity']} session, "
+        f"{w['confidence'].lower()} confidence."
+    ]
+    facts.extend(f"{reason}." for reason in w["reasons"])
+    for option in decision.get("scenarios", []):
+        if option["key"] == "rest":
+            facts.append(
+                f"If you rest instead, projected evening energy is {option['evening_energy']} with low recovery load."
+            )
+        else:
+            label = "If you train now" if option["key"] == "now" else "If you train in the best window"
+            facts.append(
+                f"{label} at {at(option['start'])}, projected energy is {option['energy']} at the start, "
+                f"evening energy {option['evening_energy']}, recovery load {option['recovery_load'].lower()}."
+            )
+    for risk in decision.get("risks", []):
+        facts.append(
+            f"{at(risk['start'])} to {at(risk['end'])} is a high-load window: {', '.join(risk['reasons']).lower()}."
+        )
+    if decision.get("recovery"):
+        minutes = decision["recovery"]["minutes"]
+        facts.append(
+            f"Energy is projected back above {decision['recovery']['threshold']} in about "
+            f"{minutes // 60}h {minutes % 60}m, at {at(decision['recovery']['at'])}."
+        )
+    return facts
+
+
+def narration_context(state, plan=None, readiness_history=(), outlook=None, trajectory=None, decision=None):
     r, b = state.readiness, state.baseline_summary
     facts = []
+    if decision:
+        facts.extend(_decision_facts(decision))
     if state.energy_reserve_pct is not None:
         facts.append(
             f"Your BioTwin Body Battery estimate is {state.energy_reserve_pct} percent. "
@@ -140,8 +184,17 @@ def narration_context(state, plan=None, readiness_history=(), outlook=None, traj
             f"Across the available recorded days, your estimated readiness changed by {delta:g} points. This describes a score trend, not a cause in your body."
         )
         facts.extend(trend)
+    brief = _coach_brief(state, plan, trajectory)
+    if decision and decision.get("available"):
+        w = decision["window"]
+        start = datetime.fromisoformat(w["start"]).astimezone(ZoneInfo(decision["timezone"]))
+        brief["recommendation"] = (
+            f"Your best training window starts at {_coach_time(start)}: "
+            f"a {w['workout']['minutes']}-minute {w['workout']['intensity']} session."
+        )
+        brief["why"] = [f"{reason}." for reason in w["reasons"]][:4]
     return NarrationContext(
-        coach_brief=_coach_brief(state, plan, trajectory),
+        coach_brief=brief,
         readiness=r,
         baseline_summary=b,
         plan=plan,

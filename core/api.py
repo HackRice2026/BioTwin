@@ -42,6 +42,7 @@ from ingestion.normalizer import METRICS
 from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
+from modeling.training_window import best_training_window
 from narration.service import narrate
 from narration.transcription import transcribe
 
@@ -94,6 +95,13 @@ APPROVAL_RE = re.compile(
 )
 COACH_DRAFT_RE = re.compile(
     r"\b(recommend|suggest|draft|plan|when should|best window|find me|workout|movement|nap)\b",
+    re.I,
+)
+
+
+TRAINING_QUESTION = re.compile(
+    r"work ?out|train|exercise|session|gym|\brun\b|lift|when should|best time|window|what if|instead|"
+    r"\brest\b|skip|recover|energy|battery|meeting|busy|today|tonight|afternoon|evening",
     re.I,
 )
 
@@ -465,6 +473,26 @@ def create_app(config=None):
             if not scored or p.rmse is not None
         ][:30]
 
+    async def training_decision(u, current=None, energy_trajectory=None):
+        from modeling.forecast import trajectory
+
+        current = current or rt().states.get(u["id"]) or rt().compute(u["id"])
+        if energy_trajectory is None:
+            energy_trajectory = trajectory(rt().history(u["id"]), utcnow(), u["profile"].get("timezone", "UTC"))
+        try:
+            busy, status = await rt().calendar.availability(u)
+        except (ValueError, httpx.HTTPError):
+            busy, status = [], "unavailable"
+        return best_training_window(current, energy_trajectory, busy, u["profile"], utcnow(), status)
+
+    @app.get("/api/training-window")
+    async def training_window(request: Request):
+        """When to train today: current readiness + the per-horizon Body Battery forecast +
+        calendar busy time + workout duration, decided by modeling/training_window.py.
+        The voice coach receives this same decision as grounding, so the card and the
+        spoken answer cannot disagree."""
+        return await training_decision(user(request))
+
     @app.get("/api/plan/today")
     async def plan(request: Request):
         return await rt().get_plan(user(request))
@@ -630,12 +658,18 @@ def create_app(config=None):
             )
         except (ValueError, OSError, KeyError, TypeError):
             energy_trajectory = None
+        decision = (
+            await training_decision(u, current, energy_trajectory)
+            if TRAINING_QUESTION.search(question)
+            else None
+        )
         ctx = narration_context(
             current,
             plan,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
             outlook,
             energy_trajectory,
+            decision,
         )
         agenda = None
         if data.calendar_mode or calendar_question(question):

@@ -7,6 +7,12 @@ import numpy as np
 from shared.schemas import TwinFrame, SleepSummary, Provenance, utcnow
 
 
+def synthetic_body_battery(stamp):
+    """A plausible daily Body Battery shape: charged by morning, drained by night."""
+    hour = stamp.hour + stamp.minute / 60
+    return int(round(22 + 66 * math.exp(-(((hour - 8) / 7) ** 2))))
+
+
 class SyntheticAdapter:
     provenance = Provenance.SYNTHETIC
 
@@ -54,6 +60,7 @@ class SyntheticAdapter:
                     provenance=self.provenance,
                     heart_rate_bpm=round(64 + 6 * math.sin(hour * 0.7) + rng.normal(0, 1), 1),
                     activity_level=0.05,
+                    body_battery_pct=synthetic_body_battery(stamp),
                 )
             for t in range(-40, 361, 10):
                 tau = 103 + ago * 2
@@ -97,13 +104,16 @@ class SyntheticAdapter:
                 hr, activity = 143 + 3 * math.sin(n / 5), 0.85
             else:
                 hr, activity = 64 + 80 * math.exp(-(phase - 240) / 110), 0.03
+            stamp = utcnow()
             yield TwinFrame(
                 user_id=user_id,
-                event_time=utcnow(),
+                event_time=stamp,
                 provenance=self.provenance,
                 heart_rate_bpm=round(hr, 1),
                 respiration_brpm=round(14 + activity * 14, 1),
                 activity_level=activity,
+                # The watch reports Body Battery about every 5 minutes, not every second.
+                body_battery_pct=synthetic_body_battery(stamp) if n % 300 == 0 else None,
             )
             n += 1
             await asyncio.sleep(1)

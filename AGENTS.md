@@ -128,6 +128,22 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Best Training Window leads the Overview: `modeling/training_window.py`
+  decides one window from readiness + `forecast.trajectory` + calendar busy time +
+  profile duration, served at `/api/training-window` and folded into the coach's
+  `coach_brief`/`facts` only for training-style questions (`TRAINING_QUESTION` in
+  `core/api.py`), so the card and the spoken answer cannot disagree. Projected
+  energy is Garmin Body Battery; slot confidence follows the answering predictor's
+  validation MAE (High ≤3, Moderate ≤6, else Low), so anything past 3h is labelled
+  rhythm-only. Session drain, recovery load and the window score weights are
+  engineering assumptions, labelled in the UI. No session starts before wake
+  (bedtime + target_sleep) -- an early build recommended 2:40 AM when asked at 2:30
+  AM. The MATLAB detail shows boosted/bagged tree results beside what actually runs
+  (ridge at 1h, trend + clock at 3h, time of day at 6h); the tree models are not
+  deployed. The synthetic demo now emits Body Battery so the feature renders there.
+  The template fallback previously answered "When should I work out?" with "not in
+  my current context" because it matched "workout" but not "work out".
+
 - 2026-09-13 — After merging a shared-schema change, CI caught stale generated
   `frontend/src/contracts.ts` even though the local build passed. Run
   `npm run types` from `frontend/`, then `bash scripts/check_schema.sh` from the
