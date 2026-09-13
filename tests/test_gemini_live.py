@@ -61,11 +61,13 @@ async def test_the_token_locks_the_model_voice_and_instruction():
         session = await mint_session(Config(), http, "grounding text")
     body = json.loads(captured[0].read())
     assert body["uses"] == 1, "a token that opens two conversations is a token worth stealing"
-    constraints = body["liveConnectConstraints"]
+    # bidiGenerateContentSetup is the REST field; the SDK's liveConnectConstraints
+    # is rejected with "Cannot find field", which cost a round trip to learn.
+    constraints = body["bidiGenerateContentSetup"]
     assert constraints["model"] == "models/gemini-3.1-flash-live-preview"
-    locked = constraints["config"]["systemInstruction"]["parts"][0]["text"]
+    locked = constraints["systemInstruction"]["parts"][0]["text"]
     assert locked == "grounding text", "the instruction must travel with the token, not the browser"
-    voice = constraints["config"]["generationConfig"]["speechConfig"]["voiceConfig"]
+    voice = constraints["generationConfig"]["speechConfig"]["voiceConfig"]
     assert voice["prebuiltVoiceConfig"]["voiceName"] == "Aoede"
     assert body["newSessionExpireTime"] < body["expireTime"]
     # The key authenticates the mint and never goes further.

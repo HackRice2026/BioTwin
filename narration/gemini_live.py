@@ -9,7 +9,7 @@ Because the audio never passes back through the server, guard() cannot inspect w
 is spoken. Nothing here can restore that check, so the grounding is moved earlier
 instead: every number the model is allowed to say is written into the system
 instruction, and that instruction is locked into the ephemeral token through
-liveConnectConstraints -- so a browser holding the token cannot swap it for a
+bidiGenerateContentSetup -- so a browser holding the token cannot swap it for a
 friendlier one, change the model, or lift the restrictions.
 
 The API key never reaches the browser. The server mints a short-lived, single-use
@@ -105,9 +105,12 @@ async def mint_session(config, http, instruction):
         "uses": 1,
         "expireTime": _stamp(now + timedelta(minutes=config.gemini_live_token_minutes)),
         "newSessionExpireTime": _stamp(now + timedelta(minutes=2)),
-        "liveConnectConstraints": {
+        # bidiGenerateContentSetup, not the SDK's liveConnectConstraints: over REST
+        # the constraint IS a setup message, model and all, and the wrapper name the
+        # Python SDK uses is rejected with "Cannot find field".
+        "bidiGenerateContentSetup": {
             "model": f"models/{config.gemini_live_model}",
-            "config": live_config(config, instruction),
+            **live_config(config, instruction),
         },
     }
     response = await http.post(
