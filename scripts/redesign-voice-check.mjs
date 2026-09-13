@@ -111,7 +111,10 @@ try {
 
   await page.goto(root);
   console.log("Page loaded");
-  await page.locator(".twin-hero canvas").waitFor();
+  await page
+    .locator(".twin-hero canvas, .twin-hero .coach-portrait img")
+    .first()
+    .waitFor();
   await page.getByLabel("Start listening", { exact: true }).click();
   await page.getByLabel("Stop listening", { exact: true }).waitFor();
   console.log("Recording started");

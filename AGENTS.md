@@ -133,7 +133,9 @@ This file is a living document. The agent MUST:
   while retaining the Battery Forecast control. Browser checks cover the
   product contract rather than obsolete presentation details: the current
   coach-mascot hero, Battery Forecast naming, and only metrics present in the
-  account’s data.
+  account’s data. Voice checks use the coach microphone, transcript history
+  lives under Connections, and account/calendar checks use the current Log in
+  control and measured Body Battery label.
 
 - 2026-09-13 — After merging a shared-schema change, CI caught stale generated
   `frontend/src/contracts.ts` even though the local build passed. Run

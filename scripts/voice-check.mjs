@@ -150,7 +150,10 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (e) => report.errors.push(e.message));
   await page.goto(root);
-  await page.locator(".twin-hero canvas").waitFor();
+  await page
+    .locator(".twin-hero canvas, .twin-hero .coach-portrait img")
+    .first()
+    .waitFor();
   const ask = async (question, topic) => {
     let release, entered;
     const requestEntered = new Promise((resolve) => (entered = resolve));
@@ -208,11 +211,14 @@ try {
     recordingBytes = route.request().postDataBuffer()?.length ?? 0;
     return route.fulfill({ json: { question: "How many steps today?" } });
   });
-  await page.getByLabel("Start listening", { exact: true }).click();
-  await page.getByLabel("Stop listening", { exact: true }).waitFor();
+  // The persistent coach control drives the avatar's voice loop; the compact
+  // composer offers the same action as a convenience and is not this test's
+  // target.
+  await page.locator(".coach-mic").click();
+  await page.locator('.coach-mic[aria-label="Stop listening"]').waitFor();
   await page.waitForTimeout(400);
   ended = await page.evaluate(() => window.__ended);
-  await page.getByLabel("Stop listening", { exact: true }).click();
+  await page.locator('.coach-mic[aria-label="Stop listening"]').click();
   await page.locator('[data-topic="steps"]').waitFor();
   await page.waitForFunction((n) => window.__ended > n, ended);
   assert.ok(recordingBytes > 100);
@@ -245,7 +251,10 @@ try {
     .waitFor();
   report.requestFailure = true;
   await page.reload();
-  await page.getByLabel("Conversation history", { exact: true }).click();
+  await page.getByRole("button", { name: "Connections", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Conversation history", exact: true })
+    .click();
   await page
     .getByRole("dialog", { name: "Conversation history" })
     .locator(".transcript-message")
