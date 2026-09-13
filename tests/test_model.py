@@ -16,13 +16,38 @@ def frame(**kwargs):
 
 
 def test_identifiability_recovers_planted_tau():
-    rng = np.random.default_rng(20)
+    rng = np.random.default_rng(0)
     for tau in [45, 110, 220]:
         t = np.arange(0, 361, 5)
         hr = decay(t, 65, 150, tau) + rng.normal(0, 0.2, len(t))
-        fitted, rmse = fit_segment(t, hr, 65)
-        assert abs(fitted - tau) / tau < 0.05
-        assert rmse < 1
+        fit = fit_segment(t, hr, 65)
+        assert abs(fit.tau - tau) / tau < 0.05
+        assert not fit.saturated
+
+
+def test_identifiability_recovers_tau_when_recovery_stops_above_resting():
+    """Sub-maximal recovery settles on an elevated plateau, not on resting HR.
+
+    Regression test for a pinned asymptote: bounding the asymptote near resting made
+    a decay toward 95 bpm unfittable and drove tau into its upper bound. Recorded
+    walks in this project produced a median tau of 900 s (the bound) before the fix.
+    """
+    rng = np.random.default_rng(1)
+    for tau, plateau in [(40, 95.0), (70, 120.0), (150, 80.0)]:
+        t = np.arange(0, 301, 5)
+        hr = decay(t, plateau, 165, tau) + rng.normal(0, 0.3, len(t))
+        fit = fit_segment(t, hr, 50)  # resting is 50; the plateau is far above it
+        assert abs(fit.tau - tau) / tau < 0.12, f"tau {fit.tau:.0f} vs planted {tau}"
+        assert abs(fit.asymptote - plateau) < 6, f"asymptote {fit.asymptote:.0f} vs {plateau}"
+        assert not fit.saturated
+
+
+def test_unidentified_segment_is_reported_not_accepted():
+    """A near-linear decline does not identify a constant; it must not pass as a slow one."""
+    t = np.arange(0, 301, 5)
+    hr = 150 - 0.02 * t  # gentle drift, no exponential settling
+    fit = fit_segment(t, hr, 50)
+    assert fit.saturated, f"expected a bound-limited fit, got tau {fit.tau:.0f}"
 
 
 def test_recovery_fit_uses_held_out_sessions():
@@ -154,3 +179,44 @@ def test_prediction_scoring_ignores_preissuance_data():
 def test_sleep_interval_rejects_invalid_duration():
     with pytest.raises(ValueError):
         SleepSummary(start=NOW, end=NOW + timedelta(hours=1), total_minutes=400)
+
+
+def engine_state(history, base):
+    from modeling.engine import reconcile, readiness
+    latest, quality = reconcile(history, NOW)
+    return readiness("u", history, base, NOW, quality, latest)
+
+def test_confidence_is_measured_against_reportable_signals():
+    """A sensor that never reports RMSSD should not cap confidence at 60%.
+
+    Weights are sleep 0.35 / hrv 0.30 / resting 0.20 / debt 0.15, so leaving an
+    unreported signal in the denominator limits a Venu 2 to 0.60 however complete
+    its own measurements are. A late or contested reading must still cost full
+    confidence -- only a never-observed one is discounted.
+    """
+    history = []
+    for day in range(1, 8):
+        stamp = NOW - timedelta(days=day)
+        history.append(
+            frame(resting_hr_bpm=52, heart_rate_bpm=52).model_copy(
+                update={"event_time": stamp}
+            )
+        )
+        history.append(
+            frame(
+                sleep=SleepSummary(
+                    start=stamp - timedelta(hours=8),
+                    end=stamp,
+                    total_minutes=450,
+                )
+            ).model_copy(update={"event_time": stamp})
+        )
+    history.sort(key=lambda f: f.event_time)
+    base = baseline(history, "u", NOW, fit=False)
+    assert base.hrv_rmssd.n_days == 0, "fixture must contain no RMSSD"
+
+    state = engine_state(history, base)
+    assert state.confidence > 0.62, (
+        f"confidence {state.confidence} still limited by an unreported signal"
+    )
+    assert "not reported by this device" in (state.degraded_reason or "")

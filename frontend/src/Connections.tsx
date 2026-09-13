@@ -15,6 +15,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, post } from "./api";
+import { useHeartRateBroadcast } from "./ble";
+import WatchConnection from "./WatchConnection";
 import type { Session, Profile } from "./api";
 
 type Sources = {
@@ -163,9 +165,20 @@ export default function Connections({
       },
     );
   const file = useRef<HTMLInputElement>(null);
-  const bleDevice = useRef<{ gatt?: { disconnect: () => void } } | null>(null);
-  const [broadcasting, setBroadcasting] = useState(false),
-    [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const {
+    broadcasting,
+    toggle: broadcast,
+    beats,
+    intervals,
+    rmssd,
+  } = useHeartRateBroadcast(notify, () => {
+    if (session?.demo) {
+      onAuth();
+      return true;
+    }
+    return false;
+  });
   const [bleBridgeStatus, setBleBridgeStatus] = useState<{
     status: string;
     detail?: string;
@@ -200,7 +213,6 @@ export default function Connections({
       pollInfluxSync();
     }, 3000);
     return () => {
-      bleDevice.current?.gatt?.disconnect();
       clearInterval(interval);
     };
   }, []);
@@ -259,74 +271,6 @@ export default function Connections({
       notify((e as Error).message);
     } finally {
       setBusy("");
-    }
-  }
-  async function broadcast() {
-    if (session?.demo) {
-      onAuth();
-      return;
-    }
-    if (broadcasting) {
-      bleDevice.current?.gatt?.disconnect();
-      setBroadcasting(false);
-      return;
-    }
-    // Web Bluetooth is feature-detected. iPhone Safari does not expose this browser interface.
-    const bluetooth = (
-      navigator as Navigator & {
-        bluetooth?: { requestDevice: (options: unknown) => Promise<any> };
-      }
-    ).bluetooth;
-    if (!bluetooth) {
-      notify(
-        "Direct Bluetooth is unavailable in this browser. Use a supported desktop Chromium browser with your watch in heart-rate broadcast mode, or import a Garmin FIT activity.",
-      );
-      return;
-    }
-    try {
-      const device = await bluetooth.requestDevice({
-        filters: [{ services: ["heart_rate"] }],
-      });
-      bleDevice.current = device;
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService("heart_rate");
-      const characteristic = await service.getCharacteristic(
-        "heart_rate_measurement",
-      );
-      let inFlight = false;
-      characteristic.addEventListener(
-        "characteristicvaluechanged",
-        async (e: any) => {
-          if (inFlight) return;
-          inFlight = true;
-          try {
-            const view: DataView = e.target.value;
-            const hr =
-              view.getUint8(0) & 1 ? view.getUint16(1, true) : view.getUint8(1);
-            await post("/api/ingest/bluetooth", {
-              heart_rate_bpm: hr,
-              event_time: new Date().toISOString(),
-            });
-          } catch (err) {
-            notify((err as Error).message);
-          } finally {
-            inFlight = false;
-          }
-        },
-      );
-      await characteristic.startNotifications();
-      setBroadcasting(true);
-      device.addEventListener("gattserverdisconnected", () => {
-        setBroadcasting(false);
-        notify(
-          "Heart-rate broadcast disconnected. Your saved measurements remain available.",
-        );
-      });
-      notify(
-        "Heart-rate broadcast connected. Only measured heart rate is streamed; no HRV or sleep values are inferred.",
-      );
-    } catch (e) {
-      notify((e as Error).message);
     }
   }
   async function toggleGarminInflux() {
@@ -537,6 +481,7 @@ export default function Connections({
           </small>
         </section>
       </div>
+      <WatchConnection key={session?.user.id} personal={!!session && !session.demo} setup onAuth={onAuth} />
       <div className="two-col">
         <section className="card import-card">
           <span className="eyebrow">START WITH YOUR WATCH</span>
@@ -578,6 +523,32 @@ export default function Connections({
               ? "Disconnect broadcast"
               : "Connect heart-rate broadcast"}
           </button>
+          {broadcasting && (
+            <dl className="broadcast-stats">
+              <div>
+                <dt>Beats received</dt>
+                <dd>{beats}</dd>
+              </div>
+              <div>
+                <dt>Beat intervals</dt>
+                <dd>{intervals}</dd>
+              </div>
+              <div>
+                <dt>RMSSD</dt>
+                <dd>
+                  {rmssd == null ? "—" : rmssd}
+                  <small>{rmssd == null ? "" : " ms"}</small>
+                </dd>
+              </div>
+            </dl>
+          )}
+          {broadcasting && intervals === 0 && beats > 12 && (
+            <p className="notice">
+              This sensor is sending a heart rate but no beat-to-beat intervals,
+              so RMSSD cannot be computed from it. Wrist optical sensors
+              generally omit them; a chest strap reports them.
+            </p>
+          )}
           <div className="connection-divider" />
           <h4>Local Garmin dashboard (InfluxDB)</h4>
           <p>

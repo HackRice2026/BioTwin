@@ -1,5 +1,6 @@
 import { useTwinConversation } from "./useTwinConversation";
 import { useEffect, useRef, useState } from "react";
+import WatchConnection from "./WatchConnection";
 import type { FormEvent, ReactNode } from "react";
 import {
   Activity,
@@ -10,7 +11,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  ChevronRight,
   CloudOff,
   FlaskConical,
   Heart,
@@ -31,6 +31,7 @@ import {
   Volume2,
   Wind,
   X,
+  Bluetooth,
   Footprints,
   Mic,
   Gauge,
@@ -38,12 +39,13 @@ import {
   Building2,
   Flame,
 } from "lucide-react";
+import { useHeartRateBroadcast } from "./ble";
 import Avatar from "./Avatar";
 import Connections, { AuthModal } from "./Connections";
 import LiveSchedule from "./LiveSchedule";
 import { useTwin } from "./transport";
 import { api, post, humanize, value } from "./api";
-import type { Session, MetricPoint, SleepPoint } from "./api";
+import type { Session, MetricPoint, SleepPoint, Forecast } from "./api";
 import type {
   DailyPlan,
   Readiness,
@@ -136,6 +138,20 @@ function MetricCard({
     </Card>
   );
 }
+const SIGNAL_NAMES: Record<string, string> = {
+  sleep: "your sleep",
+  hrv: "heart-rate variability",
+  resting_hr: "your resting pattern",
+  sleep_debt: "recent sleep debt",
+};
+function contributingSignals(ready: Readiness) {
+  const names = Object.keys(ready.contributions ?? {})
+    .map((k) => SIGNAL_NAMES[k])
+    .filter(Boolean);
+  if (!names.length) return "the measurements available";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 function ReadinessPanel({
   state,
   onSignals,
@@ -189,8 +205,11 @@ function ReadinessPanel({
           <p>
             {score == null
               ? "Connect your Garmin or import a recorded activity to begin."
-              : "An estimate based on your sleep, heart-rate variability, and resting pattern."}
+              : `An estimate based on ${contributingSignals(ready)}.`}
           </p>
+          {ready.degraded_reason && (
+            <span className="readiness-limit">{ready.degraded_reason}</span>
+          )}
           <span className="confidence">
             Confidence <b>{value(ready.confidence * 100)}%</b>
           </span>
@@ -240,6 +259,7 @@ export default function App() {
     [sleep, setSleep] = useState<SleepPoint[]>([]),
     [history, setHistory] = useState<Readiness[]>([]),
     [predictions, setPredictions] = useState<RecoveryPrediction[]>([]),
+    [forecast, setForecast] = useState<Forecast | null>(null),
     [plan, setPlan] = useState<DailyPlan | null>(null),
     [outlook, setOutlook] = useState<DayOutlook | null>(null);
   const [days, setDays] = useState(7),
@@ -279,6 +299,15 @@ export default function App() {
     resumeSpeech,
   } = conversation;
   const notify = (s: string) => setToast(s);
+  // Live heart rate is startable from whichever screen is open, so a
+  // demonstration does not have to leave the overview to begin streaming.
+  const broadcast = useHeartRateBroadcast(notify, () => {
+    if (session?.demo) {
+      setAuth(true);
+      return true;
+    }
+    return false;
+  });
   const changed = () => {
     conversation.reset();
     setSession(null);
@@ -336,6 +365,7 @@ export default function App() {
         api<RecoveryPrediction[]>("/api/predictions"),
         api<DailyPlan>("/api/plan/today"),
         api<DayOutlook>("/api/outlook"),
+        api<Forecast>("/api/forecast"),
       ]);
       if (cancelled) return;
       const next = { ...emptySeries };
@@ -345,7 +375,9 @@ export default function App() {
           next[m] = (result.value as { series: MetricPoint[] }).series;
       });
       setMetrics(next);
-      const [s, h, p, pl, out] = results.slice(Object.keys(emptySeries).length);
+      const [s, h, p, pl, out, fc] = results.slice(
+        Object.keys(emptySeries).length,
+      );
       if (s.status === "fulfilled")
         setSleep((s.value as { series: SleepPoint[] }).series);
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
@@ -353,6 +385,7 @@ export default function App() {
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
+      if (fc.status === "fulfilled") setForecast(fc.value as Forecast);
       const failure = results.find((r) => r.status === "rejected");
       if (failure?.status === "rejected") notify(failure.reason.message);
     };
@@ -438,6 +471,19 @@ export default function App() {
     day: "numeric",
   });
   const latest = state?.latest;
+  // Each tile shows the newest reading FOR ITS OWN METRIC, so sleep can be several
+  // days older than heart rate. Name the night instead of implying it was last night.
+  const sleepEnd = latest?.sleep ? new Date(latest.sleep.end) : null;
+  const sleepAgeHours = sleepEnd
+    ? (Date.now() - sleepEnd.getTime()) / 3600000
+    : null;
+  const sleepIsLastNight = sleepAgeHours !== null && sleepAgeHours <= 18;
+  const sleepDetail =
+    sleepEnd === null || sleepAgeHours === null
+      ? "Time asleep · latest session"
+      : sleepAgeHours <= 18
+        ? "Time asleep · last night"
+        : `Night of ${sleepEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${Math.round(sleepAgeHours / 24)} days ago`;
   const title: Record<Page, string> = {
     Overview: "Your day, understood.",
     Signals: "Listen to your signals.",
@@ -543,93 +589,36 @@ export default function App() {
   );
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <a
-          href="#"
-          className="brand"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("Overview");
-          }}
-        >
-          <img src="/icon.svg" alt="" />
-          <span>
-            Bio<span>Twin</span>
-          </span>
-        </a>
-        <span className="sidebar-label">YOUR PERSONAL HEALTH SPACE</span>
-        <nav>
-          {navigation.map((item) => (
-            <button
-              key={item.name}
-              className={page === item.name ? "active" : ""}
-              onClick={() => navigate(item.name)}
-            >
-              <item.icon size={19} />
-              <span>{item.name}</span>
-              {item.name === "What-if lab" && (
-                <span className="nav-new">LAB</span>
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-twin">
-          <div className="twin-orbit">
-            <Sparkles size={21} />
-          </div>
-          <h4>
-            A little self-awareness
-            <br />
-            goes a long way.
-          </h4>
-          <p>
-            Get to know the patterns
-            <br />
-            that make you, you.
-          </p>
-          <button onClick={() => setChat(true)}>
-            Talk to your twin <ArrowUpRight size={15} />
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <button
-            className="sidebar-secondary"
-            onClick={() => {
-              setShowOps(true);
-              api<Record<string, unknown>>("/ops/status")
-                .then(setOps)
-                .catch((e) => notify(e.message));
-            }}
-          >
-            <ShieldCheck size={17} /> System status
-          </button>
-          <button
-            className="account"
-            onClick={() =>
-              session && !session.demo ? navigate("Connections") : setAuth(true)
-            }
-          >
-            <span className="user-avatar">
-              {isDemo ? "A" : (session?.user.name?.[0] ?? "Y")}
-            </span>
-            <span>
-              <b>
-                {isDemo
-                  ? "Explore the demo"
-                  : (session?.user.name ?? "Your account")}
-              </b>
-              <small>{isDemo ? "Make it yours →" : "Personal workspace"}</small>
-            </span>
-            <Settings2 size={16} />
-          </button>
-        </div>
-      </aside>
       <div className="main-shell">
         <header className="topbar">
-          <div className="breadcrumb">
-            Your workspace <ChevronRight size={13} />
-            <b>{page}</b>
-          </div>
+          <a
+            href="#"
+            className="brand"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("Overview");
+            }}
+          >
+            <img src="/icon.svg" alt="" />
+            <span>
+              Bio<span>Twin</span>
+            </span>
+          </a>
+          <nav>
+            {navigation.map((item) => (
+              <button
+                key={item.name}
+                className={page === item.name ? "active" : ""}
+                onClick={() => navigate(item.name)}
+              >
+                <item.icon size={19} />
+                <span>{item.name}</span>
+                {item.name === "What-if lab" && (
+                  <span className="nav-new">LAB</span>
+                )}
+              </button>
+            ))}
+          </nav>
           <div className="topbar-actions">
             <span
               className={`connection-status ${status === "offline" ? "offline" : ""}`}
@@ -668,6 +657,41 @@ export default function App() {
                 Sign out
               </button>
             )}
+            <span className="topbar-divider" />
+            <button
+              className="sidebar-secondary"
+              onClick={() => {
+                setShowOps(true);
+                api<Record<string, unknown>>("/ops/status")
+                  .then(setOps)
+                  .catch((e) => notify(e.message));
+              }}
+            >
+              <ShieldCheck size={17} /> System status
+            </button>
+            <button
+              className="account"
+              onClick={() =>
+                session && !session.demo
+                  ? navigate("Connections")
+                  : setAuth(true)
+              }
+            >
+              <span className="user-avatar">
+                {isDemo ? "A" : (session?.user.name?.[0] ?? "Y")}
+              </span>
+              <span>
+                <b>
+                  {isDemo
+                    ? "Explore the demo"
+                    : (session?.user.name ?? "Your account")}
+                </b>
+                <small>
+                  {isDemo ? "Make it yours →" : "Personal workspace"}
+                </small>
+              </span>
+              <Settings2 size={16} />
+            </button>
           </div>
         </header>
         <main>
@@ -687,6 +711,20 @@ export default function App() {
                 <CalendarDays size={15} />
                 {dateLabel}
               </span>
+              <button
+                className={`button live-launch ${broadcast.broadcasting ? "streaming" : ""}`}
+                onClick={broadcast.toggle}
+                title={
+                  broadcast.supported
+                    ? "Stream measured heart rate from your watch over Bluetooth"
+                    : "Requires a desktop Chromium browser"
+                }
+              >
+                <Bluetooth size={16} />
+                {broadcast.broadcasting
+                  ? `Live · ${broadcast.beats} beats`
+                  : "Go live"}
+              </button>
               <button
                 className="button primary chat-launch"
                 onClick={() => setChat(true)}
@@ -733,6 +771,11 @@ export default function App() {
           )}
           {state && page === "Overview" && (
             <>
+              <WatchConnection
+                key={session?.user.id}
+                personal={!!session && !session.demo}
+                state={state}
+              />
               <div className="metrics-grid">
                 <MetricCard
                   name="Heart rate"
@@ -748,27 +791,39 @@ export default function App() {
                   source={source("heart_rate_bpm")}
                 />
                 <MetricCard
-                  name="Heart-rate variability"
-                  reading={latest?.hrv_rmssd_ms}
-                  unit="ms"
-                  icon={Activity}
-                  detail="RMSSD · latest recorded"
-                  data={metrics.hrv_rmssd_ms ?? []}
-                  source={source("hrv_rmssd_ms")}
+                  name="Steps"
+                  reading={latest?.steps}
+                  unit=""
+                  icon={Footprints}
+                  detail={
+                    quality.steps
+                      ? `Recorded ${new Date(quality.steps.event_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                      : "Awaiting a measurement"
+                  }
+                  data={metrics.steps ?? []}
+                  source={source("steps")}
                 />
                 <MetricCard
-                  name="Last night's sleep"
-                  reading={latest?.sleep?.total_minutes}
-                  unit="min"
+                  name={
+                    sleepIsLastNight
+                      ? "Last night's sleep"
+                      : "Most recent sleep"
+                  }
+                  reading={
+                    latest?.sleep
+                      ? latest.sleep.total_minutes / 60
+                      : latest?.sleep?.total_minutes
+                  }
+                  unit="h"
                   icon={Moon}
                   detail={
                     latest?.sleep?.score != null
-                      ? `Time asleep · latest session · Score ${latest.sleep.score}`
-                      : "Time asleep · latest session"
+                      ? `${sleepDetail} · Score ${latest.sleep.score}`
+                      : sleepDetail
                   }
                   data={sleep.map((s) => ({
                     time: s.time,
-                    value: s.value.total_minutes,
+                    value: s.value.total_minutes / 60,
                     provenance: s.provenance,
                     confidence: 1,
                   }))}
@@ -799,6 +854,78 @@ export default function App() {
                     state={state}
                     onSignals={() => navigate("Signals")}
                   />
+                  <Card className="model-card">
+                    <div className="card-heading">
+                      <h3>Model fit</h3>
+                      <span className="pill">MATLAB</span>
+                    </div>
+                    {forecast?.available ? (
+                      <div className="forecast">
+                        <div className="forecast-now">
+                          <span>Body Battery now</span>
+                          <b>{value(forecast.current)}</b>
+                        </div>
+                        <ArrowRight size={15} className="forecast-arrow" />
+                        <div className="forecast-next">
+                          <span>In {forecast.horizon_minutes} minutes</span>
+                          <b>
+                            {value(forecast.forecast)}
+                            <small>± {value(forecast.validation_mae, 1)}</small>
+                          </b>
+                        </div>
+                      </div>
+                    ) : (
+                      forecast && (
+                        <p className="forecast-unavailable">
+                          {forecast.reason}
+                        </p>
+                      )
+                    )}
+                    {forecast?.available &&
+                      forecast.imputed_inputs.length > 0 && (
+                        <p className="forecast-note">
+                          {forecast.imputed_inputs.length} of 8 inputs
+                          unavailable, filled with their training average:{" "}
+                          {forecast.imputed_inputs.join(", ")}
+                        </p>
+                      )}
+                    <dl className="model-stats">
+                      <div>
+                        <dt>Recovery constant</dt>
+                        <dd>
+                          {value(state.baseline_summary.recovery_tau_s, 1)}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Held-out error</dt>
+                        <dd>
+                          {value(state.baseline_summary.tau_fit_rmse, 2)}
+                          <small>bpm</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Fitted on</dt>
+                        <dd>
+                          {state.baseline_summary.tau_fit_n_sessions}
+                          <small>sessions</small>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Spread (IQR)</dt>
+                        <dd>
+                          {state.baseline_summary.tau_iqr?.length === 2
+                            ? `${value(state.baseline_summary.tau_iqr[0], 0)}–${value(state.baseline_summary.tau_iqr[1], 0)}`
+                            : "—"}
+                          <small>s</small>
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="model-note">
+                      Fitted to your own recovery segments. A wellness estimate,
+                      not a clinical measurement.
+                    </p>
+                  </Card>
                   <Card className="recovery-card">
                     <div className="card-heading">
                       <div>

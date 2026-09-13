@@ -1,0 +1,8 @@
+.env
+source/ApiConfig.mc
+bin/
+*.prg
+*.debug.xml
+*.iq
+*.der
+*.pem

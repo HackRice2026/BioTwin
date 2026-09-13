@@ -17,6 +17,14 @@ from shared.schemas import (
 from modeling.recovery import fit_history, decay
 
 PRIOR = {"resting_hr": (65, 6), "hrv_rmssd": (45, 12), "sleep_minutes": (450, 45), "respiration": (15, 2)}
+# Resting HR, HRV, sleep and respiration drift, so they are estimated over a short
+# trailing window. The recovery time constant is a property of the cardiovascular
+# system rather than a daily state, and 28 days of clustered wear frequently holds
+# fewer than the three recovery segments a personal constant requires -- so it is
+# fitted over a longer history. Widening the short window instead would make today's
+# resting heart rate stale.
+BASELINE_WINDOW_DAYS = 28
+RECOVERY_WINDOW_DAYS = 180
 FIELDS = {
     "resting_hr": "resting_hr_bpm",
     "hrv_rmssd": "hrv_rmssd_ms",
@@ -24,6 +32,7 @@ FIELDS = {
     "respiration": "respiration_brpm",
 }
 STATES = list(EnergyState)
+LABELS = {"sleep": "Sleep", "hrv": "Heart-rate variability", "resting_hr": "Resting heart rate"}
 
 
 def weighted_quantile(values, weights, p):
@@ -33,7 +42,10 @@ def weighted_quantile(values, weights, p):
 
 
 def baseline(history, user_id, now, timezone="UTC", fit=True):
-    history = [f for f in history if now - timedelta(days=28) <= f.event_time <= now]
+    recovery_history = [
+        f for f in history if now - timedelta(days=RECOVERY_WINDOW_DAYS) <= f.event_time <= now
+    ]
+    history = [f for f in history if now - timedelta(days=BASELINE_WINDOW_DAYS) <= f.event_time <= now]
     stats, days_seen = {}, set()
     for name, metric in FIELDS.items():
         by_day = defaultdict(list)
@@ -85,7 +97,7 @@ def baseline(history, user_id, now, timezone="UTC", fit=True):
             )
         else:
             stats[name] = RobustStat(median=prior, mad=spread, p10=prior - 2 * spread, p90=prior + 2 * spread)
-    recovery = fit_history(history, stats["resting_hr"].median) if fit else {}
+    recovery = fit_history(recovery_history, stats["resting_hr"].median) if fit else {}
     return Baseline(
         user_id=user_id,
         computed_at=now,
@@ -96,8 +108,12 @@ def baseline(history, user_id, now, timezone="UTC", fit=True):
     )
 
 
+# A Connect IQ app reads the watch's own sensors and reports within a minute,
+# so it outranks a cloud sync of the same sensor, while a direct Bluetooth
+# broadcast -- no phone or app in the path -- still outranks both.
 SOURCE_PRECEDENCE = {
-    "garmin_ble_live": 5,
+    "garmin_ble_live": 6,
+    "garmin_ciq_live": 5,
     "garmin_live": 4,
     "fitbit_live": 3,
     "fitbit_backfill": 3,
@@ -169,6 +185,7 @@ def readiness(
         {"sleep": 0.35, "hrv": 0.30, "resting_hr": 0.20, "sleep_debt": 0.15},
     )
     reasons = []
+    unreported = set()
 
     def z(x, stat):
         return max(-5, min(5, 0.6745 * (x - stat.median) / max(stat.mad, 0.5)))
@@ -183,6 +200,11 @@ def readiness(
             val = getattr(latest, field)
             contributions[key] = round(sign * z(val.total_minutes if field == "sleep" else val, stat), 3)
             available[key] = q.confidence * (0.6 if q.contested else 1)
+        elif stat.n_days == 0:
+            # Never observed from any connected source: the sensor does not report
+            # it, which is a different statement from a reading being late.
+            unreported.add(key)
+            reasons.append(f"{LABELS[key]} is not reported by this device")
         else:
             reasons.append(f"No recent {key.replace('_', ' ')}")
     sleeps = {}
@@ -223,8 +245,17 @@ def readiness(
             or (new < old and score > cuts[max(0, old - 1)] - 3)
         ):
             state = previous.state
+    # Confidence is measured against what the connected sources can actually
+    # report, not against the full weight set. A device that never reports RMSSD
+    # otherwise caps confidence at 60% however complete its own measurements are,
+    # which reads as missing data rather than an absent sensor. A signal that is
+    # merely late or contested still counts against confidence in full.
+    achievable = sum(w for k, w in weights.items() if k not in unreported) or 1
     confidence = round(
-        sum(weights[k] * available[k] for k in available) * (0.4 + 0.6 * base.shrinkage_weight), 2
+        sum(weights[k] * available[k] for k in available)
+        / achievable
+        * (0.4 + 0.6 * base.shrinkage_weight),
+        2,
     )
     return Readiness(
         user_id=user_id,

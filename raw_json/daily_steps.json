@@ -1,0 +1,698 @@
+[
+ {
+  "calendarDate": "2025-11-06",
+  "totalSteps": 7609,
+  "totalDistance": 5886,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-07",
+  "totalSteps": 7757,
+  "totalDistance": 6000,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-08",
+  "totalSteps": 6762,
+  "totalDistance": 5239,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-09",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-10",
+  "totalSteps": 4725,
+  "totalDistance": 3655,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-11",
+  "totalSteps": 11190,
+  "totalDistance": 8656,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-12",
+  "totalSteps": 7229,
+  "totalDistance": 5718,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-13",
+  "totalSteps": 8888,
+  "totalDistance": 6875,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-14",
+  "totalSteps": 9312,
+  "totalDistance": 7207,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-15",
+  "totalSteps": 7879,
+  "totalDistance": 6094,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-16",
+  "totalSteps": 6051,
+  "totalDistance": 4680,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-17",
+  "totalSteps": 8493,
+  "totalDistance": 6612,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-18",
+  "totalSteps": 8389,
+  "totalDistance": 57230,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-19",
+  "totalSteps": 10053,
+  "totalDistance": 7776,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-20",
+  "totalSteps": 8391,
+  "totalDistance": 6491,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-21",
+  "totalSteps": 292,
+  "totalDistance": 226,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-22",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-23",
+  "totalSteps": 343,
+  "totalDistance": 265,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-24",
+  "totalSteps": 12565,
+  "totalDistance": 9719,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-25",
+  "totalSteps": 3712,
+  "totalDistance": 2871,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-26",
+  "totalSteps": 1209,
+  "totalDistance": 935,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-27",
+  "totalSteps": 9293,
+  "totalDistance": 7609,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-28",
+  "totalSteps": 2349,
+  "totalDistance": 1817,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-29",
+  "totalSteps": 3912,
+  "totalDistance": 3026,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-11-30",
+  "totalSteps": 65,
+  "totalDistance": 50,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-06",
+  "totalSteps": 7,
+  "totalDistance": 5,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-07",
+  "totalSteps": 14885,
+  "totalDistance": 11531,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-08",
+  "totalSteps": 10704,
+  "totalDistance": 8280,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-09",
+  "totalSteps": 14010,
+  "totalDistance": 10837,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-10",
+  "totalSteps": 4313,
+  "totalDistance": 3342,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-11",
+  "totalSteps": 9513,
+  "totalDistance": 7438,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-12",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-13",
+  "totalSteps": 1762,
+  "totalDistance": 1363,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-14",
+  "totalSteps": 6317,
+  "totalDistance": 4953,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-15",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-16",
+  "totalSteps": 13431,
+  "totalDistance": 12783,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-17",
+  "totalSteps": 9351,
+  "totalDistance": 7289,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2025-12-18",
+  "totalSteps": 2883,
+  "totalDistance": 2230,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-05",
+  "totalSteps": 15032,
+  "totalDistance": 11731,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-06",
+  "totalSteps": 523,
+  "totalDistance": 405,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-07",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-08",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-09",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-10",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-17",
+  "totalSteps": 16393,
+  "totalDistance": 12747,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-18",
+  "totalSteps": 20221,
+  "totalDistance": 16792,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-19",
+  "totalSteps": 12278,
+  "totalDistance": 9499,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-20",
+  "totalSteps": 21879,
+  "totalDistance": 18674,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-21",
+  "totalSteps": 10240,
+  "totalDistance": 8037,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-22",
+  "totalSteps": 13008,
+  "totalDistance": 11052,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-23",
+  "totalSteps": 9472,
+  "totalDistance": 7334,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-24",
+  "totalSteps": 9699,
+  "totalDistance": 7862,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-25",
+  "totalSteps": 8326,
+  "totalDistance": 6472,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-26",
+  "totalSteps": 8832,
+  "totalDistance": 6868,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-27",
+  "totalSteps": 7008,
+  "totalDistance": 5013,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-02-28",
+  "totalSteps": 8436,
+  "totalDistance": 6530,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-01",
+  "totalSteps": 756,
+  "totalDistance": 585,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-08",
+  "totalSteps": 10090,
+  "totalDistance": 7805,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-09",
+  "totalSteps": 8296,
+  "totalDistance": 6426,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-10",
+  "totalSteps": 7152,
+  "totalDistance": 5567,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-11",
+  "totalSteps": 12137,
+  "totalDistance": 9398,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-12",
+  "totalSteps": 10904,
+  "totalDistance": 8434,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-13",
+  "totalSteps": 10276,
+  "totalDistance": 7949,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-14",
+  "totalSteps": 11686,
+  "totalDistance": 9039,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-15",
+  "totalSteps": 3313,
+  "totalDistance": 2573,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-16",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-17",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-03-18",
+  "totalSteps": 2165,
+  "totalDistance": 1688,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-07-27",
+  "totalSteps": 4024,
+  "totalDistance": 2898,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-07-28",
+  "totalSteps": 354,
+  "totalDistance": 274,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-07-29",
+  "totalSteps": 13781,
+  "totalDistance": 9734,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-07-30",
+  "totalSteps": 2327,
+  "totalDistance": 1800,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-07-31",
+  "totalSteps": 9469,
+  "totalDistance": 7194,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-01",
+  "totalSteps": 7254,
+  "totalDistance": 5592,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-02",
+  "totalSteps": 2297,
+  "totalDistance": 1777,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-03",
+  "totalSteps": 4501,
+  "totalDistance": 3493,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-04",
+  "totalSteps": 6572,
+  "totalDistance": 4970,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-05",
+  "totalSteps": 10797,
+  "totalDistance": 8420,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-06",
+  "totalSteps": 1320,
+  "totalDistance": 1033,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-07",
+  "totalSteps": 6760,
+  "totalDistance": 5133,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-08",
+  "totalSteps": 20,
+  "totalDistance": 15,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-09",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-10",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-11",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-12",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-13",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-14",
+  "totalSteps": 9149,
+  "totalDistance": 6847,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-15",
+  "totalSteps": 9970,
+  "totalDistance": 7537,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-16",
+  "totalSteps": 8828,
+  "totalDistance": 6670,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-17",
+  "totalSteps": 6117,
+  "totalDistance": 4794,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-18",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-19",
+  "totalSteps": 45,
+  "totalDistance": 35,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-20",
+  "totalSteps": 11999,
+  "totalDistance": 8881,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-21",
+  "totalSteps": 6626,
+  "totalDistance": 5057,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-22",
+  "totalSteps": 10843,
+  "totalDistance": 7080,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-23",
+  "totalSteps": 3996,
+  "totalDistance": 3091,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-24",
+  "totalSteps": 4247,
+  "totalDistance": 3165,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-25",
+  "totalSteps": 10443,
+  "totalDistance": 7971,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-26",
+  "totalSteps": 7636,
+  "totalDistance": 5897,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-27",
+  "totalSteps": 9533,
+  "totalDistance": 7061,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-28",
+  "totalSteps": 3490,
+  "totalDistance": 2602,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-29",
+  "totalSteps": 7220,
+  "totalDistance": 5547,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-30",
+  "totalSteps": 7936,
+  "totalDistance": 6295,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-08-31",
+  "totalSteps": 4843,
+  "totalDistance": 3469,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-01",
+  "totalSteps": 14902,
+  "totalDistance": 10935,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-02",
+  "totalSteps": 4388,
+  "totalDistance": 3390,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-03",
+  "totalSteps": 11104,
+  "totalDistance": 8490,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-04",
+  "totalSteps": 246,
+  "totalDistance": 190,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-05",
+  "totalSteps": 141,
+  "totalDistance": 120,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-06",
+  "totalSteps": 11355,
+  "totalDistance": 6788,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-07",
+  "totalSteps": 3887,
+  "totalDistance": 2939,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-08",
+  "totalSteps": 9229,
+  "totalDistance": 6890,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-09",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-10",
+  "totalSteps": null,
+  "totalDistance": null,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-11",
+  "totalSteps": 4306,
+  "totalDistance": 3331,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-12",
+  "totalSteps": 6435,
+  "totalDistance": 4951,
+  "stepGoal": 10000
+ }
+]

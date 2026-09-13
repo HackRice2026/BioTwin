@@ -18,6 +18,7 @@ export type Provenance =
   | "fitbit_live"
   | "fitbit_backfill"
   | "garmin_ble_live"
+  | "garmin_ciq_live"
   | "garmin_live"
   | "garmin_fit_replay"
   | "garmin_influx_backfill"
@@ -43,19 +44,29 @@ export type RemMinutes = number | null;
 export type EfficiencyPct = number | null;
 export type Score1 = number | null;
 export type Steps = number | null;
+export type BodyBattery = number | null;
+export type StressLevel = number | null;
+export type TotalCalories = number | null;
+export type DistanceM = number | null;
+export type AccelerationMg = number | null;
 export type MaxHrBpm = number | null;
 export type MinHrBpm = number | null;
 export type DistanceMeters = number | null;
-export type FloorsAscended = number | null;
-export type ActiveKcal = number | null;
 export type BodyBatteryPct = number | null;
-export type StressLevel = number | null;
-export type StressHighMin = number | null;
-export type StressMediumMin = number | null;
-export type StressLowMin = number | null;
 export type BodyBatteryCharged = number | null;
 export type BodyBatteryDrained = number | null;
 export type BodyBatteryAtWake = number | null;
+export type StressAvg = number | null;
+export type StressMax = number | null;
+export type StressHighMin = number | null;
+export type StressMediumMin = number | null;
+export type StressLowMin = number | null;
+export type ActiveCalories = number | null;
+export type ActiveKcal = number | null;
+export type ActiveSeconds = number | null;
+export type HighlyActiveSeconds = number | null;
+export type FloorsClimbed = number | null;
+export type FloorsAscended = number | null;
 export type ModerateIntensityMin = number | null;
 export type VigorousIntensityMin = number | null;
 export type Confidence1 = number;
@@ -199,19 +210,29 @@ export interface TwinFrame {
   activity_level?: ActivityLevel;
   sleep?: SleepSummary | null;
   steps?: Steps;
+  body_battery?: BodyBattery;
+  stress_level?: StressLevel;
+  total_calories?: TotalCalories;
+  distance_m?: DistanceM;
+  acceleration_mg?: AccelerationMg;
   max_hr_bpm?: MaxHrBpm;
   min_hr_bpm?: MinHrBpm;
   distance_meters?: DistanceMeters;
-  floors_ascended?: FloorsAscended;
-  active_kcal?: ActiveKcal;
   body_battery_pct?: BodyBatteryPct;
-  stress_level?: StressLevel;
-  stress_high_min?: StressHighMin;
-  stress_medium_min?: StressMediumMin;
-  stress_low_min?: StressLowMin;
   body_battery_charged?: BodyBatteryCharged;
   body_battery_drained?: BodyBatteryDrained;
   body_battery_at_wake?: BodyBatteryAtWake;
+  stress_avg?: StressAvg;
+  stress_max?: StressMax;
+  stress_high_min?: StressHighMin;
+  stress_medium_min?: StressMediumMin;
+  stress_low_min?: StressLowMin;
+  active_calories?: ActiveCalories;
+  active_kcal?: ActiveKcal;
+  active_seconds?: ActiveSeconds;
+  highly_active_seconds?: HighlyActiveSeconds;
+  floors_climbed?: FloorsClimbed;
+  floors_ascended?: FloorsAscended;
   moderate_intensity_min?: ModerateIntensityMin;
   vigorous_intensity_min?: VigorousIntensityMin;
   confidence?: Confidence1;

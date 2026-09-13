@@ -1,0 +1,29 @@
+horizon,model,split,n,mae,rmse,r2
+30m,baseline: extrapolation,validation,812,1.2057,1.6084,0.9955
+30m,baseline: time_of_day,validation,812,8.8775,11.5296,0.7701
+30m,baseline: trend_plus_clock,validation,812,4.3753,5.6333,0.9451
+30m,ridge: controls only,validation,812,1.1343,1.4382,0.9964
+30m,ridge: controls + 4 physiology,validation,812,1.0025,1.2782,0.9972
+30m,paired: physiology vs controls-only ridge,validation,5,0.127,0.0148,5/5
+30m,paired: physiology vs baseline: extrapolation,validation,5,0.1151,0.1294,4/5
+1h,baseline: extrapolation,validation,791,2.3464,3.0891,0.9835
+1h,baseline: time_of_day,validation,791,8.9124,11.5566,0.769
+1h,baseline: trend_plus_clock,validation,791,4.3237,5.5234,0.9472
+1h,ridge: controls only,validation,791,2.1359,2.6473,0.9879
+1h,ridge: controls + 4 physiology,validation,791,1.9874,2.5559,0.9887
+1h,paired: physiology vs controls-only ridge,validation,5,0.0389,0.1495,4/5
+1h,paired: physiology vs baseline: extrapolation,validation,5,-0.0751,0.5993,3/5
+3h,baseline: extrapolation,validation,716,7.7975,11.1342,0.7826
+3h,baseline: time_of_day,validation,716,8.5797,10.7807,0.7962
+3h,baseline: trend_plus_clock,validation,716,5.2048,6.3995,0.9282
+3h,ridge: controls only,validation,716,6.2784,7.9034,0.8905
+3h,ridge: controls + 4 physiology,validation,716,6.3153,8.3659,0.8773
+3h,paired: physiology vs controls-only ridge,validation,5,-0.2835,0.7069,3/5
+3h,paired: physiology vs baseline: trend_plus_clock,validation,5,-2.2432,1.9343,1/5
+6h,baseline: extrapolation,validation,601,17.3394,26.0935,-0.4019
+6h,baseline: time_of_day,validation,601,7.3682,9.0947,0.8297
+6h,baseline: trend_plus_clock,validation,601,8.3413,12.7547,0.665
+6h,ridge: controls only,validation,601,8.4668,11.089,0.7468
+6h,ridge: controls + 1 physiology,validation,601,9.2105,12.1127,0.6979
+6h,paired: physiology vs controls-only ridge,validation,5,-1.2944,0.9199,1/5
+6h,paired: physiology vs baseline: time_of_day,validation,5,-2.5116,1.2457,1/5

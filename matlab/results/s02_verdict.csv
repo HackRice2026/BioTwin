@@ -1,0 +1,5 @@
+horizon,control_mae,control_se,best_mae,best_step,chosen_step,improvement,paired_mean_diff,paired_se_diff,paired_se_ratio,days_improved,verdict
+30m,1.359,0.0879,1.1351,12,4,0.2239,0.224,0.0536,4.18,21/23,clear
+1h,2.6548,0.1915,2.2196,12,4,0.4352,0.4353,0.1453,3.0,20/23,clear
+3h,7.5191,0.6731,6.4977,12,4,1.0214,1.0214,0.6119,1.67,17/23,suggestive
+6h,10.3887,1.0753,9.2636,12,1,1.1251,1.1251,0.7701,1.46,17/23,suggestive

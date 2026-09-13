@@ -236,7 +236,7 @@ export function RecoveryChart({
       rows.set(time, { ...rows.get(time), time, observed: p.value });
     }
   return (
-    <ResponsiveContainer width="100%" height={190}>
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart
         data={[...rows.values()].sort((a, b) => a.time - b.time)}
         margin={{ top: 12, right: 5, left: -20, bottom: 0 }}
