@@ -185,8 +185,6 @@ export default function BioTwinApp() {
     listening,
     asking,
     transcribing,
-    voiceLoop,
-    wakeListening,
   } = conversation;
   const phase = listening
     ? "Listening"
@@ -196,11 +194,7 @@ export default function BioTwinApp() {
         ? "Thinking"
         : speaking
           ? "Speaking"
-          : voiceLoop
-            ? "Waiting for you"
-            : wakeListening
-              ? "Say Hey twin"
-              : "Here with you";
+          : "Ready";
   useEffect(() => {
     setAdded([]);
     setEventEditor(null);
@@ -403,10 +397,10 @@ export default function BioTwinApp() {
           Stop speaking
         </button>
       )}
-      {voiceLoop && (
-        <button className="text-button" onClick={conversation.deactivateVoice}>
-          <X size={14} />
-          End voice chat
+      {listening && (
+        <button className="text-button" onClick={conversation.microphone}>
+          <Mic size={14} />
+          Stop and answer
         </button>
       )}
     </div>
@@ -601,7 +595,9 @@ export default function BioTwinApp() {
                     type="button"
                     className={`coach-mic ${listening ? "listening" : ""}`}
                     disabled={asking}
-                    aria-label={listening ? "Stop listening" : "Start listening"}
+                    aria-label={
+                      listening ? "Stop voice input and answer" : "Start voice input"
+                    }
                     aria-pressed={listening}
                     onClick={conversation.microphone}
                   >
@@ -612,16 +608,12 @@ export default function BioTwinApp() {
                     <b>{phase}</b>
                     <span>
                       {listening
-                        ? "Say it naturally"
+                        ? "Tap again to stop and answer"
                         : speaking
                           ? "Answering out loud"
                           : asking || transcribing
                             ? "Reading the room"
-                            : wakeListening
-                              ? "Say Hey twin"
-                              : voiceLoop
-                                ? "Waiting for you"
-                                : "Tap the mic"}
+                            : "Tap to start voice input"}
                     </span>
                   </div>
                 </div>
@@ -638,7 +630,9 @@ export default function BioTwinApp() {
                   type="button"
                   className={`microphone ${listening ? "listening" : ""}`}
                   disabled={asking}
-                  aria-label={listening ? "Stop listening" : "Start listening"}
+                  aria-label={
+                    listening ? "Stop voice input and answer" : "Start voice input"
+                  }
                   aria-pressed={listening}
                   onClick={conversation.microphone}
                 >
@@ -651,7 +645,7 @@ export default function BioTwinApp() {
                   onChange={(e) => conversation.setQuestion(e.target.value)}
                   placeholder={
                     listening
-                      ? "Listening… tap the mic when you're done"
+                      ? "Listening… tap stop when you're done"
                       : "Ask your twin anything about your day…"
                   }
                   maxLength={1000}
