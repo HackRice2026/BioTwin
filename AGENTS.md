@@ -128,6 +128,44 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Connected the local FastAPI server to Supabase project
+  `xdosufbwuvstfkhllenh`. The direct database hostname is IPv6-only and did
+  not resolve on this machine; the verified working connection is the free
+  session pooler (`aws-0-us-east-1.pooler.supabase.com:5432`, user
+  `postgres.xdosufbwuvstfkhllenh`). Added
+  `scripts/migrate_sqlite_account.py`, an idempotent email-scoped transfer for
+  an existing SQLite account and its measurements/documents/sessions/
+  conversations. Migrated `sapnilb15@gmail.com`: 196 measurements, 8
+  documents, 1 active session, and 5 conversations; a second run left the
+  counts unchanged. All 196 transferred measurements have `synthetic`
+  provenance (they are not Garmin-origin data). `/healthz` returned 200 and
+  `/ops/status` reported `storage: postgres` with no runtime errors. A fresh
+  remote database takes roughly two minutes to seed the default demo because
+  startup performs hundreds of individual network writes before binding port
+  8000.
+
+- 2026-09-12 — Began the Supabase migration on branch `database`. Decision:
+  Supabase is the hosted PostgreSQL engine, but FastAPI remains the only data
+  API and continues to own BioTwin authentication/sessions. The schema keeps a
+  unique email on `users` and relates Garmin measurements and every other
+  account artifact through the stable internal `users.id`; email is not used
+  as a repeated foreign key. The migration enables RLS and revokes direct
+  `anon`/`authenticated` access instead of adding browser policies, because
+  exposing personal health tables through Supabase clients is out of scope.
+  Added `supabase/migrations/202609120001_biotwin_schema.sql` and
+  `docs/SUPABASE.md`. The official MCP is authenticated and scoped to project
+  `xdosufbwuvstfkhllenh` with project-read/database-read/database-write access;
+  the migration was applied remotely as version `20260913005949`
+  (`biotwin_schema`). Verified all six tables, cascading foreign keys, the
+  measurement dedupe constraint, RLS on every table, and no grants to `anon`
+  or `authenticated`; the new tables were empty after creation. Supabase's
+  advisor reports the intentional no-policy RLS state and expected unused-index
+  notices on the empty schema. It also reports a pre-existing SECURITY DEFINER
+  function, `public.rls_auto_enable()`, executable by `anon` and
+  `authenticated`; this unrelated warning was not modified without approval.
+  The automatic OAuth attempt requested incompatible default scopes; explicit
+  Supabase scopes succeeded.
+
 - 2026-09-12 — Origin checking is enforced in **three separate places** in
   core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
   custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
@@ -482,6 +520,15 @@ This file is a living document. The agent MUST:
 
 > Facts that are expensive to re-derive. Verify before relying on them;
 > delete when stale.
+
+- Supabase integration deliberately reuses the existing SQLAlchemy/PostgreSQL
+  storage contract. Do not add a second browser-side Supabase data path or put
+  service/database credentials in `VITE_*`. Apply the checked-in migration via
+  a project-scoped Supabase MCP connection, and keep `DATABASE_URL` server-only.
+  Use Supabase's session pooler on IPv4-only networks. To preserve an existing
+  local login and its owned data, run `PYTHONPATH=. uv run
+  scripts/migrate_sqlite_account.py --email EMAIL` after setting the target
+  `DATABASE_URL`; the command is safe to repeat.
 
 - `scripts/*.py` import `core`/`shared` as top-level packages, which only
   resolve if the project root is on `PYTHONPATH` -- `uv run
