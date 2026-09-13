@@ -22,6 +22,7 @@ import {
 import Connections, { AuthModal } from "./Connections";
 import { api, post, value, type DayScenario } from "./api";
 import { SimulateDayChart, TrajectoryChart } from "./Charts";
+import { GeminiLive, type LiveDraft, type LiveState } from "./geminiLive";
 import { useDashboard } from "./useDashboard";
 import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
 import type { CalendarDraft } from "./useCalendar";
@@ -123,6 +124,38 @@ export default function BioTwinApp() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [compare, setCompare] = useState(false);
+  // Gemini Live is a separate mode from the typed coach: the model hears and
+  // answers directly, so it gets its own control rather than changing what the
+  // existing microphone button does.
+  const [liveState, setLiveState] = useState<LiveState>("idle");
+  const [liveNotice, setLiveNotice] = useState("");
+  const [liveDraft, setLiveDraft] = useState<LiveDraft | null>(null);
+  // One line per turn: fragments append to the last line of the same speaker, so
+  // the panel reads as a conversation rather than a wall of partial words.
+  const [liveLines, setLiveLines] = useState<{ who: "twin" | "you"; text: string }[]>([]);
+  const turnOpen = useRef(false);
+  const live = useRef<GeminiLive | null>(null);
+  if (!live.current) {
+    live.current = new GeminiLive({
+      onState: (state, detail) => {
+        setLiveState(state);
+        setLiveNotice(detail ?? "");
+      },
+      onTranscript: (who, text) =>
+        setLiveLines((lines) => {
+          const last = lines[lines.length - 1];
+          if (last && last.who === who && turnOpen.current) {
+            return [...lines.slice(0, -1), { who, text: last.text + text }];
+          }
+          turnOpen.current = true;
+          return [...lines.slice(-20), { who, text }];
+        }),
+      onTurnEnd: () => {
+        turnOpen.current = false;
+      },
+      onDraft: setLiveDraft,
+    });
+  }
   const [scenarioId, setScenarioId] =
     useState<DayScenario["id"]>("extra_steps");
   const [daySteps, setDaySteps] = useState(5000);
@@ -410,7 +443,15 @@ export default function BioTwinApp() {
       <div className="answer-label">
         <AudioLines size={17} />
         <b>Your twin</b>
-        <span>{phase}</span>
+        <span>
+          {liveState === "listening"
+            ? "Listening"
+            : liveState === "speaking"
+              ? "Speaking"
+              : liveState === "connecting"
+                ? "Connecting"
+                : phase}
+        </span>
       </div>
       {asking ? (
         <p className="answer-loading">
@@ -423,10 +464,54 @@ export default function BioTwinApp() {
           time={conversation.audioTime}
           answer={conversation.activeAnswer}
         />
+      ) : liveLines.length > 0 ? (
+        // The live voice writes here too, rather than in a panel of its own: this
+        // is where an answer from this twin has always appeared.
+        <div className="live-lines">
+          {liveLines.map((line, i) => (
+            <p key={i} className={line.who === "twin" ? "answer-text" : "live-you"}>
+              {line.who === "you" && <b>You</b>}
+              {line.text}
+            </p>
+          ))}
+        </div>
       ) : (
         <p className="answer-text">
           {answer || "Ask a question to explore this with your twin."}
         </p>
+      )}
+      {liveDraft && (
+        <div className="live-draft">
+          <p>
+            <b>{liveDraft.title}</b>
+            {new Date(liveDraft.start).toLocaleString(undefined, {
+              weekday: "short",
+              hour: "numeric",
+              minute: "2-digit",
+            })}{" "}
+            · {liveDraft.duration_minutes} min
+          </p>
+          <div>
+            <button
+              className="primary"
+              onClick={async () => {
+                try {
+                  await post(`/api/calendar/drafts/${liveDraft.draft_id}/confirm`);
+                  data.notify("Added to your calendar.");
+                  setLiveDraft(null);
+                  void data.calendar.refresh();
+                } catch (e) {
+                  data.notify((e as Error).message);
+                }
+              }}
+            >
+              Add to calendar
+            </button>
+            <button className="text-button" onClick={() => setLiveDraft(null)}>
+              Discard
+            </button>
+          </div>
+        </div>
       )}
       {recentReply?.reply?.notice && (
         <p className="fine-print">{recentReply.reply.notice}</p>
@@ -591,29 +676,48 @@ export default function BioTwinApp() {
                   <img src="/assets/coach-mascot.png" alt="" />
                 </div>
                 <div className="coach-control">
-                  <button
-                    type="button"
-                    className={`coach-mic ${listening ? "listening" : ""}`}
-                    disabled={asking}
-                    aria-label={
-                      listening ? "Stop voice input and answer" : "Start voice input"
-                    }
-                    aria-pressed={listening}
-                    onClick={conversation.microphone}
-                  >
-                    <span aria-hidden="true" />
-                    <Mic size={24} />
-                  </button>
+                  {session?.live_voice && (
+                    <button
+                      type="button"
+                      className={`coach-live ${liveState !== "idle" ? "active" : ""}`}
+                      aria-pressed={liveState !== "idle"}
+                      aria-label={
+                        liveState === "idle"
+                          ? "Start a live conversation"
+                          : "End the live conversation"
+                      }
+                      onClick={() =>
+                        liveState === "idle"
+                          ? void live.current?.start()
+                          : live.current?.stop()
+                      }
+                    >
+                      <AudioLines size={18} />
+                      <span>
+                        {liveState === "idle"
+                          ? "Live"
+                          : liveState === "connecting"
+                            ? "Connecting"
+                            : liveState === "speaking"
+                              ? "Speaking"
+                              : liveState === "error"
+                                ? "Failed"
+                                : "Listening"}
+                      </span>
+                    </button>
+                  )}
                   <div className="coach-status">
                     <b>{phase}</b>
                     <span>
-                      {listening
-                        ? "Tap again to stop and answer"
-                        : speaking
-                          ? "Answering out loud"
-                          : asking || transcribing
-                            ? "Reading the room"
-                            : "Tap to start voice input"}
+                      {liveNotice
+                        ? liveNotice
+                        : liveState === "listening"
+                          ? "Just talk — your twin is listening"
+                          : liveState === "speaking"
+                            ? "Answering out loud"
+                            : liveState === "connecting"
+                              ? "Opening the line"
+                              : "Start a live conversation, or type below"}
                     </span>
                   </div>
                 </div>
@@ -628,15 +732,20 @@ export default function BioTwinApp() {
               >
                 <button
                   type="button"
-                  className={`microphone ${listening ? "listening" : ""}`}
-                  disabled={asking}
+                  className={`microphone ${liveState !== "idle" ? "listening" : ""}`}
                   aria-label={
-                    listening ? "Stop voice input and answer" : "Start voice input"
+                    liveState === "idle"
+                      ? "Start a live conversation"
+                      : "End the live conversation"
                   }
-                  aria-pressed={listening}
-                  onClick={conversation.microphone}
+                  aria-pressed={liveState !== "idle"}
+                  onClick={() =>
+                    liveState === "idle"
+                      ? void live.current?.start()
+                      : live.current?.stop()
+                  }
                 >
-                  <Mic size={20} />
+                  <AudioLines size={20} />
                 </button>
                 <input
                   ref={input}
@@ -724,7 +833,14 @@ export default function BioTwinApp() {
             </section>
           ) : (
             <>
-              {(asking || answer || conversation.voiceNotice) && (
+              {/* A live conversation has to open this panel too, or the transcript
+                  has nowhere to appear: none of the typed-path conditions are
+                  true while the voice is talking. */}
+              {(asking ||
+                answer ||
+                conversation.voiceNotice ||
+                liveState !== "idle" ||
+                liveLines.length > 0) && (
                 <div className="inline-answer glass">
                   {replyPanel}
                   <button

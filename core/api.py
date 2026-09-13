@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import contextlib
 import json
 import re
 import secrets
@@ -11,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
+import websockets
 from fastapi import (
     FastAPI,
     Request,
@@ -32,6 +34,7 @@ from shared.schemas import TwinFrame, utcnow, Provenance, DailyPlan, RecoveryPre
 from core.config import Settings
 from core.runtime import Runtime
 from core.agenda import AgendaService, EventDraft, calendar_question
+from narration.gemini_live import LIVE_WS, live_config, mint_session, system_instruction
 from narration.calendar import prepare_event, calendar_context
 from core.security import hash_password, verify_password
 from core.watch import issue_token, authenticate as authenticate_watch
@@ -190,6 +193,51 @@ class BroadcastSample(BaseModel):
     contact: bool | None = None
 
 
+async def _live_tool(u, args):
+    """Prepare a calendar event the person still has to confirm.
+
+    Returns what the voice may say back, and never books: confirm() is a separate
+    call the person makes on screen. A bad time or length comes back as a reason
+    the model can read aloud rather than an exception nobody hears.
+    """
+    title = str(args.get("title") or "").strip()[:120]
+    start = str(args.get("start") or "").strip()
+    try:
+        minutes = int(args.get("duration_minutes") or 0)
+    except (TypeError, ValueError):
+        minutes = 0
+    if not title or not start:
+        return {"ok": False, "reason": "I need a title and a start time before I can prepare it."}
+    if not 10 <= minutes <= 180:
+        return {"ok": False, "reason": "Give me a length between ten minutes and three hours."}
+    # EventDraft is start/end, not start/duration: the voice speaks in lengths, so
+    # the end is computed here rather than asked for.
+    try:
+        begins = datetime.fromisoformat(start)
+    except ValueError:
+        return {"ok": False, "reason": "I could not read that start time."}
+    try:
+        draft = await AgendaService(rt().calendar).draft(
+            u,
+            {
+                "title": title,
+                "start": begins.isoformat(),
+                "end": (begins + timedelta(minutes=minutes)).isoformat(),
+                "reminder_minutes": 10,
+            },
+        )
+    except Exception as exc:
+        return {"ok": False, "reason": str(exc)[:180]}
+    return {
+        "ok": True,
+        "draft_id": draft.get("id"),
+        "title": title,
+        "start": draft.get("start", start),
+        "duration_minutes": minutes,
+        "status": "prepared, awaiting the person's confirmation on screen",
+    }
+
+
 def create_app(config=None):
     config = config or Settings()
 
@@ -303,6 +351,9 @@ def create_app(config=None):
             "demo": u["id"] == "demo",
             "data_source": data_source_label(config.database_url),
             "voice_configured": bool(config.elevenlabs_api_key),
+            # Live is a different mode, not a better ElevenLabs: the model speaks
+            # for itself instead of reading a guarded sentence back.
+            "live_voice": bool(config.gemini_api_key and config.use_gemini_live),
             "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
         }
@@ -646,6 +697,22 @@ def create_app(config=None):
         owner = conversation_owner(request)
         row = rt().store.conversation(owner, conversation_id) if owner else None
         return speech_ticket(owner, row)
+
+    @app.post("/api/twin/live/session")
+    async def live_session(request: Request):
+        """Mint one short-lived token so the browser can talk to Gemini Live directly.
+
+        The grounding is assembled here, from the same turn_context the typed coach
+        uses -- the briefing, the facts, and today's training decision -- and locked
+        into the token, so the browser cannot alter what the voice is allowed to say.
+        The API key stays on the server.
+        """
+        u = user(request)
+        turn = await rt().turn_context(u)
+        instruction = system_instruction(turn["ctx"])
+        session = await mint_session(config, rt().http, instruction)
+        rt().counters["live_sessions"] += 1
+        return session
 
     @app.post("/api/twin/ask")
     async def ask(data: Question, request: Request, response: Response):
@@ -1158,6 +1225,116 @@ def create_app(config=None):
             "model_version": "recovery-1.0.0",
             "queue": rt().store.stats()["queue"],
         }
+
+    @app.websocket("/ws/twin/live")
+    async def twin_live(ws: WebSocket):
+        """Relay one voice conversation between the browser and Gemini Live.
+
+        The browser cannot reach Gemini directly: ephemeral tokens are refused by
+        this project (1008, "unregistered callers"), and the alternative -- handing
+        the browser the API key -- would publish it to anyone who opens devtools.
+        So the server sits in the middle and keeps the key.
+
+        It forwards frames verbatim and decides nothing. The setup, including the
+        grounding the model may speak from, is built here and sent before the
+        browser's first frame, so a browser cannot widen its own instruction.
+        """
+        allowed = [config.frontend_origin, config.public_url]
+        if config.lan_origin:
+            allowed.append(config.lan_origin)
+        if ws.headers.get("origin") not in allowed:
+            await ws.close(code=1008)
+            return
+        u = await asyncio.to_thread(
+            rt().store.session_user, ws.cookies.get("biotwin_session")
+        )
+        if not u and config.demo_enabled:
+            u = await asyncio.to_thread(rt().store.user, "demo")
+        if not u:
+            await ws.close(code=1008)
+            return
+        if not (config.gemini_api_key and config.use_gemini_live):
+            await ws.accept()
+            await ws.send_json({"error": {"message": "Live voice is not configured on this server."}})
+            await ws.close(code=1011)
+            return
+
+        await ws.accept()
+        turn = await rt().turn_context(u)
+        setup = {
+            "model": f"models/{config.gemini_live_model}",
+            **live_config(config, system_instruction(turn["ctx"])),
+        }
+        rt().counters["live_sessions"] += 1
+        try:
+            async with websockets.connect(
+                f"{LIVE_WS}?key={config.gemini_api_key}", max_size=None
+            ) as upstream:
+                await upstream.send(json.dumps({"setup": setup}))
+                await ws.send_json({
+                    "ready": {
+                        "model": config.gemini_live_model,
+                        "voice": config.gemini_live_voice,
+                        "input_sample_rate": 16000,
+                        "output_sample_rate": 24000,
+                        "input_mime_type": "audio/pcm;rate=16000",
+                    }
+                })
+
+                async def to_gemini():
+                    while True:
+                        await upstream.send(await ws.receive_text())
+
+                async def to_browser():
+                    async for frame in upstream:
+                        text = frame if isinstance(frame, str) else frame.decode()
+                        calls = (json.loads(text).get("toolCall") or {}).get(
+                            "functionCalls"
+                        ) or []
+                        if calls:
+                            # The model cannot write to the calendar; it can only ask
+                            # this server to prepare something the person confirms.
+                            # Executed here, never in the browser, so the arguments
+                            # are validated by the same draft path the typed flow uses.
+                            responses = []
+                            for call in calls:
+                                result = await _live_tool(u, call.get("args") or {})
+                                responses.append(
+                                    {
+                                        "id": call.get("id"),
+                                        "name": call.get("name"),
+                                        "response": result,
+                                    }
+                                )
+                                # Tell the page as well, so a draft can be confirmed
+                                # without hunting for it.
+                                if result.get("draft_id"):
+                                    await ws.send_json({"draft": result})
+                            await upstream.send(
+                                json.dumps({"toolResponse": {"functionResponses": responses}})
+                            )
+                            continue
+                        await ws.send_text(text)
+
+                # Whichever side hangs up ends the call; the other task is cancelled
+                # rather than left waiting on a socket nobody is reading.
+                done, pending = await asyncio.wait(
+                    [asyncio.create_task(to_gemini()), asyncio.create_task(to_browser())],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                for task in done:
+                    with contextlib.suppress(Exception):
+                        task.result()
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:
+            rt().errors["twin_live"] = type(exc).__name__
+            with contextlib.suppress(Exception):
+                await ws.send_json({"error": {"message": "The live voice connection failed."}})
+        with contextlib.suppress(Exception):
+            await ws.close()
 
     @app.websocket("/ws/live")
     async def websocket(ws: WebSocket):

@@ -77,6 +77,7 @@ export type Session = {
   demo: boolean;
   data_source: "sqlite" | "postgres" | "supabase" | "database";
   voice_configured: boolean;
+  live_voice?: boolean;
   narration_configured: boolean;
   retention_days: number;
 };

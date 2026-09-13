@@ -4379,3 +4379,68 @@ button.primary:hover:not(:disabled) {
     margin-top: 14px;
   }
 }
+/* Live conversation control: a sibling of the microphone, not a replacement --
+   the two modes behave differently enough that one button for both would lie. */
+.coach-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted, #9aac9f);
+  font-size: 12px;
+  cursor: pointer;
+}
+.coach-live.active {
+  border-color: #8ce5b0;
+  color: #8ce5b0;
+}
+/* Live conversation inside the answer panel: the twin's words use the panel's own
+   answer-text, so only the listener's side needs marking. */
+.live-lines {
+  display: grid;
+  gap: 10px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.live-you {
+  margin: 0;
+  font-size: 13px;
+  color: #8ea79a;
+}
+.live-you b {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6f8a7b;
+  margin-bottom: 2px;
+}
+/* A voice-prepared event, shown where it was asked for. Nothing reaches the
+   calendar until this is confirmed, so the buttons are the point of the block. */
+.live-draft {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e0b46855;
+  border-radius: 10px;
+  background: #33270f40;
+  display: grid;
+  gap: 10px;
+}
+.live-draft p {
+  margin: 0;
+  font-size: 13px;
+  color: #e8d6b4;
+}
+.live-draft b {
+  display: block;
+  font-size: 14px;
+  color: #f2e6cf;
+}
+.live-draft div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
