@@ -1134,6 +1134,10 @@ This file is a living document. The agent MUST:
 ## Branch workflow
 
 - BioTwin 2.0 was developed on `biotwin2.0` and merged into `dev` at Shivendra's request.
+- 2026-09-13 — `voice-fix` (controlled push-to-talk plus Current Body Battery
+  meter) and `slogan-update` (hero-copy emphasis) were merged into `dev` as
+  separate merge commits. Keep their histories intact when synchronizing the
+  shared branch.
 - Make logical verified commits as Shivendra; this integration is pushed to `origin/dev`.
 - Other work follows its explicitly requested branch.
 - Fetch before synchronizing. Incorporate newer `main` changes into `dev` with a normal merge when needed; preserve existing branch history.
