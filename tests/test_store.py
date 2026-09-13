@@ -1,10 +1,110 @@
+import asyncio
 import os
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import pytest
-from core.store import Store
+from core.store import (
+    POSTGRES_CONNECT_ARGS,
+    POSTGRES_SESSION_SETTINGS,
+    Store,
+    configure_postgres_connection,
+    engine_options,
+)
+from core.config import Settings
+from core.runtime import Runtime
 from ingestion.normalizer import normalize
 from shared.schemas import TwinFrame, Provenance, utcnow
+
+
+def test_postgres_connections_have_bounded_waits_and_recycle():
+    options = engine_options("postgresql+psycopg://user:password@example.test/database")
+    assert options == {
+        "connect_args": POSTGRES_CONNECT_ARGS,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_timeout": 5,
+    }
+
+    statements = []
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            pass
+
+        def execute(self, statement):
+            statements.append(statement)
+
+    class Connection:
+        autocommit = False
+
+        def cursor(self):
+            return Cursor()
+
+    connection = Connection()
+    configure_postgres_connection(connection, None)
+    assert statements == list(POSTGRES_SESSION_SETTINGS)
+    assert connection.autocommit is False
+
+
+async def test_outbox_poll_does_not_block_the_event_loop(tmp_path, monkeypatch):
+    runtime = Runtime(
+        Settings(
+            _env_file=None,
+            database_url=f"sqlite:///{tmp_path}/worker.db",
+            demo_enabled=False,
+        )
+    )
+
+    def slow_claim():
+        time.sleep(0.2)
+        return None
+
+    monkeypatch.setattr(runtime.store, "claim", slow_claim)
+    worker = asyncio.create_task(runtime.worker())
+    started = time.perf_counter()
+    try:
+        await asyncio.sleep(0.01)
+        assert time.perf_counter() - started < 0.1
+    finally:
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+        await runtime.http.aclose()
+        runtime.store.engine.dispose()
+
+
+async def test_maintenance_store_work_does_not_block_the_event_loop(tmp_path, monkeypatch):
+    runtime = Runtime(
+        Settings(
+            _env_file=None,
+            database_url=f"sqlite:///{tmp_path}/maintenance.db",
+            demo_enabled=False,
+        )
+    )
+
+    async def no_refresh():
+        pass
+
+    def slow_store_call(*_args):
+        time.sleep(0.2)
+        return []
+
+    monkeypatch.setattr(runtime.oauth, "refresh_due", no_refresh)
+    monkeypatch.setattr(runtime.store, "docs", slow_store_call)
+    monkeypatch.setattr(runtime.store, "purge", slow_store_call)
+    maintenance = asyncio.create_task(runtime.maintenance())
+    started = time.perf_counter()
+    try:
+        await asyncio.sleep(0.01)
+        assert time.perf_counter() - started < 0.1
+    finally:
+        maintenance.cancel()
+        await asyncio.gather(maintenance, return_exceptions=True)
+        await runtime.http.aclose()
+        runtime.store.engine.dispose()
 
 
 @pytest.fixture(params=["sqlite", "postgres"])
