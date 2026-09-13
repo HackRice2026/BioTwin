@@ -435,53 +435,7 @@ export default function BioTwinApp() {
           </button>
         </div>
       </aside>
-      <header className="persistent-bar">
-        <button
-          className="mobile-brand"
-          aria-label="BioTwin Overview"
-          onClick={() => navigate("Overview")}
-        >
-          <Leaf size={22} />
-        </button>
-        {battery != null && (
-          <div
-            className="body-battery"
-            title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
-            aria-label={`Body Battery ${battery} percent`}
-          >
-            <div>
-              <b>Body Battery</b>
-              <small>
-                {status === "offline"
-                  ? "Offline example"
-                  : batteryAt
-                    ? `Current · ${new Date(batteryAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
-                    : "Current"}
-              </small>
-            </div>
-            <div
-              className={`battery-cell ${battery < 30 ? "low" : ""}`}
-              role="meter"
-              aria-label="Body Battery, measured"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={battery}
-            >
-              <span style={{ width: `${battery}%` }} />
-              <b>{battery}%</b>
-            </div>
-            <button
-              className="bar-twin battery-forecast"
-              onClick={() => setForecastOpen(true)}
-              aria-label="Battery Forecast: where the model expects this to go"
-              title="Battery Forecast"
-            >
-              <Radio size={16} />
-              <span>Battery Forecast</span>
-            </button>
-          </div>
-        )}
-      </header>
+
       <main className="workspace" id="main-content">
         <div className="page-intro">
           {page !== "Overview" && (

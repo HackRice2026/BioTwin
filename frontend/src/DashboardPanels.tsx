@@ -426,7 +426,7 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
                 id: "cardio",
                 title: "Light cardio",
                 detail: workout
-                  ? `${workout.title} fits your calendar and current readiness.`
+                  ? `${workout.title} fits your calendar and current body capacity.`
                   : "Use a steady, conversational-effort session today.",
                 icon: Activity,
                 tone: "green",
@@ -501,7 +501,7 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
           </span>
-          <h3>{score == null ? "Your first plan starts here." : `${value(score)} readiness`}</h3>
+          <h3>{score == null ? "Your first plan starts here." : `${value(score)} body capacity`}</h3>
           <p>{drivers.length ? drivers.join(" · ") : "Forecast will adapt as more wearable data arrives."}</p>
         </div>
         <span className="forecast-progress">
@@ -571,7 +571,7 @@ export function TomorrowPanel({ data }: { data: Dashboard }) {
   const trajectory = data.trajectory;
   return (
     <Panel>
-      <PanelTitle title="Ready for tomorrow" note="Forecasted body battery">
+      <PanelTitle title="Ready for tomorrow" note="Forecasted body capacity">
         <Battery size={18} className="green" />
       </PanelTitle>
       {trajectory?.available ? (

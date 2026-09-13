@@ -463,7 +463,7 @@ export function TrajectoryChart({
           dataKey="hours"
           type="number"
           domain={[Math.floor(first), 10]}
-          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6, 10].filter(
+          ticks={[Math.floor(first), -6, -3, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(
             (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
           )}
           tickFormatter={(h: number) => (h === 0 ? "now" : h < 0 ? `${h}h` : `+${h}h`)}
@@ -507,7 +507,7 @@ export function TrajectoryChart({
           stroke="var(--green)"
           strokeWidth={2}
           strokeDasharray="5 4"
-          dot={ForecastDot}
+          dot={false}
           connectNulls
           isAnimationActive={false}
         />
