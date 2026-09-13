@@ -128,6 +128,69 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — `deep-aware` branch, part 2: the agent's context is now persisted
+  (Store's existing per-account document row -- Supabase Postgres in production,
+  SQLite locally, no new infrastructure), not just cached in memory, so it survives
+  a restart and is ready before the mic is ever opened. `Runtime.turn_context()`
+  now also curates a short natural-language briefing over that account's facts
+  using `config.insight_model` (a stronger, slower model -- `narration/briefing.py`),
+  refreshed in the background on a 300s throttle (`briefing_ttl`) and de-duplicated
+  per account (`_briefing_refreshing`) so a burst of questions can't queue up
+  multiple curation calls. The briefing also carries a hand-maintained, non-
+  data-driven paragraph (`CAPABILITIES`) describing how Best Training Window,
+  Simulate My Day and the forecast actually work, so the agent can explain "how"
+  a feature behaves, not just recite "what" today's numbers are.
+  Safety-critical: the briefing is reading material ONLY. `resolve_evidence()`
+  explicitly refuses to resolve "briefing" as an evidence path (raises ValueError),
+  so a number that exists only in the curated narrative -- not in facts/coach_brief/
+  plan -- still fails `guard()`; curation cannot become a second, weaker-checked
+  source of truth. `curate_briefing()` separately validates its own output against
+  the source facts before it's ever persisted, using the same
+  numbers-must-already-exist check `scripts/generate_insights.py` established
+  (dev's MATLAB-insights work never made it off the `supabase-voice-loop` branch,
+  so this reimplements that pattern rather than reusing it).
+  Live-verified end to end with real Gemini (one full round trip before the shared
+  key's prepay credits ran out mid-session -- confirmed via the raw 429 body, not
+  guessed): "how am I looking" produced a grounded, friend-toned answer. The
+  curation call itself is covered by 7 mocked tests (tests/test_briefing.py)
+  exercising the identical request/response shape; live confirmation of that
+  specific call is blocked until the shared key's credits are restored.
+  `gemini-2.5-pro` (the insight_model default two log entries up) came back 404
+  "no longer available to new users" in this environment -- switched to
+  `gemini-3.1-pro-preview`, matching the "3.1" generation already used for
+  narration_model's `gemini-3.1-flash-lite`.
+
+- 2026-09-13 — `deep-aware` branch: the voice agent is now data-aware by default,
+  not just on training-flavored questions. `Runtime.turn_context(user)`
+  (`core/runtime.py`) computes plan, outlook, forecast trajectory and the
+  best-training-window decision once and caches it per account for 45s
+  (`turn_context_cache`); `/api/twin/ask`, `/api/training-window`, and
+  `/api/simulate/day` all read from it instead of each separately recomputing
+  the same things, and it's invalidated on account deletion (`Runtime.forget`).
+  This removes the `TRAINING_QUESTION` regex gate that used to hide the
+  training-window decision from any question that didn't mention a workout --
+  `narration_context()` now always receives it, so "how am I looking today"
+  can mention the best window exactly like "when should I train" can.
+  Conversational continuity: `core/api.py`'s `_recent_turns()` pulls the last
+  3 completed exchanges and `narrate()` sends them as a separate
+  `recent_conversation` field, never as `context` -- `guard()` still only
+  resolves evidence against `context`, so a prior turn can inform "why that
+  time?" but can never itself become a grounding source; the system prompt
+  states plainly that fresh context overrides anything said earlier. Persona
+  rewritten in `narration/service.py`'s `SYSTEM_PROMPT` toward a friend who
+  coaches, not an analyst who reports: shorter answers, numbers only when
+  they help, no metric dumps.
+  NOT changed: true mid-generation token streaming from Gemini into ElevenLabs.
+  The response is validated against `guard()` (every number must trace back to
+  a supplied fact) before it may be spoken; that check needs the complete
+  answer, and partial JSON under the strict-schema response format isn't
+  independently parseable anyway. Real observed cost per turn is dominated by
+  Gemini's own non-streaming round trip (~9-15s warm in this environment, once
+  turn_context is no longer adding its own sequential calendar/forecast/plan
+  fetches on top) -- caching removed real, measured overhead from the turn,
+  but did not touch the single largest cost, which is the trade-off for
+  keeping every spoken number provably grounded.
+
 - 2026-09-13 — The Overview card presents the computed 0–100 energy reserve
   as **Current Body Battery**. Its percentage belongs in a filled, labelled
   battery meter beside the title so the value remains visible as part of the

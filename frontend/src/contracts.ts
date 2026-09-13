@@ -137,6 +137,7 @@ export type Calendar = {
 } | null;
 export type RecentTrend = string[];
 export type Facts = string[];
+export type Briefing = string | null;
 export type Answer = string;
 export type Mode = "template" | "language_service" | "guard_fallback";
 export type Grounded = boolean;
@@ -356,6 +357,7 @@ export interface NarrationContext {
   facts?: Facts;
   provenance?: Provenance | null;
   quality?: Quality1;
+  briefing?: Briefing;
 }
 export interface CoachBrief {
   [k: string]: unknown;

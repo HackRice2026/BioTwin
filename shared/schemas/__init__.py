@@ -259,6 +259,14 @@ class NarrationContext(Contract):
     facts: tuple[str, ...] = ()
     provenance: Provenance | None = None
     quality: dict[str, MetricQuality] = Field(default_factory=dict)
+    # A pre-organized reading of the SAME facts above, written ahead of time by a
+    # stronger model so the fast conversational model doesn't have to shape raw
+    # facts into a narrative on every turn. Reading material only: narrate()'s
+    # guard() refuses to resolve "briefing" as an evidence path (see
+    # narration/service.py's resolve_evidence), so every number spoken still has to
+    # trace back to facts/coach_brief/plan directly -- this can never become its own
+    # source of truth.
+    briefing: str | None = None
 
 
 class NarrationResponse(Contract):

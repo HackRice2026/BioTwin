@@ -39,10 +39,8 @@ from ingestion.adapters.watch import WatchBatch, watch_frames, WATCH_METRICS
 from ingestion.adapters.garmin import parse_fit, parse_summary
 from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
-from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
-from modeling.training_window import best_training_window
 from narration.service import narrate
 from narration.transcription import transcribe
 
@@ -99,11 +97,16 @@ COACH_DRAFT_RE = re.compile(
 )
 
 
-TRAINING_QUESTION = re.compile(
-    r"work ?out|train|exercise|session|gym|\brun\b|lift|when should|best time|window|what if|instead|"
-    r"\brest\b|skip|recover|energy|battery|meeting|busy|today|tonight|afternoon|evening",
-    re.I,
-)
+def _recent_turns(rows, limit=3):
+    """The last few completed Q&A pairs, oldest first, for pronoun/reference
+    continuity ("what about earlier", "why that time"). Conversational scaffolding
+    only -- narrate() treats fresh ctx as authoritative over anything said here,
+    since a prior answer can be stale the moment new data lands."""
+    return tuple(
+        (row["question"], row["answer"])
+        for row in rows[-limit:]
+        if row.get("answer")
+    )
 
 
 def wants_pending_calendar_approval(question):
@@ -460,14 +463,15 @@ def create_app(config=None):
         u = user(request)
         from modeling.day_simulation import simulate_day
 
+        turn = await rt().turn_context(u)
         return simulate_day(
             rt().history(u["id"]),
             utcnow(),
             u["profile"].get("timezone", "UTC"),
-            await rt().get_plan(u),
+            turn["plan"],
             steps,
             recovery_minutes,
-            decision=await training_decision(u),
+            decision=turn["decision"],
         )
 
     @app.get("/api/baseline")
@@ -498,42 +502,13 @@ def create_app(config=None):
             if not scored or p.rmse is not None
         ][:30]
 
-    # Google free/busy has no titles, so the timeline borrows today's named agenda entries.
-    # The dashboard polls every minute; two minutes of reuse keeps that off the Calendar API.
-    agenda_titles = {}
-
-    async def training_decision(u, current=None, energy_trajectory=None):
-        from modeling.forecast import trajectory
-
-        current = current or rt().states.get(u["id"]) or rt().compute(u["id"])
-        tz = ZoneInfo(u["profile"].get("timezone", "UTC"))
-        if energy_trajectory is None:
-            energy_trajectory = trajectory(rt().history(u["id"]), utcnow(), str(tz))
-        try:
-            busy, status = await rt().calendar.availability(u)
-        except (ValueError, httpx.HTTPError):
-            busy, status = [], "unavailable"
-        events = None
-        if status == "connected":
-            cached = agenda_titles.get(u["id"])
-            if cached and cached[0] > time.monotonic():
-                events = cached[1]
-            else:
-                today = utcnow().astimezone(tz).date()
-                try:
-                    events = (await AgendaService(rt().calendar).list(u, today, today + timedelta(days=1)))["events"]
-                except (ValueError, httpx.HTTPError):
-                    events = None
-                agenda_titles[u["id"]] = (time.monotonic() + 120, events)
-        return best_training_window(current, energy_trajectory, busy, u["profile"], utcnow(), status, events=events)
-
     @app.get("/api/training-window")
     async def training_window(request: Request):
         """When to train today: current readiness + the per-horizon Body Battery forecast +
         calendar busy time + workout duration, decided by modeling/training_window.py.
-        The voice coach receives this same decision as grounding, so the card and the
-        spoken answer cannot disagree."""
-        return await training_decision(user(request))
+        The voice coach receives this same decision (via rt().turn_context) as grounding,
+        so the card and the spoken answer cannot disagree."""
+        return (await rt().turn_context(user(request)))["decision"]
 
     @app.get("/api/plan/today")
     async def plan(request: Request):
@@ -671,48 +646,25 @@ def create_app(config=None):
         question = data.question.strip()
         if not question:
             raise HTTPException(422, "Enter a question for your twin.")
-        current = await state(request)
+        # One cached fetch instead of five separate computations -- plan, outlook,
+        # forecast and the training-window decision are almost always already warm
+        # from the dashboard's own polling (see Runtime.turn_context). The agent is
+        # meant to already know this on every turn, not just training-flavored ones.
+        turn = await rt().turn_context(u)
+        current, ctx = turn["state"], turn["ctx"]
         if current.prediction:
+            # turn_context's cached state carries a trimmed prediction (no curve/observed,
+            # see Runtime.publish); refill it here rather than in the cached context itself,
+            # since this read is cheap and account-specific either way.
             stored_prediction = rt().store.get(u["id"], "prediction", current.prediction.id)
             if stored_prediction:
                 stored_score = rt().store.get(u["id"], "prediction_score", current.prediction.id) or {}
-                current = current.model_copy(
+                ctx = ctx.model_copy(
                     update={
                         "prediction": RecoveryPrediction.model_validate({**stored_prediction, **stored_score})
                     }
                 )
-        stored = rt().store.get(u["id"], "plan")
-        plan = DailyPlan.model_validate(stored) if stored else None
-        if plan is None and u["id"] != "demo" and wants_coach_calendar_draft(question):
-            try:
-                plan = await rt().get_plan(u)
-            except (ValueError, httpx.HTTPError):
-                plan = None
-        outlook = daily_outlook(current, u["profile"], utcnow())
-        energy_trajectory = None
-        try:
-            from modeling.forecast import trajectory
-
-            energy_trajectory = trajectory(
-                rt().history(u["id"]),
-                utcnow(),
-                u["profile"].get("timezone", "UTC"),
-            )
-        except (ValueError, OSError, KeyError, TypeError):
-            energy_trajectory = None
-        decision = (
-            await training_decision(u, current, energy_trajectory)
-            if TRAINING_QUESTION.search(question)
-            else None
-        )
-        ctx = narration_context(
-            current,
-            plan,
-            [p for _, p in rt().store.docs(u["id"], "readiness")],
-            outlook,
-            energy_trajectory,
-            decision,
-        )
+        recent_turns = _recent_turns(rt().store.conversation_history(owner, limit=3)) if owner else ()
         agenda = None
         if data.calendar_mode or calendar_question(question):
             agenda = await AgendaService(rt().calendar).list(u, data.calendar_start, data.calendar_end)
@@ -756,7 +708,7 @@ def create_app(config=None):
                             owner, "conversation_calendar_event", calendar_event, data.request_id, require_user=True
                         )
                 else:
-                    answer = await narrate(question, ctx, config, rt().http)
+                    answer = await narrate(question, ctx, config, rt().http, recent_turns)
                     calendar_event = None
             row = rt().store.complete_conversation(owner, data.request_id, answer)
         elif row["mode"] == "pending":

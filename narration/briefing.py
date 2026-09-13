@@ -1,0 +1,75 @@
+"""Turns one account's raw grounding facts into a short briefing a fast, non-technical
+voice model can read directly instead of re-organizing raw facts on every turn.
+
+The briefing is written by a stronger model (config.insight_model) but is NEVER itself a
+source of truth: narration/service.py's resolve_evidence() refuses to resolve "briefing"
+as an evidence path, so every number the coach actually speaks still has to trace back to
+NarrationContext.facts/coach_brief/plan directly, exactly as before this existed. This
+only saves the fast model the work of organizing what it already had.
+"""
+
+import re
+
+import httpx
+
+NUMBERS = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
+
+# Hand-maintained, not data-driven, so it is never sent through the curation model --
+# refreshed by a person when a feature actually changes, not on a timer.
+CAPABILITIES = """How BioTwin's own features work, for explaining them when asked:
+Best Training Window scores every free time slot between waking and three hours before
+bedtime using projected Body Battery, time-of-day preference, forecast confidence, and
+free time, then picks the highest score; it skips anything within 10 minutes of a
+calendar entry. Simulate My Day layers deterministic what-if adjustments (train now,
+train at the best window, extra steps, a short recovery break) on top of that same
+forecast, so those are planning estimates, not a second physiological model. The Body
+Battery forecast itself comes from a ridge model fitted in MATLAB for the first hour,
+and this person's own hour-of-day rhythm beyond that, whichever measures better at each
+horizon. Readiness is a separate 0-100 recovery estimate from sleep, HRV and resting
+heart rate, not Garmin's Body Battery."""
+
+
+def _validated(text, allowed_numbers):
+    if not text or not text.strip() or len(text) > 1200:
+        return False
+    return all(n in allowed_numbers for n in NUMBERS.findall(text))
+
+
+async def curate_briefing(facts, config, http):
+    """Returns a short natural-language briefing over `facts` (a sequence of already-
+    grounded strings, e.g. NarrationContext.facts), or None if curation is unavailable
+    or the model's output can't be verified against the numbers it was given."""
+    if not config.allow_external_narration or not config.narration_api_key or not facts:
+        return None
+    allowed = {n for fact in facts for n in NUMBERS.findall(fact)}
+    prompt = (
+        "Rewrite the following facts about one person's current physiology, forecast, "
+        "training plan, and any active what-if comparison into a short internal briefing "
+        "(4-6 sentences) for a friendly, non-technical voice coach to read before answering "
+        "questions. Organize it: current state, near-term forecast, best training window, "
+        "any what-if comparison, then anything risky or worth flagging. Use ONLY the numbers "
+        "already present in the facts, written as digits exactly as given -- never round, "
+        "recompute, invent, or add a number, time, or claim not present below. This briefing "
+        "will never be read aloud verbatim and is not itself evidence; it only orients the "
+        "coach.\n\nFacts:\n" + "\n".join(f"- {fact}" for fact in facts)
+    )
+    try:
+        response = await http.post(
+            config.narration_url,
+            timeout=httpx.Timeout(30, connect=5),
+            headers={"Authorization": f"Bearer {config.narration_api_key}"},
+            json={
+                "model": config.insight_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,
+                "max_tokens": 500,
+            },
+        )
+        response.raise_for_status()
+        choice = response.json()["choices"][0]
+        if choice.get("finish_reason") != "stop":
+            return None
+        text = choice["message"]["content"].strip()
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return None
+    return text if _validated(text, allowed) else None

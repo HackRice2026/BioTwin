@@ -22,6 +22,12 @@ from ingestion.webhooks import GoogleSignatureVerifier
 from modeling.engine import baseline, readiness, reconcile, drivers
 from modeling.recovery import issue_prediction, score_prediction
 from modeling.planning import make_plan
+from modeling.outlook import daily_outlook
+from modeling.forecast import trajectory
+from modeling.training_window import best_training_window
+from modeling.explanations import narration_context
+from core.agenda import AgendaService
+from narration.briefing import curate_briefing, CAPABILITIES
 
 log = logging.getLogger("biotwin")
 
@@ -58,6 +64,20 @@ class Runtime:
         self.wakeup = asyncio.Event()
         self.errors = {}
         self.ingest_lock = asyncio.Lock()
+        # The voice agent's per-turn context (plan/outlook/forecast/training-window
+        # decision) so a conversation turn is never the first thing to compute any of
+        # it -- the dashboard's own polling (plan, forecast, training-window) already
+        # warms this before anyone opens the mic. A short TTL stands in for true
+        # event-driven invalidation: exact freshness on every watch sync would mean
+        # re-scoring the whole day and re-hitting Google Calendar on every live-stream
+        # tick, which is real cost for no perceptible benefit between watch syncs.
+        self.turn_context_cache = {}
+        self.turn_context_ttl = 45.0
+        # Curated per-account briefing: persisted (Store, not memory), so it's ready the
+        # instant the app opens even across a restart, and refreshed in the background on
+        # a much longer throttle than turn_context itself -- see Runtime.turn_context.
+        self.briefing_ttl = 300.0
+        self._briefing_refreshing = set()
 
     def rr_rmssd(self, uid, intervals, window=40):
         """RMSSD over a rolling window of measured beat-to-beat intervals.
@@ -113,8 +133,10 @@ class Runtime:
             self.readiness_inputs,
             self.states,
             self.buffers,
+            self.turn_context_cache,
         ]:
             cache.pop(uid, None)
+        self._briefing_refreshing.discard(uid)
 
     async def start(self):
         if self.config.demo_enabled:
@@ -372,6 +394,79 @@ class Runtime:
         plan = make_plan(utcnow(), state.readiness, busy, user["profile"], status)
         self.store.put(user["id"], "plan", plan.model_dump(mode="json"))
         return plan
+
+    async def turn_context(self, user, force=False):
+        """Everything the voice agent needs about *this* account, computed once and
+        reused: today's plan, the energy outlook, the fitted Body Battery forecast, and
+        the best-training-window decision (readiness + forecast + calendar + workout
+        duration). Recomputing this per conversation turn was the actual source of
+        per-turn latency, not the Gemini call itself -- the decision alone chains a
+        calendar free/busy fetch and an agenda fetch. A voice turn should only ever
+        pay for the one thing it doesn't already have cached."""
+        uid = user["id"]
+        cached = self.turn_context_cache.get(uid)
+        if not force and cached and cached[0] > time.monotonic():
+            return cached[1]
+        current = self.states.get(uid) or self.compute(uid)
+        tz = user["profile"].get("timezone", "UTC")
+        plan = await self.get_plan(user, force)
+        outlook = daily_outlook(current, user["profile"], utcnow())
+        energy_trajectory = trajectory(self.history(uid), utcnow(), tz)
+        try:
+            busy, status = await self.calendar.availability(user)
+        except (ValueError, httpx.HTTPError):
+            busy, status = [], "unavailable"
+        events = None
+        if status == "connected":
+            today = utcnow().astimezone(ZoneInfo(tz)).date()
+            try:
+                events = (await AgendaService(self.calendar).list(user, today, today + timedelta(days=1)))["events"]
+            except (ValueError, httpx.HTTPError):
+                events = None
+        decision = best_training_window(current, energy_trajectory, busy, user["profile"], utcnow(), status, events=events)
+        ctx = narration_context(
+            current,
+            plan,
+            [p for _, p in self.store.docs(uid, "readiness")],
+            outlook,
+            energy_trajectory,
+            decision,
+        )
+        briefing_doc = self.store.get(uid, "agent_briefing")
+        narrative = briefing_doc["narrative"] if briefing_doc else None
+        stale = not briefing_doc or utcnow().timestamp() - briefing_doc["generated_at"] > self.briefing_ttl
+        if stale and uid not in self._briefing_refreshing:
+            self._briefing_refreshing.add(uid)
+            asyncio.create_task(self._refresh_briefing(uid, ctx.facts))
+        ctx = ctx.model_copy(
+            update={"briefing": f"{CAPABILITIES}\n\n{narrative}" if narrative else CAPABILITIES}
+        )
+        payload = {
+            "state": current,
+            "plan": plan,
+            "outlook": outlook,
+            "trajectory": energy_trajectory,
+            "decision": decision,
+            "ctx": ctx,
+        }
+        self.turn_context_cache[uid] = (time.monotonic() + self.turn_context_ttl, payload)
+        return payload
+
+    async def _refresh_briefing(self, uid, facts):
+        """Best-effort background curation -- never blocks a conversation turn, never
+        raises into it. A turn that started before this finishes just uses whatever
+        briefing (possibly none) was already persisted; the next one gets the update."""
+        try:
+            narrative = await curate_briefing(facts, self.config, self.http)
+            if narrative:
+                self.store.put(uid, "agent_briefing", {"narrative": narrative, "generated_at": utcnow().timestamp()})
+        except Exception:
+            log.error('{"event":"briefing_refresh_failed","uid":"%s"}', uid)
+        finally:
+            self._briefing_refreshing.discard(uid)
+
+    def invalidate_turn_context(self, uid):
+        self.turn_context_cache.pop(uid, None)
 
     async def sync(self, uid, provider, since=None):
         count = 0
