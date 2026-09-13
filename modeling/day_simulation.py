@@ -1,8 +1,20 @@
 """Scenario engine for the Simulate My Day experience.
 
-The fitted MATLAB trajectory remains the source of truth. What-if scenarios
-apply small, deterministic overlays on top of that trajectory and label those
-overlays as planning estimates rather than measured causal effects.
+The fitted MATLAB trajectory remains the source of truth for the energy curve.
+What-if scenarios apply small, deterministic overlays on top of that
+trajectory and label those overlays as planning estimates rather than
+measured causal effects.
+
+For *when* to train, `modeling.training_window.best_training_window` is the
+single source of truth app-wide -- the Best Training Window card, the coach's
+spoken answer, and this module all have to agree, or the app visibly
+contradicts itself (it used to: this module independently guessed a workout
+time from the daily plan, which could -- and did -- land on a different hour
+than Best Training Window's scored decision). Callers should pass that
+decision in as `decision`; the plan-based guess below only fires when no
+decision is available (e.g. a bare unit test), and even then never disagrees
+with a live decision since callers always have one once the forecast basis
+exists.
 """
 
 from __future__ import annotations
@@ -79,7 +91,7 @@ def _scenario(
     }
 
 
-def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_minutes=30):
+def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_minutes=30, decision=None):
     base = trajectory(history, now, timezone)
     if not base.get("available"):
         return {
@@ -91,21 +103,32 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
     recovery_minutes = max(10, min(60, int(recovery_minutes)))
     baseline_points = _future_points(base)
     evening = baseline_points[-1]["value"]
-    proposal = _proposal_window(plan, now)
-    fallback_window = now.astimezone(ZoneInfo(timezone)).replace(hour=17, minute=40, second=0, microsecond=0)
-    if fallback_window <= now.astimezone(ZoneInfo(timezone)):
-        fallback_window += timedelta(days=1)
-    window_label = (
-        f"{_clock(proposal.start, timezone)}"
-        if proposal
-        else fallback_window.strftime("%-I:%M %p")
-    )
-    workout_label = proposal.title if proposal else "Moderate movement"
-    train_horizon = (
-        max(0, min(360, int((proposal.start - now).total_seconds() / 60)))
-        if proposal
-        else min(360, int((fallback_window.astimezone(now.tzinfo) - now).total_seconds() / 60))
-    )
+
+    decision_window = decision.get("window") if decision and decision.get("available") else None
+    if decision_window:
+        # Best Training Window already scored this; use it verbatim rather than re-deriving it.
+        window_start = datetime.fromisoformat(decision_window["start"])
+        window_label = _clock(window_start, timezone)
+        workout_label = decision_window["workout"]["title"]
+        train_horizon = max(0, min(360, int((window_start - now).total_seconds() / 60)))
+        has_window = True
+    else:
+        proposal = _proposal_window(plan, now)
+        fallback_window = now.astimezone(ZoneInfo(timezone)).replace(hour=17, minute=40, second=0, microsecond=0)
+        if fallback_window <= now.astimezone(ZoneInfo(timezone)):
+            fallback_window += timedelta(days=1)
+        window_label = (
+            f"{_clock(proposal.start, timezone)}"
+            if proposal
+            else fallback_window.strftime("%-I:%M %p")
+        )
+        workout_label = proposal.title if proposal else "Moderate movement"
+        train_horizon = (
+            max(0, min(360, int((proposal.start - now).total_seconds() / 60)))
+            if proposal
+            else min(360, int((fallback_window.astimezone(now.tzinfo) - now).total_seconds() / 60))
+        )
+        has_window = proposal is not None
 
     baseline = _scenario(
         "current_plan",
@@ -125,7 +148,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
     steps_workout = "Reduced volume" if step_drain >= 4 else workout_label
     steps_window = (
         "Earlier or lighter"
-        if step_drain >= 5 and proposal
+        if step_drain >= 5 and has_window
         else window_label
     )
 

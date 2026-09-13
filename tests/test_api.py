@@ -396,6 +396,52 @@ def test_simulate_my_day_layers_scenarios_on_the_forecast():
     assert "scenario overlays" in " ".join(result["assumptions"])
 
 
+def test_simulate_my_day_uses_the_best_training_window_verbatim_when_given_one():
+    """Best Training Window and Simulate My Day used to pick their own, sometimes
+    different, workout time. A decision passed in must win outright: no re-deriving,
+    no disagreement between what the two features tell the user."""
+    from datetime import datetime, timedelta, timezone as tzmod
+    from modeling.day_simulation import simulate_day
+    from modeling.training_window import best_training_window
+    from shared.schemas import EnergyState, TwinFrame, Provenance, Readiness
+
+    now = datetime(2026, 9, 12, 18, 0, tzinfo=tzmod.utc)
+    history = [
+        TwinFrame(
+            user_id="u",
+            event_time=now - timedelta(minutes=m),
+            provenance=Provenance.GARMIN_FIT_REPLAY,
+            body_battery_pct=float(62 - m // 20),
+            heart_rate_bpm=72,
+            stress_max=35,
+        )
+        for m in range(0, 120, 5)
+    ]
+
+    from pathlib import Path
+    from modeling.forecast import trajectory as trajectory_fn
+    from shared.schemas import TwinState
+
+    state = TwinState.model_validate_json(Path("fixtures/golden/twin-state.json").read_text()).model_copy(
+        update={
+            "readiness": Readiness(
+                user_id="u", computed_at=now, score=70, state=EnergyState.BALANCED, contributions={}, confidence=0.8
+            )
+        }
+    )
+    base_trajectory = trajectory_fn(history, now, "America/Chicago")
+    profile = {"timezone": "America/Chicago", "bedtime": "23:00", "workout_minutes": 30}
+    decision = best_training_window(state, base_trajectory, [], profile, now, "unavailable")
+    assert decision["available"]
+
+    result = simulate_day(history, now, "America/Chicago", steps=8000, decision=decision)
+    scenarios = {s["id"]: s for s in result["scenarios"]}
+    expected_start = datetime.fromisoformat(decision["window"]["start"])
+    expected_label = expected_start.astimezone(expected_start.tzinfo).strftime("%-I:%M %p")
+    assert scenarios["train_best_window"]["decision"]["best_window"] == expected_label
+    assert scenarios["train_best_window"]["decision"]["workout"] == decision["window"]["workout"]["title"]
+
+
 def test_simulate_my_day_endpoint_uses_account_frames(client):
     from datetime import timedelta
 
