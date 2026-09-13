@@ -237,6 +237,7 @@ class ConnectionState:
     scored_samples: int = 0
     viseme_queue: deque[int] = field(default_factory=deque)
     current_viseme: int | None = None
+    last_viseme_at: float = 0.0
     inference_busy: bool = False
     energy: float = 0.0
 
@@ -326,6 +327,9 @@ async def _receive_loop(
             metrics.audio_buffer_ms = max(33, min(180, int(len(chunk) / 96)))
 
 
+STALE_VISEME_S = 0.3
+
+
 async def _emit_loop(websocket: WebSocket, state: ConnectionState) -> None:
     """Sends one blendshape_frame every 16ms for the life of the
     connection, decoupled from when (or how much) audio arrives -- drains
@@ -338,6 +342,13 @@ async def _emit_loop(websocket: WebSocket, state: ConnectionState) -> None:
         phase += 0.35 + state.energy * 0.4
         if state.viseme_queue:
             state.current_viseme = state.viseme_queue.popleft()
+            state.last_viseme_at = time.perf_counter()
+        elif time.perf_counter() - state.last_viseme_at > STALE_VISEME_S:
+            # The queue ran dry (speech ended, or the model's behind) and
+            # the last real viseme is now stale -- without this, the mouth
+            # would freeze on whatever shape it last had forever, instead
+            # of relaxing back to the idle cycle make_frame(..., None) does.
+            state.current_viseme = None
         frame = make_frame(timestamp_ms, state.energy, phase, state.current_viseme)
         await websocket.send_json(frame)
         metrics.frames += 1
