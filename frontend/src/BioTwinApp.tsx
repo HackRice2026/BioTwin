@@ -119,7 +119,7 @@ export default function BioTwinApp() {
   );
   const [auth, setAuth] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [forecastOpen, setForecastOpen] = useState(false);
   const [takeover, setTakeover] = useState<{
     topic: Topic;
     question: string;
@@ -398,10 +398,6 @@ export default function BioTwinApp() {
         >
           <Leaf size={22} />
         </button>
-        <div className="bar-location">
-          <span>MY BIOTWIN</span>
-          <b>{page}</b>
-        </div>
         <div
           className="body-battery"
           title="Your Garmin Body Battery, as measured by the watch. Not a BioTwin estimate."
@@ -431,23 +427,15 @@ export default function BioTwinApp() {
             <b>{battery == null ? "—" : `${battery}%`}</b>
           </div>
           <button
-            className="bar-twin battery-broadcast"
-            onClick={() => setBroadcastOpen(true)}
-            aria-label="Battery Broadcast: where the model expects this to go"
-            title="Battery Broadcast"
+            className="bar-twin battery-forecast"
+            onClick={() => setForecastOpen(true)}
+            aria-label="Battery Forecast: where the model expects this to go"
+            title="Battery Forecast"
           >
             <Radio size={16} />
-            <span>Battery Broadcast</span>
+            <span>Battery Forecast</span>
           </button>
         </div>
-        <button
-          className={`bar-twin ${speaking || listening ? "active" : ""}`}
-          onClick={talk}
-          aria-label={`Twin ${phase}`}
-        >
-          <AudioLines size={18} />
-          <span>{phase}</span>
-        </button>
         <button
           className="icon-btn history-launch"
           aria-label="Conversation history"
@@ -458,21 +446,19 @@ export default function BioTwinApp() {
       </header>
       <main className="workspace" id="main-content">
         <div className="page-intro">
-          <div>
-            <span className="eyebrow">
-              {new Date().toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </span>
-            <h1>
-              {page === "Overview"
-                ? `Your daily rhythm${session && !session.demo && session.user.name ? ", " + session.user.name.split(" ")[0] : ""}.`
-                : page}
-            </h1>
-            <p>{descriptions[page]}</p>
-          </div>
+          {page !== "Overview" && (
+            <div>
+              <span className="eyebrow">
+                {new Date().toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+              <h1>{page}</h1>
+              <p>{descriptions[page]}</p>
+            </div>
+          )}
           <span className={`connection-pill ${status}`}>
             <i />
             {status === "offline"
@@ -883,28 +869,28 @@ export default function BioTwinApp() {
           <span>Talk to your twin</span>
         </button>
       )}
-      {broadcastOpen && (
+      {forecastOpen && (
         <div
           className="modal-backdrop history-backdrop"
-          onClick={() => setBroadcastOpen(false)}
+          onClick={() => setForecastOpen(false)}
         >
           <section
             className="history-dialog glass"
             role="dialog"
             aria-modal="true"
-            aria-label="Battery Broadcast"
+            aria-label="Battery Forecast"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="panel-title">
               <div>
-                <h2>Battery Broadcast</h2>
+                <h2>Battery Forecast</h2>
                 <p>Where your fitted model expects this to go</p>
               </div>
               <Radio size={18} className="green" />
             </div>
             {data.trajectory?.available ? (
               <>
-                <div className="broadcast-chart">
+                <div className="forecast-chart">
                   <TrajectoryChart
                     measured={data.trajectory.measured}
                     points={data.trajectory.points}
@@ -951,7 +937,7 @@ export default function BioTwinApp() {
                 </p>
               </div>
             )}
-            <button className="primary" onClick={() => setBroadcastOpen(false)}>
+            <button className="primary" onClick={() => setForecastOpen(false)}>
               Close
             </button>
           </section>

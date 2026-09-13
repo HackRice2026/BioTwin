@@ -417,19 +417,6 @@ button.primary:hover:not(:disabled) {
   border-bottom: 1px solid var(--line);
   z-index: 55;
 }
-.bar-location {
-  display: grid;
-  gap: 5px;
-}
-.bar-location > span {
-  font-size: 8px;
-  letter-spacing: 0.15em;
-  color: #72877c;
-}
-.bar-location > b {
-  font-size: 11px;
-  font-weight: 500;
-}
 .body-battery {
   display: flex;
   align-items: center;
@@ -2228,9 +2215,6 @@ button.primary:hover:not(:disabled) {
     width: 27px;
     padding: 0;
   }
-  .bar-location {
-    display: none;
-  }
   .body-battery {
     margin-left: 4px;
     gap: 10px;
@@ -3069,17 +3053,17 @@ button.primary:hover:not(:disabled) {
     font-size: 26px;
   }
 }
-/* The broadcast chart needs an explicit height: recharts' ResponsiveContainer
+/* The forecast chart needs an explicit height: recharts' ResponsiveContainer
    measures its parent, and inside a flex-column dialog that parent would
    otherwise collapse to nothing. Same 220px the signal charts use. */
-.broadcast-chart {
+.forecast-chart {
   height: 220px;
   margin: 4px 0 14px;
 }
-/* The broadcast button sits inside .body-battery, whose 15px gap is tuned for
+/* The forecast button sits inside .body-battery, whose 15px gap is tuned for
    the label-and-meter pair; bar-twin's 22px left padding would push the meter
    off-centre there, so only the divider and spacing are adjusted. */
-.battery-broadcast {
+.battery-forecast {
   padding-left: 15px;
   white-space: nowrap;
 }
