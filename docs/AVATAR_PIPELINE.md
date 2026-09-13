@@ -1,0 +1,64 @@
+# Avatar Pipeline Fallback
+
+Branch: `semantic-avatar-fallback`
+
+Status: start of the deterministic fallback pivot.
+
+## Why this branch exists
+
+The generative audio-to-motion path is not reliable enough for a domain-specific fitness coach. EMAGE-style output can be useful research, but blind retargeting from SMPL-X-style motion onto our custom browser GLB produced the exact risks we care about avoiding:
+
+- coordinate/rest-pose mismatch
+- unstable limbs and collapsed poses
+- no semantic awareness of what the coach is doing
+- mushy biomechanics for exercises that require precise form
+- unsafe blending between generated upper-body motion and deterministic exercise motion
+
+This branch starts the safer architecture: a layered semantic state machine. The LLM is the director, not the animator. Body motion should come from validated clips/manifests, face motion from ARKit morphs/visemes, and gaze/HUD behavior from deterministic rules.
+
+## Done in this branch
+
+- Added typed avatar intent contracts in `frontend/src/avatar/pipeline/intent.ts`.
+- Added typed motion-manifest contracts and a starter squat manifest in `frontend/src/avatar/pipeline/motionManifest.ts`.
+- Added a capability resolver in `frontend/src/avatar/pipeline/capabilityResolver.ts`.
+- Added tests proving that blocked physical gestures become HUD overlays during locked exercise phases.
+
+## What this branch does not do yet
+
+- It does not replace the current `Avatar.tsx` render loop.
+- It does not add Zustand yet.
+- It does not author or import mocap clips.
+- It does not touch skeletal bone math.
+- It does not remove the existing face/lip-sync fallback service.
+
+## Current intended flow
+
+```text
+Gemini strict JSON intent
+  -> validate/normalize AvatarIntent
+  -> Capability Resolver checks active motion phase
+  -> allowed body actions go to animation layer
+  -> blocked gestures become HUD overlays anchored to semantic targets
+  -> face/gaze/emotion continue independently
+```
+
+## Next steps
+
+1. Wire `AvatarIntent` into the Gemini narration prompt/output parser.
+2. Create a small store around the resolver state:
+   - active motion id
+   - normalized progress
+   - current phase
+   - pending interrupt intent
+   - current resolved overlay/action
+3. Replace procedural squat bones with a real validated squat animation clip and the `squat.bodyweight.v1` manifest.
+4. Add `<Html>` overlays anchored to target bones/UI points for blocked gestures.
+5. Implement safe-exit handoff:
+   - mark `interruptRequested`
+   - wait for the next manifest phase with `safeExit: true`
+   - crossfade to conversational idle
+6. Keep ARKit face, blink, gaze, and voice paths independent of body animation.
+
+## Rule for future work
+
+Do not let an LLM or audio model directly manipulate bones. It may request semantic intent only. The resolver decides whether that intent becomes body animation, face/gaze behavior, or a HUD overlay.
