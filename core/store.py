@@ -17,6 +17,7 @@ from sqlalchemy import (
     JSON,
     Text,
     UniqueConstraint,
+    Index,
     select,
     insert,
     update,
@@ -50,6 +51,12 @@ frames = Table(
     Column("sequence", Integer),
     Column("payload", JSON),
     UniqueConstraint("user_id", "dedupe_key"),
+)
+Index(
+    "ix_measurements_user_time_sequence",
+    frames.c.user_id,
+    frames.c.event_time,
+    frames.c.sequence,
 )
 documents = Table(
     "documents",

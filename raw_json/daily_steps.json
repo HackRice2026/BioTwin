@@ -691,8 +691,14 @@
  },
  {
   "calendarDate": "2026-09-12",
-  "totalSteps": 11358,
-  "totalDistance": 8815,
+  "totalSteps": 11812,
+  "totalDistance": 9166,
+  "stepGoal": 10000
+ },
+ {
+  "calendarDate": "2026-09-13",
+  "totalSteps": 130,
+  "totalDistance": 101,
   "stepGoal": 10000
  }
 ]
