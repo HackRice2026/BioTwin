@@ -8,7 +8,6 @@ import {
   Flame,
   Footprints,
   Heart,
-  Leaf,
   LoaderCircle,
   Moon,
   RefreshCw,
@@ -161,7 +160,7 @@ export function PanelTitle({
   note,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   note?: string;
   children?: ReactNode;
 }) {
@@ -520,21 +519,30 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
     );
   return (
     <Panel className="readiness-panel forecast-panel current-battery-panel">
-      <PanelTitle title="Readiness" note="Your recovery signal, not Body Battery">
-        <Leaf size={19} className="green" />
-      </PanelTitle>
+      <PanelTitle
+        title={
+          <span className="current-battery-title">
+            <span>Current Body Battery</span>
+            <span
+              className="current-battery-meter"
+              role="img"
+              aria-label={
+                score == null
+                  ? "Body Battery is awaiting a reading"
+                  : `Body Battery ${value(score)} percent`
+              }
+            >
+              <span className="current-battery-meter-fill" aria-hidden="true">
+                <i style={{ width: `${score == null ? 0 : value(score)}%` }} />
+              </span>
+              <Battery aria-hidden="true" />
+              <b aria-hidden="true">{score == null ? "—" : `${value(score)}%`}</b>
+            </span>
+          </span>
+        }
+        note="BioTwin estimate of your energy reserve"
+      />
       <div className="forecast-summary current-battery-summary">
-        <span
-          className="readiness-score"
-          role="img"
-          aria-label={
-            score == null
-              ? "Readiness is awaiting a reading"
-              : `Readiness ${value(score)} percent`
-          }
-        >
-          {score == null ? "—" : `${value(score)}%`}
-        </span>
         <div>
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
