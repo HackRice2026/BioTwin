@@ -383,6 +383,11 @@ export function SignalDetail({
 export function ReadinessPanel({ data }: { data: Dashboard }) {
   const r = data.state!.readiness,
     score = r.score;
+  // The meter under "Current Body Battery" reads the measured Garmin level, the
+  // same source as the top bar, so the two cannot show different numbers for
+  // one quantity. Readiness still drives the state pill and the drivers below.
+  const battery = data.state!.latest?.body_battery_pct ?? null;
+  const batteryAt = data.state!.quality?.body_battery_pct?.event_time;
   const workout = data.plan?.proposals.find((proposal) => proposal.kind === "workout");
   const nap = data.plan?.proposals.find((proposal) => proposal.kind === "nap");
   const sleepHours = Math.round((data.session?.user.profile.target_sleep ?? 480) / 60);
@@ -527,20 +532,26 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
               className="current-battery-meter"
               role="img"
               aria-label={
-                score == null
+                battery == null
                   ? "Body Battery is awaiting a reading"
-                  : `Body Battery ${value(score)} percent`
+                  : `Body Battery ${value(battery)} percent`
               }
             >
               <span className="current-battery-meter-fill" aria-hidden="true">
-                <i style={{ width: `${score == null ? 0 : value(score)}%` }} />
+                <i style={{ width: `${battery == null ? 0 : value(battery)}%` }} />
               </span>
               <Battery aria-hidden="true" />
-              <b aria-hidden="true">{score == null ? "—" : `${value(score)}%`}</b>
+              <b aria-hidden="true">{battery == null ? "—" : `${value(battery)}%`}</b>
             </span>
           </span>
         }
-        note="BioTwin estimate of your energy reserve"
+        note={
+          battery == null
+            ? "Waiting for a reading from your watch"
+            : batteryAt
+              ? `Measured by your watch · ${new Date(batteryAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+              : "Measured by your watch"
+        }
       />
       <div className="forecast-summary current-battery-summary">
         <div>
