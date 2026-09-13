@@ -408,7 +408,7 @@ function Body({
               ? ARMS_DOWN - 0.3 + Math.sin(clock * 2 + sign) * 0.16
               : ARMS_DOWN + armSwing,
         isPointing ? -0.42 : 0,
-        isPointing ? -0.48 : sign * (0.15 + emotion.current.energy * 0.13),
+        isPointing ? -0.48 : sign * (0.04 + emotion.current.energy * 0.05),
       );
       damp(
         `${side}ForeArm`,
