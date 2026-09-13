@@ -40,7 +40,6 @@ import type {
   AvatarSemanticState,
   BodyFrame,
   FaceFrame,
-  FaceServiceState,
 } from "./avatar/state/AvatarState";
 import {
   blendEmotion,
@@ -580,10 +579,7 @@ export default function Avatar({
   const audioEnergy = useRef(0);
   const [quality, setQuality] = useState("Auto");
   const [dpr, setDpr] = useState(1.5);
-  const [p95, setP95] = useState<number | null>(null);
   const [motion, setMotion] = useState("IDLE");
-  const [faceState, setFaceState] = useState<FaceServiceState>("checking");
-  const [debug, setDebug] = useState(false);
   const [workoutCue, setWorkoutCue] = useState("BRACE");
   const [, refresh] = useState(0);
   const phase = speaking
@@ -618,10 +614,7 @@ export default function Avatar({
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.shiftKey && event.key.toLowerCase() === "d") {
-        setDebug((value) => !value);
-        return;
-      }
+      if ((event.target as HTMLElement)?.closest("input, textarea, select, [contenteditable=true]")) return;
       const next = demoStates[event.key];
       if (!next) return;
       emitAvatarSemantic(next);
@@ -659,7 +652,6 @@ export default function Avatar({
       socket.current = ws;
       ws.onopen = () => {
         retry = 0;
-        setFaceState("online");
       };
       ws.onmessage = (event) => {
         const raw =
@@ -670,10 +662,9 @@ export default function Avatar({
         faceFrames.current.push(frame);
         if (faceFrames.current.length > 16) faceFrames.current.shift();
       };
-      ws.onerror = () => setFaceState("fallback");
+      ws.onerror = () => {};
       ws.onclose = () => {
         if (socket.current === ws) socket.current = null;
-        setFaceState("fallback");
         if (!stopped)
           window.setTimeout(connect, Math.min(5000, 1000 + retry++ * 500));
       };
@@ -682,12 +673,10 @@ export default function Avatar({
       fetch(`${faceHttp}/health`, { mode: "cors" })
         .then((response) => {
           if (!response.ok) throw new Error("Face service unavailable");
-          setFaceState("online");
-          connect();
+            connect();
         })
         .catch(() => {
-          setFaceState("fallback");
-          if (!stopped)
+            if (!stopped)
             healthTimer = window.setTimeout(checkHealth, 5000);
         });
     };
@@ -754,10 +743,8 @@ export default function Avatar({
   }, []);
 
   const perf = (n: number) => {
-    setP95(n);
     if (quality === "Auto" && n > 25) setDpr(1);
   };
-  const debugEmotion = semantic.current.emotion;
   return (
     <div
       className={`avatar-card${compact ? " compact" : ""} avatar-phase-${phase}`}
@@ -771,10 +758,6 @@ export default function Avatar({
             : humanize(state.readiness.state)}
         </span>
       </div>
-      <div className="avatar-coordinates">
-        <span>01 / 3D COACH</span>
-        <span>{overlay.current ? "SIMULATION" : humanize(motion)}</span>
-      </div>
       <CanvasBoundary>
         <Canvas
           dpr={compact ? 1 : dpr}
@@ -785,7 +768,7 @@ export default function Avatar({
             powerPreference: "high-performance",
           }}
           shadows
-          style={{ height: compact ? 170 : 390 }}
+          style={{ height: "100%" }}
         >
           <ambientLight intensity={1.5} />
           <directionalLight
@@ -847,14 +830,6 @@ export default function Avatar({
         <span>Drag to explore your coach</span>
       </div>
       <div className="avatar-bottom">
-        <span>
-          <i className="mint-dot" />{" "}
-          {reduced
-            ? "Reduced motion"
-            : p95
-              ? `${Math.round(1000 / p95)} fps · p95 ${p95.toFixed(1)} ms`
-              : "Initializing 3D"}
-        </span>
         <div>
           <select
             aria-label="Graphics quality"
@@ -893,48 +868,11 @@ export default function Avatar({
         )}
         {phase === "idle" && "Idle"}
       </div>
-      <div className={`avatar-face-link ${faceState}`}>
-        GPU FACE SERVICE: {faceState === "online" ? "ONLINE" : "FALLBACK"}
-      </div>
-      {debug && (
-        <div className="avatar-debug">
-          <div>
-            <b>Face</b>
-            <span>{faceState}</span>
-            <span>{faceFrames.current.length} frames</span>
-          </div>
-          <div>
-            <b>Emotion</b>
-            <span>energy {debugEmotion.energy.toFixed(2)}</span>
-            <span>fatigue {debugEmotion.fatigue.toFixed(2)}</span>
-            <span>stress {debugEmotion.stress.toFixed(2)}</span>
-            <span>concern {debugEmotion.concern.toFixed(2)}</span>
-          </div>
-          <div className="avatar-debug-actions">
-            {[
-              ["point", "Point"],
-              ["walk", "Walk"],
-              ["run", "Run"],
-              ["nod", "Nod"],
-              ["squat", "Squat"],
-              ["celebrate", "Celebrate"],
-            ].map(([action, label]) => (
-              <button
-                key={action}
-                onClick={() =>
-                  emitAvatarSemantic({
-                    action: action as AvatarAction,
-                    gaze: action === "point" ? "panel" : "user",
-                    camera: action === "squat" ? "exercise" : "conversation",
-                  })
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <details className="avatar-movements"><summary>Movement</summary><div>
+        {[["idle", "Relax"], ["point", "Point"], ["walk", "Walk"], ["run", "Run"], ["nod", "Nod"], ["squat", "Squat"], ["celebrate", "Celebrate"]].map(([action, label]) =>
+          <button key={action} onClick={() => emitAvatarSemantic({ action: action as AvatarAction, gaze: action === "point" ? "panel" : "user", camera: action === "squat" ? "exercise" : "conversation" })}>{label}</button>
+        )}
+      </div></details>
       {semantic.current.action === "squat" && (
         <div className="avatar-workout-icon" aria-hidden="true">
           <Dumbbell size={16} />

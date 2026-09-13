@@ -51,10 +51,10 @@ missing-data states, and honest labels for estimates and scenarios.
 
 - [x] Inventory existing features and create branch from dev.
 - [x] Record authorized central plan and commit workflow.
-- [ ] Add timestamped speech and question-topic lifecycle with regression tests.
-- [ ] Build distinct mobile/desktop layouts and all five sections.
-- [ ] Wire Body Battery, live charts, twin hero and topic takeovers.
-- [ ] Rebuild Connections and transcript UI; preserve every existing action.
+- [x] Add timestamped speech and question-topic lifecycle with regression tests.
+- [x] Build distinct mobile/desktop layouts and all five sections.
+- [x] Wire Body Battery, live charts, twin hero and topic takeovers.
+- [x] Rebuild Connections and transcript UI; preserve every existing action.
 - [ ] Verify real recorded question → transcription → Vertex → ElevenLabs →
   captions/audio → Overview; test missing/failed provider states too.
 - [ ] Verify mobile/desktop navigation, calendar actions, simulations, history,

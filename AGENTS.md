@@ -128,6 +128,15 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — New UI entry is `BioTwinApp.tsx` with `biotwin.css`; data
+  loading lives in `useDashboard`, reusable page content in `DashboardPanels`.
+  Connections stays mounted across tabs so direct Bluetooth does not drop
+  when leaving its page. Old App/style remain temporarily for comparison
+  until the real voice and navigation checks pass, then must be removed.
+  Product diagnostics removed; avatar movement/view controls and both GPU
+  audio fan-outs remain. Verified renders at 1440px and 390px: no page errors
+  or horizontal overflow. The two viewports use distinct navigation/layouts.
+
 - 2026-09-12 — Body Battery is an explicitly unvalidated presentation estimate:
   80% existing readiness + 20% live recovery progress, using readiness alone
   when the live pulse is stale/missing, and null when readiness is missing.

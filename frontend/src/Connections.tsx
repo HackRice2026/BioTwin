@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   Watch,
+  Link2,
   CalendarDays,
   AudioLines,
   Upload,
@@ -162,6 +163,7 @@ export default function Connections({
         naps_enabled: true,
       },
     );
+  useEffect(() => { if (session?.user.profile) setProfile(session.user.profile); }, [session?.user.id]);
   const file = useRef<HTMLInputElement>(null);
   const bleDevice = useRef<{ gatt?: { disconnect: () => void } } | null>(null);
   const [broadcasting, setBroadcasting] = useState(false),
@@ -374,7 +376,7 @@ export default function Connections({
         await post("/api/connect/garmin-ble-bridge/start");
         setBleBridgeStatus({ status: "connecting" });
         notify(
-          "Connecting to the local live BLE script (ble_hr_live.py on ws://localhost:8765)…",
+          "Connecting to your live watch companion…",
         );
       }
     } catch (e) {
@@ -400,372 +402,27 @@ export default function Connections({
       notify((e as Error).message);
     }
   }
-  return (
-    <div className="connections-page">
-      <div className="section-intro">
-        <span className="eyebrow">YOUR CONNECTED WORLD</span>
-        <h2>Bring the pieces together.</h2>
-        <p>
-          Your watch, your schedule, and a voice that makes your data easier to
-          understand.
-        </p>
-      </div>
-      <div className="connection-grid">
-        {[
-          {
-            id: "garmin",
-            name: "Garmin Connect",
-            icon: Watch,
-            text: "Sleep, activity, resting heart rate, and uploaded heart-rate samples. Cloud sync requires approved Garmin developer access.",
-          },
-          {
-            id: "google-calendar",
-            name: "Google Calendar",
-            icon: CalendarDays,
-            text: "Find free time and add your chosen recovery or workout session, with a calendar reminder.",
-          },
-          {
-            id: "microsoft-calendar",
-            name: "Outlook Calendar",
-            icon: CalendarDays,
-            text: "The same free-time check and event creation, for Outlook/Microsoft 365 calendars. Connect either this or Google -- both at once works too, and busy time from both is checked.",
-          },
-          {
-            id: "fitbit",
-            name: "Fitbit / Google Health",
-            icon: Watch,
-            text: "An additional wearable source using Google Health. Connect only if you have a compatible device.",
-          },
-        ].map((item) => {
-          const source = sources?.sources.find((s) => s.provider === item.id);
-          return (
-            <section className="card connection-card" key={item.id}>
-              <div className="connection-icon">
-                <item.icon size={24} />
-              </div>
-              <div className="connection-heading">
-                <h3>{item.name}</h3>
-                <span
-                  className={`status-pill ${source?.status === "connected" ? "good" : ""}`}
-                >
-                  {source?.status === "connected"
-                    ? "Connected"
-                    : source?.status === "reconnect"
-                      ? "Reconnect needed"
-                      : "Not connected"}
-                </span>
-              </div>
-              <p>{item.text}</p>
-              {source?.sync?.status === "error" && (
-                <p className="error">
-                  Sync failed: {source.sync.error}. Check your provider
-                  connection.
-                </p>
-              )}
-              <div className="connection-actions">
-                <button
-                  className="button"
-                  disabled={busy === item.id}
-                  onClick={() => connect(item.id)}
-                >
-                  {busy === item.id
-                    ? "Opening…"
-                    : source?.status === "connected"
-                      ? "Reconnect"
-                      : "Connect account"}
-                  <ArrowUpRight size={15} />
-                </button>
-                {source?.status === "connected" && (
-                  <button
-                    className="icon-btn"
-                    aria-label={`Disconnect ${item.name}`}
-                    onClick={async () => {
-                      try {
-                        await api(`/auth/${item.id}`, { method: "DELETE" });
-                        reload();
-                        notify("Account disconnected.");
-                      } catch (e) {
-                        notify((e as Error).message);
-                      }
-                    }}
-                  >
-                    <LogOut size={16} />
-                  </button>
-                )}
-              </div>
-              {(item.id === "google-calendar" || item.id === "microsoft-calendar") &&
-                source?.status === "connected" && (
-                  <button
-                    className="button secondary"
-                    disabled={busy === `seed:${item.id}`}
-                    onClick={() => seedCalendar(item.id)}
-                    title="Only writes events if the coming week is completely empty."
-                  >
-                    {busy === `seed:${item.id}`
-                      ? "Checking your week…"
-                      : "Seed a sample week (if empty)"}
-                  </button>
-                )}
-              {!source?.configured && (
-                <small className="setup-note">
-                  Server setup required · see the integration guide
-                </small>
-              )}
-            </section>
-          );
-        })}
-        <section className="card connection-card">
-          <div className="connection-icon">
-            <AudioLines size={24} />
-          </div>
-          <div className="connection-heading">
-            <h3>ElevenLabs voice</h3>
-            <span
-              className={`status-pill ${sources?.elevenlabs.configured ? "good" : ""}`}
-            >
-              {sources?.elevenlabs.configured ? "Ready" : "Setup required"}
-            </span>
-          </div>
-          <p>
-            Your twin speaks its grounded answers with ElevenLabs. Only the
-            response text is sent for speech generation.
-          </p>
-          <small className="setup-note">
-            {sources?.elevenlabs.configured
-              ? "Tap the mic and ask your twin a question. It speaks its answer back automatically."
-              : "Add ELEVENLABS_API_KEY to the server .env, then restart."}
-          </small>
-        </section>
-      </div>
-      <div className="two-col">
-        <section className="card import-card">
-          <span className="eyebrow">START WITH YOUR WATCH</span>
-          <h3>Your Garmin, four more ways.</h3>
-          <p>
-            Import an original Garmin activity FIT file or a supported JSON
-            export. Recorded data follows the same model and avatar pipeline.
-          </p>
-          <input
-            ref={file}
-            type="file"
-            accept=".fit,.json"
-            hidden
-            onChange={(e) => {
-              if (e.target.files?.[0]) upload(e.target.files[0]);
-              e.target.value = "";
-            }}
-          />
-          <button
-            className="button primary"
-            onClick={() => (session?.demo ? onAuth() : file.current?.click())}
-            disabled={busy === "import"}
-          >
-            <Upload size={16} />
-            {busy === "import"
-              ? "Importing measurements…"
-              : "Import Garmin data"}
-          </button>
-          <div className="connection-divider" />
-          <h4>Direct heart-rate broadcast</h4>
-          <p>
-            On supported watches, enable Broadcast Heart Rate. Connect from a
-            browser that supports Bluetooth. Keep this screen open while
-            broadcasting.
-          </p>
-          <button className="button" onClick={broadcast}>
-            <Bluetooth size={16} />
-            {broadcasting
-              ? "Disconnect broadcast"
-              : "Connect heart-rate broadcast"}
-          </button>
-          <div className="connection-divider" />
-          <h4>Local Garmin dashboard (InfluxDB)</h4>
-          <p>
-            Already running the standalone garmin viz dashboard on this
-            machine? Pull its history, then stay connected -- new points it
-            writes keep flowing into this twin as they land, not just once.
-          </p>
-          <button
-            className="button"
-            onClick={toggleGarminInflux}
-            disabled={busy === "garmin-influx"}
-          >
-            <RefreshCw size={16} />
-            {influxSyncStatus.status === "live"
-              ? "Disconnect (stop live sync)"
-              : influxSyncStatus.status === "starting"
-                ? "Connecting…"
-                : "Connect to Garmin (sync + stay live)"}
-          </button>
-          {influxSyncStatus.status === "live" && (
-            <small className="setup-note">
-              Live · watching for new InfluxDB data
-              {influxSyncStatus.last_frame_at
-                ? ` · last point ${new Date(influxSyncStatus.last_frame_at).toLocaleTimeString()}`
-                : ""}
-            </small>
-          )}
-          {influxSyncStatus.status === "error" && (
-            <p className="error">{influxSyncStatus.detail}</p>
-          )}
-          <h4>Live from the terminal script</h4>
-          <p>
-            Bridges the already-running <code>ble_hr_live.py</code> BLE
-            script (heart-rate broadcast, no browser Bluetooth required)
-            into this twin in real time, heartbeat by heartbeat.
-          </p>
-          <button
-            className="button"
-            onClick={toggleBleBridge}
-            disabled={busy === "garmin-ble-bridge"}
-          >
-            <Radio size={16} />
-            {bleBridgeStatus.status === "connected"
-              ? "Disconnect live bridge"
-              : bleBridgeStatus.status === "connecting"
-                ? "Connecting…"
-                : "Go live"}
-          </button>
-          {bleBridgeStatus.status === "error" && (
-            <p className="error">{bleBridgeStatus.detail}</p>
-          )}
-        </section>
-        <section className="card">
-          <div className="card-heading">
-            <h3>Your daily rhythm</h3>
-            <RefreshCw size={16} />
-          </div>
-          <form className="preferences" onSubmit={save}>
-            <label>
-              Timezone
-              <input
-                value={profile.timezone}
-                onChange={(e) =>
-                  setProfile({ ...profile, timezone: e.target.value })
-                }
-              />
-            </label>
-            <div className="form-row">
-              <label>
-                Usual bedtime
-                <input
-                  type="time"
-                  value={profile.bedtime}
-                  onChange={(e) =>
-                    setProfile({ ...profile, bedtime: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Sleep target · minutes
-                <input
-                  type="number"
-                  min={360}
-                  max={600}
-                  value={profile.target_sleep}
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      target_sleep: Number(e.target.value),
-                    })
-                  }
-                />
-              </label>
-            </div>
-            <label>
-              Workout length · minutes
-              <input
-                type="number"
-                min={10}
-                max={120}
-                value={profile.workout_minutes}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    workout_minutes: Number(e.target.value),
-                  })
-                }
-              />
-            </label>
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={profile.naps_enabled}
-                onChange={(e) =>
-                  setProfile({ ...profile, naps_enabled: e.target.checked })
-                }
-              />
-              Include nap suggestions
-            </label>
-            <button className="button" type="submit">
-              <Check size={15} />
-              Save preferences
-            </button>
-          </form>
-        </section>
-      </div>
-      {!session?.demo && (
-        <section className="card privacy-card">
-          <div>
-            <h3>Your data belongs to you.</h3>
-            <p>
-              Measurements are retained for {session?.retention_days ?? 90}{" "}
-              days. Export your history or permanently delete your account.
-            </p>
-          </div>
-          <a className="button" href="/api/data/export" download>
-            <Download size={16} />
-            Export data
-          </a>
-          <button className="button danger" onClick={() => setDeleting(true)}>
-            <Trash2 size={15} />
-            Delete account
-          </button>
-        </section>
-      )}
-      {deleting && (
-        <div className="modal-backdrop">
-          <section
-            className="auth-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Delete your account"
-          >
-            <h2>Delete your BioTwin data?</h2>
-            <p>
-              This permanently deletes your account, measurements, tokens, and
-              computed history. Existing calendar events stay in Google
-              Calendar.
-            </p>
-            <div className="form-row">
-              <button className="button" onClick={() => setDeleting(false)}>
-                Keep my account
-              </button>
-              <button
-                className="button danger"
-                onClick={async () => {
-                  try {
-                    const result = await api<{
-                      provider_revocation_failed: string[];
-                    }>("/api/data", { method: "DELETE" });
-                    setDeleting(false);
-                    onChange();
-                    notify(
-                      result.provider_revocation_failed.length
-                        ? "Local data deleted. Revoke BioTwin access in your provider account settings as well."
-                        : "Account and data deleted.",
-                    );
-                  } catch (e) {
-                    notify((e as Error).message);
-                  }
-                }}
-              >
-                Delete permanently
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="connections-page">
+    <div className="connections-summary glass"><span className="connection-icon"><Link2 size={25} /></span><div><span className="eyebrow">BETTER TOGETHER</span><h2>A home for your everyday signals.</h2><p>Bring your watch and calendar together. Choose what you connect.</p></div></div>
+    <div className="section-label"><h2>Connected accounts</h2><span className="fine-print">Your data stays yours</span></div>
+    <div className="connection-grid">{[
+      { id: "garmin", name: "Garmin Connect", icon: Watch, text: "Your sleep, activity and heart-rate history, directly from your watch account." },
+      { id: "google-calendar", name: "Google Calendar", icon: CalendarDays, text: "Find a free window and add the sessions you choose, with reminders." },
+      { id: "microsoft-calendar", name: "Outlook Calendar", icon: CalendarDays, text: "Fit your recovery around work and life. Busy time from both calendars is respected." },
+      { id: "fitbit", name: "Fitbit / Google Health", icon: Watch, text: "Add another view of your day from a compatible Fitbit wearable." },
+    ].map(item => {
+      const source = sources?.sources.find(s => s.provider === item.id);
+      return <section key={item.id} className="connection-card glass"><div className="provider-top"><span className="connection-icon"><item.icon size={23} /></span><span className={`status-pill ${source?.status === "connected" ? "good" : ""}`}>{source?.status === "connected" ? "Connected" : source?.status === "reconnect" ? "Reconnect needed" : "Not connected"}</span></div><h3>{item.name}</h3><p>{item.text}</p><div className="connection-actions"><button className="button" disabled={busy === item.id} onClick={() => connect(item.id)}>{busy === item.id ? "Opening…" : source?.status === "connected" ? "Reconnect" : "Connect account"}<ArrowUpRight size={15} /></button>{source?.status === "connected" && <button className="icon-btn" aria-label={`Disconnect ${item.name}`} onClick={async () => { try { await api(`/auth/${item.id}`, { method: "DELETE" }); reload(); notify("Account disconnected."); } catch { notify("Couldn't disconnect this account. Please try again."); } }}><LogOut size={16} /></button>}</div>{source?.sync?.status === "error" && <p className="error">Sync couldn't finish. Reconnect your account and try again.</p>}{!source?.configured && <small className="setup-note">This connection isn't available on this instance yet.</small>}{item.id.includes("calendar") && source?.status === "connected" && <details className="disclosure"><summary>Try a sample schedule</summary><p>Add sample events only if your coming week is completely empty.</p><button className="text-button" disabled={busy === `seed:${item.id}`} onClick={() => seedCalendar(item.id)}>{busy === `seed:${item.id}` ? "Checking…" : "Add a sample week"}</button></details>}</section>;
+    })}</div>
+    <div className="section-label"><h2>Your watch, your way</h2></div>
+    <section className="watch-methods glass"><div className="watch-method"><span className="connection-icon"><Upload size={21} /></span><div><h3>Bring your history</h3><p>Import an original Garmin FIT activity or a supported JSON export.</p></div><input ref={file} type="file" accept=".fit,.json" hidden onChange={e => { if (e.target.files?.[0]) void upload(e.target.files[0]); e.target.value = ""; }} /><button className="button" disabled={busy === "import"} onClick={() => session?.demo ? onAuth() : file.current?.click()}>{busy === "import" ? "Importing…" : "Import Garmin data"}<Upload size={14} /></button></div>
+      <div className="watch-method"><span className="connection-icon"><Bluetooth size={21} /></span><div><h3>Heart rate, as it happens</h3><p>Enable heart-rate broadcast on your watch, then pair it with a supported browser.</p></div><button className="button" onClick={broadcast}>{broadcasting ? "Disconnect broadcast" : "Connect heart-rate broadcast"}</button></div>
+      <div className="watch-method"><span className="connection-icon"><RefreshCw size={21} /></span><div><h3>Garmin companion sync</h3><p>Bring in your locally synced history and keep receiving new measurements.</p>{influxSyncStatus.status === "live" && <span className="status-pill good">Syncing{influxSyncStatus.last_frame_at ? ` · ${new Date(influxSyncStatus.last_frame_at).toLocaleTimeString()}` : ""}</span>}{influxSyncStatus.status === "error" && <p className="error">The companion couldn't be reached. Check that it's running.</p>}</div><button className="button" disabled={busy === "garmin-influx"} onClick={toggleGarminInflux}>{influxSyncStatus.status === "live" ? "Stop sync" : influxSyncStatus.status === "starting" ? "Connecting…" : "Connect companion"}</button></div>
+      <div className="watch-method"><span className="connection-icon"><Radio size={21} /></span><div><h3>Live watch companion</h3><p>Use your computer's live watch connection, including from a phone browser.</p>{bleBridgeStatus.status === "error" && <p className="error">The live companion couldn't be reached. Check your watch connection.</p>}</div><button className="button" disabled={busy === "garmin-ble-bridge"} onClick={toggleBleBridge}>{bleBridgeStatus.status === "connected" ? "Disconnect live bridge" : bleBridgeStatus.status === "connecting" ? "Connecting…" : "Go live"}</button></div>
+    </section>
+    <div className="two-col"><section className="glass"><div className="panel-title"><div><h2>Your daily rhythm</h2><p>Make your next plan feel like you.</p></div><CalendarDays size={20} className="green" /></div><form className="preferences" onSubmit={save}><label>Timezone<input value={profile.timezone} onChange={e => setProfile({ ...profile, timezone: e.target.value })} /></label><div className="form-row"><label>Usual bedtime<input type="time" value={profile.bedtime} onChange={e => setProfile({ ...profile, bedtime: e.target.value })} /></label><label>Sleep target · minutes<input type="number" min={360} max={600} value={profile.target_sleep} onChange={e => setProfile({ ...profile, target_sleep: Number(e.target.value) })} /></label></div><label>Workout length · minutes<input type="number" min={10} max={120} value={profile.workout_minutes} onChange={e => setProfile({ ...profile, workout_minutes: Number(e.target.value) })} /></label><label className="check-label"><input type="checkbox" checked={profile.naps_enabled} onChange={e => setProfile({ ...profile, naps_enabled: e.target.checked })} />Include nap suggestions</label><button className="button" type="submit"><Check size={15} />Save preferences</button></form></section>
+      <section className="voice-connection glass"><span className="connection-icon"><AudioLines size={24} /></span><span className={`status-pill ${sources?.elevenlabs.configured ? "good" : ""}`}>{sources?.elevenlabs.configured ? "Ready to talk" : "Text available"}</span><h2>A familiar voice.<br />A little more clarity.</h2><p>Your twin turns your measurements into a conversation. Its voice is powered by ElevenLabs.</p><p className="fine-print">Only the answer text is sent to create speech. Your questions and answers are saved in your private conversation history.</p></section></div>
+    {session && !session.demo && <section className="privacy-card glass"><div><h3>Yours to keep. Yours to control.</h3><p>Measurements are kept for {session.retention_days} days. Export your history whenever you like.</p></div><a className="button" href="/api/data/export" download><Download size={15} />Export data</a><button className="button danger" onClick={() => setDeleting(true)}><Trash2 size={14} />Delete account</button></section>}
+    {deleting && <div className="modal-backdrop"><section className="auth-modal" role="dialog" aria-modal="true" aria-label="Delete your account"><h2>Delete your BioTwin data?</h2><p>This permanently deletes your account, measurements, connections and conversations. Existing calendar events stay in your calendar.</p><div className="form-row"><button className="button" onClick={() => setDeleting(false)}>Keep my account</button><button className="button danger" onClick={async () => { try { const result = await api<{ provider_revocation_failed: string[] }>("/api/data", { method: "DELETE" }); setDeleting(false); onChange(); notify(result.provider_revocation_failed.length ? "Local data deleted. Revoke BioTwin in your provider account settings as well." : "Account and data deleted."); } catch { notify("Your account couldn't be deleted. Please try again."); } }}>Delete permanently</button></div></section></div>}
+  </div>;
 }
