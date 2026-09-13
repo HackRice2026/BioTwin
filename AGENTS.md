@@ -784,10 +784,33 @@ This file is a living document. The agent MUST:
   here rather than left stale. See
   `audio2face-sdk/source/samples/sample-a2f-blendshape-print/` (new,
   built for this) for a working, verified example of the right bundle
-  call. What's left is a C++-to-Python bridge (subprocess, JSON over
-  stdin/stdout, same shape as how the ASR lip-sync service shells out
-  to ffmpeg) -- not built yet, tracked on the `mesh` branch. Full detail
-  in docs/AVATAR_IMPLEMENTATION_PLAN.md's Audio2Face-3D section.
+  call. Update: the C++-to-Python bridge is now built and running as a
+  real service on the `mesh` branch (`services/avatar_face_a2f_service/`,
+  port 8767) -- see the next entry and
+  docs/AVATAR_IMPLEMENTATION_PLAN.md's Audio2Face-3D section for the
+  full detail.
+- The Audio2Face-3D SDK's bundle (executor + accumulators + blendshape
+  solver) is **not safe to reuse across multiple utterances in one
+  process** -- confirmed the hard way, three different attempts (Reset()
+  between utterances, never resetting and just accumulating one
+  continuous stream, and building a genuinely fresh bundle per
+  utterance with nothing from the first one touched again), all three
+  producing all-NaN blendshape weights on the second utterance onward.
+  Ruled out as the cause: every accumulator/solver Reset() and Wait()
+  call individually (traced through the SDK's own source -- each does
+  what its header says), and cuBLAS handle creation failing silently
+  (checked `cublasCreate()`'s actual return status via a temporary
+  instrumented build -- succeeded both times). Whatever state is
+  actually leaking is process-global and not exposed through the
+  public API to reset. **Working design:** one bundle = one utterance =
+  one process, kept fast enough for live conversation via a small warm
+  pool of pre-loaded, idle processes (`BridgePool` in
+  `services/avatar_face_a2f_service/app.py`) -- checked out once,
+  discarded, replaced in the background. Verified clean and correct
+  across four separate real utterances in a row (stable GPU memory,
+  exact expected process count, zero NaN). Don't re-attempt in-process
+  reuse without new information from NVIDIA on what that global state
+  actually is.
 - The two avatar GPU services (`avatar-face`, `avatar-body`) now have a
   watchdog on the SCC box, per explicit "keep it running always"
   request: `services/ensure_avatar_services.sh` (checks each service's

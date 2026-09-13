@@ -306,21 +306,75 @@ process: don't wrap any of these SDK objects in RAII, don't call
 clean afterward with `nvidia-smi`: no leaked GPU memory, no lingering
 process.
 
-**Still not done:** this is a batch bridge (whole utterance in, all
-frames out), not a low-latency incremental stream -- fine for
-individual TTS turns, not what you'd want for finer-grained real-time
-control. No Python service wraps it yet. Both are the natural next
-steps, tracked on the `mesh` branch (branched from `dev` after the
-EMAGE/ASR work was merged in).
+**Update 2026-09-13: wired up as a real service, on the `mesh` branch --
+`services/avatar_face_a2f_service/`.** Same `/ws/face` protocol and
+`blendshape_frame` shape as `avatar_face_service`, so the frontend can
+switch backends by port alone. Verified end-to-end against the live
+service, not just the bridge in isolation: a real MP3 clip sent over a
+real WebSocket connection, decoded by the same per-connection `ffmpeg`
+subprocess pattern as the ASR service, silence-flushed into utterances,
+run through the real SDK, and streamed back -- 232 frames, every one
+with real (non-near-zero) motion, repeated identically and cleanly
+across four separate connections in a row with stable GPU memory
+(6400 MiB throughout) and exactly the pool's target process count alive
+at all times (no leaked subprocesses).
+
+Getting there took a real investigation into something the SDK itself
+doesn't support cleanly: **reusing one bundle across multiple
+utterances in the same process.** Three different approaches were each
+tried in full and each reproducibly corrupted the second utterance --
+every blendshape weight came back `NaN`, from frame 0 onward, every
+time:
+1. `Reset()` the executor + both accumulators between utterances (all
+   real, documented, per-track reset calls -- traced through the SDK's
+   own source to confirm each one does what its header says: zeroes
+   the blendshape solver's temporal-regularization state, clears the
+   audio/emotion accumulators' sample counts and returns their GPU
+   buffers to a pool, resets the window-progress tracker and every
+   animator). Confirmed via `IExecutor::Wait(trackIndex)` that this
+   wasn't a race between the still-async CPU solve of the last frame
+   and the next utterance's reset either -- waiting first didn't help.
+2. Never reset at all -- just keep accumulating one continuous audio
+   stream for the life of the connection (the pattern the SDK's own
+   test suite actually uses for this exact executor). This avoided the
+   NaN, but without ever closing the accumulator almost no frames ever
+   became "ready" to read: this SDK's accumulator/executor pairing is
+   built for one-shot batch processing (accumulate everything, close,
+   drain), not incremental streaming appends.
+3. Discard the whole bundle and build a genuinely fresh one -- new
+   executor, new blendshape solver, new accumulators, nothing from the
+   first utterance touched or referenced again -- for each utterance,
+   in the same process. Still NaN, immediately, from frame 0 of the
+   second bundle's very first utterance. Checked and ruled out as the
+   cause: `cublasCreate()`'s return status on every cuBLAS handle
+   created along this path (confirmed `CUBLAS_STATUS_SUCCESS` both
+   times, via a temporary instrumented build of the SDK's own source).
+   That points to some process-global GPU/allocator state this SDK
+   doesn't expose a way to reset -- not something fixable from a call
+   site using the public API, and not something to keep guessing at
+   further without NVIDIA's own engineering input.
+
+**The actual fix lives one level up, in the Python service, not the
+bridge:** stay with the one configuration that produced correct output
+every single time it was tried -- one bundle, one utterance, one
+process, then exit -- and hide its ~1-3s model-load cost behind a small
+warm pool (`BridgePool` in `services/avatar_face_a2f_service/app.py`)
+that keeps a couple of these processes already loaded and idle at all
+times. An utterance checks one out, uses it once, and it's discarded
+(replaced in the background immediately) rather than reused. The bridge
+program itself (`services/audio2face_sdk_bridge/sample-a2f-blendshape-print/main.cpp`)
+went back to the simple single-utterance form this implies: read one
+length-prefixed PCM utterance from stdin, process it, print
+`{"utterance_done":true}`, `_exit(0)`.
 
 Still true from the original investigation: the gated NIM microservice
 path (`NVIDIA/Audio2Face-3D-Samples`, via NGC) remains unavailable and
 wasn't revisited -- this open SDK path turned out not to need it.
 
-Nothing from this SDK is deployed as a running service yet; the build
-lives at `/data/saurav/audio2face-sdk` on the SCC box. The face
-service in production today is still the ASR-based one described
-above, until the streaming bridge above is built and swapped in.
+Not merged into `dev` yet, per instruction -- this is all on the `mesh`
+branch, running manually via tmux on port 8767 on the SCC box
+(`avatar_face_service`, the ASR-based backend, stays what's actually in
+production/on `dev` until this is explicitly promoted).
 
 ## How to run what exists now
 
