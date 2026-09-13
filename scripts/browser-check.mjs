@@ -25,7 +25,7 @@ const page = await context.newPage();
 page.on("pageerror", (e) => report.errors.push(e.message));
 try {
   await page.goto(root);
-  await page.locator(".twin-hero canvas").waitFor();
+  await page.locator(".twin-hero canvas, .twin-hero .coach-portrait img").first().waitFor();
   await page.evaluate(() => document.fonts.ready);
   for (const viewport of [
     { width: 1440, height: 1050 },
