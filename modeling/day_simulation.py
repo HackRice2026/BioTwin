@@ -110,7 +110,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
     baseline = _scenario(
         "current_plan",
         "Current plan",
-        "Your fitted forecast, before changing the day.",
+        "Your day if nothing changes.",
         baseline_points,
         window_label,
         workout_label,
@@ -147,7 +147,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
         _scenario(
             "train_now",
             "Train now",
-            "Moves the workout earlier and shows the likely evening cost.",
+            "Workout now, see evening cost.",
             train_now_points,
             "Now",
             "Shorter session now",
@@ -158,7 +158,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
         _scenario(
             "train_best_window",
             f"Train at {window_label}",
-            "Keeps the session in the best available window.",
+            "Delay training to better timing.",
             train_later_points,
             window_label,
             workout_label,
@@ -169,7 +169,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
         _scenario(
             "extra_steps",
             f"+{steps:,} steps",
-            "Adds walking load to the day and adjusts the workout advice.",
+            "Add walking, adjust workout load.",
             steps_points,
             steps_window,
             steps_workout,
@@ -180,7 +180,7 @@ def simulate_day(history, now, timezone="UTC", plan=None, steps=5000, recovery_m
         _scenario(
             "recovery_break",
             f"{recovery_minutes}-min recovery",
-            "Estimates a quiet break before training, capped as a modest planning benefit.",
+            "Rest briefly, protect training quality.",
             recovery_points,
             window_label,
             workout_label,
