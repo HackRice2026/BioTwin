@@ -140,6 +140,14 @@ This file is a living document. The agent MUST:
   regression. VERIFIED through the frontend proxy with
   `mode: "language_service"` and `model: "vertex:gemini-2.5-flash"`.
 
+- 2026-09-13 — Shared data source check: Supabase in this app means the
+  backend `DATABASE_URL` points at Supabase Postgres; there is no separate
+  browser Supabase client. `/api/session.data_source` and `/ops/status.storage`
+  now expose the active backend (`sqlite`, `postgres`, or `supabase`). If they
+  say `sqlite`, the UI/Gemini/calendar stack is still reading local data even
+  if the screen looks connected. Dashboard metric cards/details now hide
+  unpopulated latest fields instead of rendering dashes as if they were data.
+
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The

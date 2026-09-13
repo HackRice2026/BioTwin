@@ -75,6 +75,7 @@ export type Forecast =
 export type Session = {
   user: { id: string; name: string; email: string; profile: Profile };
   demo: boolean;
+  data_source: "sqlite" | "postgres" | "supabase" | "database";
   voice_configured: boolean;
   narration_configured: boolean;
   retention_days: number;

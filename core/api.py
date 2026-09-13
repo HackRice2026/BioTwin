@@ -46,6 +46,17 @@ from narration.service import narrate
 from narration.transcription import transcribe
 
 
+def data_source_label(database_url: str) -> str:
+    url = database_url.lower()
+    if url.startswith("sqlite"):
+        return "sqlite"
+    if "supabase" in url:
+        return "supabase"
+    if url.startswith("postgres"):
+        return "postgres"
+    return "database"
+
+
 class AuthInput(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=12, max_length=128)
@@ -271,6 +282,7 @@ def create_app(config=None):
         return {
             "user": public_user(u),
             "demo": u["id"] == "demo",
+            "data_source": data_source_label(config.database_url),
             "voice_configured": bool(config.elevenlabs_api_key),
             "narration_configured": bool(config.allow_external_narration and config.narration_api_key),
             "retention_days": config.retention_days,
@@ -1097,7 +1109,7 @@ def create_app(config=None):
     async def ops(request: Request):
         u = user(request)
         return {
-            "storage": "sqlite" if config.database_url.startswith("sqlite") else "postgres",
+            "storage": data_source_label(config.database_url),
             "demo": u["id"] == "demo",
             "counters": dict(rt().counters),
             "clients": len(rt().subscribers[u["id"]]),
