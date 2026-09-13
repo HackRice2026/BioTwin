@@ -1,5 +1,6 @@
 /* Generated from shared/schemas. Run npm run types. Do not edit. */
 
+export type EnergyReservePct = number | null;
 export type SchemaVersion = string;
 export type Sequence = number;
 export type ServerTime = string;
@@ -156,6 +157,7 @@ export interface BioTwinContracts {
   DayOutlook: DayOutlook;
 }
 export interface TwinState {
+  energy_reserve_pct?: EnergyReservePct;
   schema_version?: SchemaVersion;
   sequence: Sequence;
   server_time: ServerTime;

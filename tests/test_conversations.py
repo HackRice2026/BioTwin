@@ -191,3 +191,21 @@ def test_timestamped_speech_is_scoped_and_preserves_alignment(client):
     assert calls[0].url.path.endswith("/stream/with-timestamps")
     assert json.loads(calls[0].content)["text"] == reply["answer"]
     assert client.get(f"/api/voice/{reply['reply_id']}?timestamps=true").status_code == 404
+
+
+def test_energy_estimate_is_missing_without_signals_and_grounded_when_available(client):
+    uid = register(client)
+    assert client.get("/api/state").json()["energy_reserve_pct"] is None
+    from shared.schemas import TwinFrame, Provenance
+    from modeling.explanations import narration_context
+    frame = TwinFrame(user_id=uid, event_time=utcnow(), provenance=Provenance.GARMIN_LIVE,
+                      hrv_rmssd_ms=50, resting_hr_bpm=60, heart_rate_bpm=65, active_kcal=280)
+    runtime = client.app.state.runtime
+    client.portal.call(runtime.ingest, frame)
+    state = runtime.compute(uid)
+    reserve = state.energy_reserve_pct
+    assert reserve is not None and 0 <= reserve <= 100
+    facts = narration_context(state).facts
+    assert any(f"Body Battery estimate is {reserve} percent" in f for f in facts)
+    assert any("active calories burned is 280" in f for f in facts)
+    assert client.get("/api/state").json()["energy_reserve_pct"] == reserve

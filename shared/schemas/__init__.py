@@ -208,6 +208,7 @@ class MetricQuality(Contract):
 
 
 class TwinState(Contract):
+    energy_reserve_pct: int | None = Field(default=None, ge=0, le=100)
     schema_version: str = SCHEMA_VERSION
     sequence: int
     server_time: AwareDatetime

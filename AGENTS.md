@@ -128,6 +128,13 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Body Battery is an explicitly unvalidated presentation estimate:
+  80% existing readiness + 20% live recovery progress, using readiness alone
+  when the live pulse is stale/missing, and null when readiness is missing.
+  It never treats missing recovery as zero and never overwrites Garmin’s
+  reported battery. The optional state field and narration facts share the
+  server-computed value; active calories are also now available to narration.
+
 - 2026-09-12 — BioTwin 2.0 speech supports optional timestamped NDJSON on
   the existing account-scoped, single-use ticket endpoint. Caption timing
   follows audio currentTime; only the ended event triggers automatic return.

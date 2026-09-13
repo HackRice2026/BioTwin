@@ -5,6 +5,11 @@ from zoneinfo import ZoneInfo
 def narration_context(state, plan=None, readiness_history=()):
     r, b = state.readiness, state.baseline_summary
     facts = []
+    if state.energy_reserve_pct is not None:
+        facts.append(
+            f"Your BioTwin Body Battery estimate is {state.energy_reserve_pct} percent. "
+            "It combines readiness signals with available heart-rate recovery; it is not Garmin's Body Battery or a medical measure."
+        )
     if r.score is not None:
         facts.append(
             f"Your estimated readiness is {r.score:g}, in the {r.state.value.replace('_', ' ')} range relative to your pattern."
@@ -37,6 +42,7 @@ def narration_context(state, plan=None, readiness_history=()):
             ("respiration_brpm", "respiration", "breaths per minute"),
             ("spo2_pct", "oxygen saturation", "percent"),
             ("steps", "step count", "steps"),
+            ("active_kcal", "active calories burned", "kilocalories"),
         ]:
             value = getattr(state.latest, field)
             if value is not None:
