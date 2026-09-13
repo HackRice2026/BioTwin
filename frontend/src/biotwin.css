@@ -480,12 +480,20 @@ button.primary:hover:not(:disabled) {
   padding: calc(var(--bar) + 34px) 38px 0;
   max-width: 1900px;
 }
+@media (min-width: 761px) {
+  .workspace:has(> .page-intro:empty) {
+    padding-top: calc(var(--bar) + 14px);
+  }
+}
 .page-intro {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 25px;
   gap: 16px;
+}
+.page-intro:empty {
+  display: none;
 }
 .page-intro h1 {
   margin-top: 8px;
