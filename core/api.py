@@ -524,7 +524,7 @@ def create_app(config=None):
         }
 
     @app.get("/api/voice/{reply_id}")
-    async def voice(reply_id: str, request: Request):
+    async def voice(reply_id: str, request: Request, timestamps: bool = False):
         uid = conversation_owner(request)
         if not config.elevenlabs_api_key:
             raise HTTPException(
@@ -536,7 +536,8 @@ def create_app(config=None):
             raise HTTPException(404, "Speech expired. Ask the twin again.")
         upstream = rt().http.build_request(
             "POST",
-            f"https://api.elevenlabs.io/v1/text-to-speech/{config.elevenlabs_voice_id}/stream",
+            f"https://api.elevenlabs.io/v1/text-to-speech/{config.elevenlabs_voice_id}/stream"
+            + ("/with-timestamps" if timestamps else ""),
             params={"output_format": "mp3_44100_128"},
             headers={"xi-api-key": config.elevenlabs_api_key},
             json={"text": speech["answer"], "model_id": config.elevenlabs_model_id},
@@ -575,7 +576,11 @@ def create_app(config=None):
             finally:
                 await response.aclose()
 
-        return StreamingResponse(chunks(), media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+        return StreamingResponse(
+            chunks(),
+            media_type="application/x-ndjson" if timestamps else "audio/mpeg",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/sources")
     async def sources(request: Request):

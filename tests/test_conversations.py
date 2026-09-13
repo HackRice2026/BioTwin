@@ -167,3 +167,45 @@ def test_history_pagination_and_retention(client):
     assert [row["id"] for row in store.conversation_history(uid)] == ids[1:]
     with store.engine.connect() as db:
         assert db.execute(select(conversations.c.id).where(conversations.c.id == ids[0])).first() is None
+
+
+def test_timestamped_speech_is_scoped_and_preserves_alignment(client):
+    register(client)
+    reply = client.post("/api/twin/ask", json={"question": "How am I?"}).json()
+    chunk = {"audio_base64": "SUQz", "alignment": {"characters": ["H", "i"],
+             "character_start_times_seconds": [0, .1], "character_end_times_seconds": [.1, .2]}}
+    calls = []
+
+    def timed(request):
+        calls.append(request)
+        return httpx.Response(200, content=json.dumps(chunk) + "\n")
+
+    runtime = client.app.state.runtime
+    client.portal.call(runtime.http.aclose)
+    runtime.http = httpx.AsyncClient(transport=httpx.MockTransport(timed))
+    response = client.get(f"/api/voice/{reply['reply_id']}?timestamps=true")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json() == chunk
+    assert calls[0].url.path.endswith("/stream/with-timestamps")
+    assert json.loads(calls[0].content)["text"] == reply["answer"]
+    assert client.get(f"/api/voice/{reply['reply_id']}?timestamps=true").status_code == 404
+
+
+def test_energy_estimate_is_missing_without_signals_and_grounded_when_available(client):
+    uid = register(client)
+    assert client.get("/api/state").json()["energy_reserve_pct"] is None
+    from shared.schemas import TwinFrame, Provenance
+    from modeling.explanations import narration_context
+    frame = TwinFrame(user_id=uid, event_time=utcnow(), provenance=Provenance.GARMIN_LIVE,
+                      hrv_rmssd_ms=50, resting_hr_bpm=60, heart_rate_bpm=65, active_kcal=280)
+    runtime = client.app.state.runtime
+    client.portal.call(runtime.ingest, frame)
+    state = runtime.compute(uid)
+    reserve = state.energy_reserve_pct
+    assert reserve is not None and 0 <= reserve <= 100
+    facts = narration_context(state).facts
+    assert any(f"Body Battery estimate is {reserve} percent" in f for f in facts)
+    assert any("active calories burned is 280" in f for f in facts)
+    assert client.get("/api/state").json()["energy_reserve_pct"] == reserve

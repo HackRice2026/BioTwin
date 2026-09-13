@@ -7,7 +7,12 @@ import {
   Component,
 } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import {
+  Canvas,
+  useFrame,
+  useThree,
+  events as pointerEvents,
+} from "@react-three/fiber";
 import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
@@ -40,7 +45,6 @@ import type {
   AvatarSemanticState,
   BodyFrame,
   FaceFrame,
-  FaceServiceState,
 } from "./avatar/state/AvatarState";
 import {
   blendEmotion,
@@ -232,15 +236,19 @@ function Body({
       if (mesh.isMesh) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const materials = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
         const cloned = materials.map((material) => {
           const next = material.clone() as THREE.MeshStandardMaterial;
           (
-            [next.map, next.normalMap, next.roughnessMap, next.metalnessMap, next.emissiveMap] as (
-              | THREE.Texture
-              | null
-              | undefined
-            )[]
+            [
+              next.map,
+              next.normalMap,
+              next.roughnessMap,
+              next.metalnessMap,
+              next.emissiveMap,
+            ] as (THREE.Texture | null | undefined)[]
           ).forEach((tex) => {
             if (tex) tex.anisotropy = maxAnisotropy;
           });
@@ -580,10 +588,7 @@ export default function Avatar({
   const audioEnergy = useRef(0);
   const [quality, setQuality] = useState("Auto");
   const [dpr, setDpr] = useState(1.5);
-  const [p95, setP95] = useState<number | null>(null);
   const [motion, setMotion] = useState("IDLE");
-  const [faceState, setFaceState] = useState<FaceServiceState>("checking");
-  const [debug, setDebug] = useState(false);
   const [workoutCue, setWorkoutCue] = useState("BRACE");
   const [, refresh] = useState(0);
   const phase = speaking
@@ -618,10 +623,12 @@ export default function Avatar({
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.shiftKey && event.key.toLowerCase() === "d") {
-        setDebug((value) => !value);
+      if (
+        (event.target as HTMLElement)?.closest(
+          "input, textarea, select, [contenteditable=true]",
+        )
+      )
         return;
-      }
       const next = demoStates[event.key];
       if (!next) return;
       emitAvatarSemantic(next);
@@ -659,7 +666,6 @@ export default function Avatar({
       socket.current = ws;
       ws.onopen = () => {
         retry = 0;
-        setFaceState("online");
       };
       ws.onmessage = (event) => {
         const raw =
@@ -670,10 +676,9 @@ export default function Avatar({
         faceFrames.current.push(frame);
         if (faceFrames.current.length > 16) faceFrames.current.shift();
       };
-      ws.onerror = () => setFaceState("fallback");
+      ws.onerror = () => {};
       ws.onclose = () => {
         if (socket.current === ws) socket.current = null;
-        setFaceState("fallback");
         if (!stopped)
           window.setTimeout(connect, Math.min(5000, 1000 + retry++ * 500));
       };
@@ -682,13 +687,10 @@ export default function Avatar({
       fetch(`${faceHttp}/health`, { mode: "cors" })
         .then((response) => {
           if (!response.ok) throw new Error("Face service unavailable");
-          setFaceState("online");
           connect();
         })
         .catch(() => {
-          setFaceState("fallback");
-          if (!stopped)
-            healthTimer = window.setTimeout(checkHealth, 5000);
+          if (!stopped) healthTimer = window.setTimeout(checkHealth, 5000);
         });
     };
     checkHealth();
@@ -710,7 +712,8 @@ export default function Avatar({
         bodyRetry = 0;
       };
       ws.onmessage = (event) => {
-        const raw = typeof event.data === "string" ? JSON.parse(event.data) : null;
+        const raw =
+          typeof event.data === "string" ? JSON.parse(event.data) : null;
         const frame = parseBodyFrame(raw);
         if (!frame) return;
         frame.timestampMs = window.performance.now();
@@ -720,7 +723,10 @@ export default function Avatar({
       ws.onclose = () => {
         if (bodySocket.current === ws) bodySocket.current = null;
         if (!bodyStopped)
-          window.setTimeout(connectBody, Math.min(5000, 1000 + bodyRetry++ * 500));
+          window.setTimeout(
+            connectBody,
+            Math.min(5000, 1000 + bodyRetry++ * 500),
+          );
       };
     };
     const checkBodyHealth = () => {
@@ -730,7 +736,8 @@ export default function Avatar({
           connectBody();
         })
         .catch(() => {
-          if (!bodyStopped) bodyHealthTimer = window.setTimeout(checkBodyHealth, 5000);
+          if (!bodyStopped)
+            bodyHealthTimer = window.setTimeout(checkBodyHealth, 5000);
         });
     };
     checkBodyHealth();
@@ -754,10 +761,8 @@ export default function Avatar({
   }, []);
 
   const perf = (n: number) => {
-    setP95(n);
     if (quality === "Auto" && n > 25) setDpr(1);
   };
-  const debugEmotion = semantic.current.emotion;
   return (
     <div
       className={`avatar-card${compact ? " compact" : ""} avatar-phase-${phase}`}
@@ -771,12 +776,18 @@ export default function Avatar({
             : humanize(state.readiness.state)}
         </span>
       </div>
-      <div className="avatar-coordinates">
-        <span>01 / 3D COACH</span>
-        <span>{overlay.current ? "SIMULATION" : humanize(motion)}</span>
-      </div>
       <CanvasBoundary>
         <Canvas
+          events={(store) => {
+            const manager = pointerEvents(store);
+            const connect = manager.connect;
+            // Canvas.configure is async: account/tab changes can detach its
+            // event source before onCreated runs. Never bind a detached target.
+            manager.connect = (target) => {
+              if (target?.isConnected) connect?.(target);
+            };
+            return manager;
+          }}
           dpr={compact ? 1 : dpr}
           camera={{ position: [0, 0.28, 3.7], fov: compact ? 31 : 35 }}
           gl={{
@@ -785,7 +796,7 @@ export default function Avatar({
             powerPreference: "high-performance",
           }}
           shadows
-          style={{ height: compact ? 170 : 390 }}
+          style={{ height: "100%" }}
         >
           <ambientLight intensity={1.5} />
           <directionalLight
@@ -803,7 +814,10 @@ export default function Avatar({
             {/* Lighting-only (background stays transparent, alpha canvas) --
                 gives the now-glossy corneas and any specular skin/eye highlight
                 something continuous to reflect instead of just two point lights. */}
-            <Environment preset="apartment" environmentIntensity={0.35} />
+            <Environment
+              files="/assets/studio.hdr"
+              environmentIntensity={0.35}
+            />
             <Body
               live={live}
               overlay={overlay}
@@ -841,20 +855,15 @@ export default function Avatar({
           />
         </Canvas>
       </CanvasBoundary>
-      <WorkoutHud active={semantic.current.action === "squat"} cue={workoutCue} />
+      <WorkoutHud
+        active={semantic.current.action === "squat"}
+        cue={workoutCue}
+      />
       <div className="avatar-caption">
         <Move size={13} />
         <span>Drag to explore your coach</span>
       </div>
       <div className="avatar-bottom">
-        <span>
-          <i className="mint-dot" />{" "}
-          {reduced
-            ? "Reduced motion"
-            : p95
-              ? `${Math.round(1000 / p95)} fps · p95 ${p95.toFixed(1)} ms`
-              : "Initializing 3D"}
-        </span>
         <div>
           <select
             aria-label="Graphics quality"
@@ -893,48 +902,33 @@ export default function Avatar({
         )}
         {phase === "idle" && "Idle"}
       </div>
-      <div className={`avatar-face-link ${faceState}`}>
-        GPU FACE SERVICE: {faceState === "online" ? "ONLINE" : "FALLBACK"}
-      </div>
-      {debug && (
-        <div className="avatar-debug">
-          <div>
-            <b>Face</b>
-            <span>{faceState}</span>
-            <span>{faceFrames.current.length} frames</span>
-          </div>
-          <div>
-            <b>Emotion</b>
-            <span>energy {debugEmotion.energy.toFixed(2)}</span>
-            <span>fatigue {debugEmotion.fatigue.toFixed(2)}</span>
-            <span>stress {debugEmotion.stress.toFixed(2)}</span>
-            <span>concern {debugEmotion.concern.toFixed(2)}</span>
-          </div>
-          <div className="avatar-debug-actions">
-            {[
-              ["point", "Point"],
-              ["walk", "Walk"],
-              ["run", "Run"],
-              ["nod", "Nod"],
-              ["squat", "Squat"],
-              ["celebrate", "Celebrate"],
-            ].map(([action, label]) => (
-              <button
-                key={action}
-                onClick={() =>
-                  emitAvatarSemantic({
-                    action: action as AvatarAction,
-                    gaze: action === "point" ? "panel" : "user",
-                    camera: action === "squat" ? "exercise" : "conversation",
-                  })
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      <details className="avatar-movements">
+        <summary>Movement</summary>
+        <div>
+          {[
+            ["idle", "Relax"],
+            ["point", "Point"],
+            ["walk", "Walk"],
+            ["run", "Run"],
+            ["nod", "Nod"],
+            ["squat", "Squat"],
+            ["celebrate", "Celebrate"],
+          ].map(([action, label]) => (
+            <button
+              key={action}
+              onClick={() =>
+                emitAvatarSemantic({
+                  action: action as AvatarAction,
+                  gaze: action === "point" ? "panel" : "user",
+                  camera: action === "squat" ? "exercise" : "conversation",
+                })
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      )}
+      </details>
       {semantic.current.action === "squat" && (
         <div className="avatar-workout-icon" aria-hidden="true">
           <Dumbbell size={16} />

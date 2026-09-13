@@ -21,10 +21,11 @@ import type {
 } from "./contracts";
 import type { MetricPoint, SleepPoint } from "./api";
 
-const grid = "#e9ece6";
+const grid = "#ffffff0b";
 const tooltip = {
-  background: "#fff",
-  border: "1px solid #e1e7de",
+  background: "#202829",
+  color: "#f5f8f7",
+  border: "1px solid #ffffff20",
   borderRadius: 12,
   fontSize: 12,
   boxShadow: "0 8px 24px #153b3210",
@@ -152,10 +153,12 @@ export function SignalChart({
   data,
   unit,
   days = 7,
+  color = "#7bdfa7",
 }: {
   data: MetricPoint[];
   unit: string;
   days?: number;
+  color?: string;
 }) {
   if (!data.length) return <EmptyChart />;
   const rows = data.map((p) => ({ ...p, time: new Date(p.time).getTime() }));
@@ -188,9 +191,9 @@ export function SignalChart({
         />
         <Area
           dataKey="value"
-          stroke="#397b65"
-          fill="#d9e9df"
-          fillOpacity={0.55}
+          stroke={color}
+          fill={color}
+          fillOpacity={0.08}
           strokeWidth={2}
           dot={false}
           isAnimationActive={false}
@@ -283,7 +286,7 @@ export function RecoveryChart({
         />
         <Line
           dataKey="observed"
-          stroke="#224f3b"
+          stroke="#7bdfa7"
           strokeWidth={2.5}
           dot={false}
           connectNulls
@@ -307,19 +310,19 @@ export function SleepChart({ data }: { data: SleepPoint[] }) {
         <Bar
           dataKey="deep_minutes"
           stackId="a"
-          fill="#295842"
+          fill="#5089d6"
           name="Deep · min"
         />
         <Bar
           dataKey="light_minutes"
           stackId="a"
-          fill="#a6c5b1"
+          fill="#9cc9f6"
           name="Light · min"
         />
         <Bar
           dataKey="rem_minutes"
           stackId="a"
-          fill="#c5dfbd"
+          fill="#79d8b0"
           name="REM · min"
         />
         <Bar
@@ -363,13 +366,13 @@ export function ReadinessChart({
             y1={boundaries[i]}
             y2={boundaries[i + 1]}
             fill={color}
-            fillOpacity={0.65}
+            fillOpacity={0.06}
           />
         ))}
         <Tooltip contentStyle={tooltip} />
         <Line
           dataKey="score"
-          stroke="#2e6750"
+          stroke="#7bdfa7"
           strokeWidth={2.5}
           dot={{ r: 3 }}
           isAnimationActive={false}

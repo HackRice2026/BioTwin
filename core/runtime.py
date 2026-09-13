@@ -271,6 +271,14 @@ class Runtime:
             provenance_banner=provenance,
             prediction=prediction.model_copy(update={"curve": [], "observed": []}) if prediction else None,
         )
+        # A presentation estimate from already-computed signals. Readiness carries
+        # sleep, HRV, resting HR and sleep debt; recovery adds a live rest component.
+        # A missing live pulse is not evidence of zero recovery.
+        if ready.score is not None:
+            reserve = ready.score
+            if state.drivers.pulse_hz is not None:
+                reserve = .8 * reserve + 20 * state.drivers.recovery_progress
+            state = state.model_copy(update={"energy_reserve_pct": round(max(0, min(100, reserve)))})
         self.states[uid] = state
         return state
 

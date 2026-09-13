@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, post, type OfflineBundle, type Session } from "./api";
 import type { Conversation } from "./contracts";
+import type { CaptionWord } from "./captions";
 import { TwinVoice } from "./voice";
 import { recordQuestion } from "./microphone";
 import { emitAvatarSemantic } from "./avatar/avatarBus";
@@ -29,13 +30,22 @@ export function useTwinConversation({
   bundle,
   session,
   accountKey,
+  onQuestion,
+  onSpeechEnd,
 }: {
   open: boolean;
   online: boolean;
   bundle: OfflineBundle | null;
   session: Session | null;
   accountKey: number;
+  onQuestion?: (text: string) => void;
+  onSpeechEnd?: () => void;
 }) {
+  const callbacks = useRef({ onQuestion, onSpeechEnd });
+  callbacks.current = { onQuestion, onSpeechEnd };
+  const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
+  const [audioTime, setAudioTime] = useState(0);
+  const [activeAnswer, setActiveAnswer] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
@@ -64,6 +74,8 @@ export function useTwinConversation({
     setSpeaking(false);
     setVoiceNotice("");
     setNeedsTap(false);
+    setCaptionWords([]);
+    setAudioTime(0);
   }
   function resumeSpeech() {
     setNeedsTap(false);
@@ -78,6 +90,7 @@ export function useTwinConversation({
     recording.current?.abort();
     stopSpeaking();
     setTurns([]);
+    setActiveAnswer("");
     setQuestion("");
     setAsking(false);
     setListening(false);
@@ -167,6 +180,7 @@ export function useTwinConversation({
       return;
     }
     setVoiceError(false);
+    setActiveAnswer(reply.answer);
     if (voice.current?.conversationId === reply.id) {
       await voice.current.resume();
       return;
@@ -186,18 +200,27 @@ export function useTwinConversation({
       if (request !== speechRequest.current || currentEpoch !== epoch.current)
         return;
       if (!voice.current) voice.current = new TwinVoice();
-      await voice.current.play(reply.id, `/api/voice/${ticket.reply_id}`, {
-        speaking: (active) => {
-          setSpeaking(active);
-          if (active) setNeedsTap(false);
+      await voice.current.play(
+        reply.id,
+        `/api/voice/${ticket.reply_id}?timestamps=true`,
+        {
+          speaking: (active) => {
+            setSpeaking(active);
+            if (active) setNeedsTap(false);
+          },
+          status: setVoiceNotice,
+          error: (message) => {
+            setVoiceError(true);
+            setVoiceNotice(message);
+          },
+          blocked: () => setNeedsTap(true),
+          ended: () => callbacks.current.onSpeechEnd?.(),
+          captions: (words, time) => {
+            setCaptionWords(words);
+            setAudioTime(time);
+          },
         },
-        status: setVoiceNotice,
-        error: (message) => {
-          setVoiceError(true);
-          setVoiceNotice(message);
-        },
-        blocked: () => setNeedsTap(true),
-      });
+      );
     } catch (error) {
       if (request !== speechRequest.current || currentEpoch !== epoch.current)
         return;
@@ -227,7 +250,9 @@ export function useTwinConversation({
         action: "listen",
         gaze: "user",
       });
-    } else if (/show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)) {
+    } else if (
+      /show me (the )?squat|squat demo|demonstrate (a )?squat/i.test(text)
+    ) {
       emitAvatarSemantic({
         action: "squat",
         gaze: "workout",
@@ -243,6 +268,9 @@ export function useTwinConversation({
     setTranscribing(false);
     setQuestion("");
     setAsking(true);
+    setActiveAnswer("");
+    setVoiceError(false);
+    callbacks.current.onQuestion?.(text);
     const id = crypto.randomUUID();
     setTurns((rows) => [
       ...rows,
@@ -275,6 +303,7 @@ export function useTwinConversation({
         });
       }
       if (currentEpoch !== epoch.current) return;
+      setActiveAnswer(reply.answer);
       setTurns((rows) =>
         rows.map((row) =>
           row.id === id
@@ -349,55 +378,11 @@ export function useTwinConversation({
       recording.current?.stop();
       return;
     }
-    const Recognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (!Recognition) {
-      stopSpeaking();
-      setVoiceError(false);
-      startRecording();
-      return;
-    }
     stopSpeaking();
     setVoiceError(false);
-    const currentEpoch = epoch.current;
-    const input = new Recognition();
-    recognition.current = input;
-    input.lang = "en-US";
-    input.interimResults = false;
-    input.continuous = false;
-    input.onstart = () => {
-      if (currentEpoch === epoch.current) setListening(true);
-    };
-    input.onend = () => {
-      if (currentEpoch === epoch.current) setListening(false);
-    };
-    input.onresult = (event: any) => {
-      if (currentEpoch !== epoch.current) return;
-      const text = event.results[0]?.[0]?.transcript?.trim();
-      if (text) void ask(text);
-    };
-    input.onerror = (event: any) => {
-      if (currentEpoch !== epoch.current || event.error === "aborted") return;
-      setListening(false);
-      if (event.error === "network") {
-        startRecording();
-        return;
-      }
-      setVoiceError(true);
-      setVoiceNotice(
-        "Microphone input was unavailable. You can type your question.",
-      );
-    };
-    try {
-      input.start();
-    } catch {
-      setVoiceError(true);
-      setVoiceNotice(
-        "Microphone input could not start. Type your question below.",
-      );
-    }
+    startRecording();
   }
+
   const messages = turns.flatMap((turn) => [
     {
       key: `${turn.id}:user`,
@@ -420,6 +405,9 @@ export function useTwinConversation({
   ]);
   return {
     messages,
+    captionWords,
+    audioTime,
+    activeAnswer,
     question,
     setQuestion,
     asking: asking || transcribing,
