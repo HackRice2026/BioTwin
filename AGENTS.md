@@ -134,6 +134,66 @@ This file is a living document. The agent MUST:
   light below readiness 65 and “heavy cardio” appears only at 65 or above;
   hydration is phrased as a consistent habit rather than prescribing a universal
   volume. Completion is intentionally session-local and resets for a new day.
+- 2026-09-12 — Connected the local FastAPI server to Supabase project
+  `xdosufbwuvstfkhllenh`. The direct database hostname is IPv6-only and did
+  not resolve on this machine; the verified working connection is the free
+  session pooler (`aws-0-us-east-1.pooler.supabase.com:5432`, user
+  `postgres.xdosufbwuvstfkhllenh`). Added
+  `scripts/migrate_sqlite_account.py`, an idempotent email-scoped transfer for
+  an existing SQLite account and its measurements/documents/sessions/
+  conversations. Migrated `sapnilb15@gmail.com`: 196 measurements, 8
+  documents, 1 active session, and 5 conversations; a second run left the
+  counts unchanged. All 196 transferred measurements have `synthetic`
+  provenance (they are not Garmin-origin data). `/healthz` returned 200 and
+  `/ops/status` reported `storage: postgres` with no runtime errors. A fresh
+  remote database takes roughly two minutes to seed the default demo because
+  startup performs hundreds of individual network writes before binding port
+  8000.
+
+- 2026-09-12 — Began the Supabase migration on branch `database`. Decision:
+  Supabase is the hosted PostgreSQL engine, but FastAPI remains the only data
+  API and continues to own BioTwin authentication/sessions. The schema keeps a
+  unique email on `users` and relates Garmin measurements and every other
+  account artifact through the stable internal `users.id`; email is not used
+  as a repeated foreign key. The migration enables RLS and revokes direct
+  `anon`/`authenticated` access instead of adding browser policies, because
+  exposing personal health tables through Supabase clients is out of scope.
+  Added `supabase/migrations/202609120001_biotwin_schema.sql` and
+  `docs/SUPABASE.md`. The official MCP is authenticated and scoped to project
+  `xdosufbwuvstfkhllenh` with project-read/database-read/database-write access;
+  the migration was applied remotely as version `20260913005949`
+  (`biotwin_schema`). Verified all six tables, cascading foreign keys, the
+  measurement dedupe constraint, RLS on every table, and no grants to `anon`
+  or `authenticated`; the new tables were empty after creation. Supabase's
+  advisor reports the intentional no-policy RLS state and expected unused-index
+  notices on the empty schema. It also reports a pre-existing SECURITY DEFINER
+  function, `public.rls_auto_enable()`, executable by `anon` and
+  `authenticated`; this unrelated warning was not modified without approval.
+  The automatic OAuth attempt requested incompatible default scopes; explicit
+  Supabase scopes succeeded.
+- 2026-09-13 — Diagnosed a backend process that still listened on port 8000
+  and accepted WebSockets while every HTTP route, including the database-free
+  `/healthz`, hung indefinitely. A macOS process sample showed the uvloop main
+  thread blocked inside Psycopg `wait_c` polling the existing Supabase session
+  pooler connection. A fresh, timeout-bounded connection to the same database
+  succeeded immediately, and `pg_stat_activity` showed no long-running query or
+  lock wait. This isolates the failure to a stuck/stale client-side pooler socket,
+  not an executing database query. `Store` currently performs synchronous
+  SQLAlchemy/Psycopg calls directly in async request/WebSocket paths and configures
+  `pool_pre_ping` but no connection/query/socket timeout, so one stuck database
+  operation blocks the entire event loop and even prevents `/healthz` responses.
+  Fixed on `testing`: PostgreSQL sessions now have bounded connect, TCP, query,
+  lock, idle-transaction and pool waits; dead connections are pre-pinged and
+  connections recycle after five minutes. The always-on outbox poll and
+  maintenance database work run through `asyncio.to_thread` instead of occupying
+  the event loop. WebSocket session lookup and first-state computation are also
+  moved off-loop; this was the remaining 5–10 second stall observed whenever a
+  browser reconnected after server restart. Two regression tests deliberately
+  make recurring Store calls slow and verify the event loop remains responsive.
+  VERIFIED against the real
+  Supabase pooler (`statement_timeout=10s`, `lock_timeout=5s`) and the running
+  backend: warm `/readyz` 0.23s, `/api/session` 0.16s, and `/healthz` 0.001s;
+  full backend suite 112 passed / 3 skipped.
 
 - 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
   correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
@@ -270,7 +330,6 @@ This file is a living document. The agent MUST:
   Preserve existing PWA icons and both avatar GPU integrations. Design
   assumption: the persistent Body Battery is a labeled BioTwin estimate
   from existing computed signals, separate from Garmin’s measured score.
-
 - 2026-09-12 — Origin checking is enforced in **three separate places** in
   core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
   custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
@@ -622,6 +681,15 @@ This file is a living document. The agent MUST:
 
 > Facts that are expensive to re-derive. Verify before relying on them;
 > delete when stale.
+
+- Supabase integration deliberately reuses the existing SQLAlchemy/PostgreSQL
+  storage contract. Do not add a second browser-side Supabase data path or put
+  service/database credentials in `VITE_*`. Apply the checked-in migration via
+  a project-scoped Supabase MCP connection, and keep `DATABASE_URL` server-only.
+  Use Supabase's session pooler on IPv4-only networks. To preserve an existing
+  local login and its owned data, run `PYTHONPATH=. uv run
+  scripts/migrate_sqlite_account.py --email EMAIL` after setting the target
+  `DATABASE_URL`; the command is safe to repeat.
 
 - `scripts/*.py` import `core`/`shared` as top-level packages, which only
   resolve if the project root is on `PYTHONPATH` -- `uv run

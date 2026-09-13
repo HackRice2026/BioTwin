@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import secrets
@@ -153,12 +154,14 @@ class OAuth:
         return token["access_token"]
 
     async def refresh_due(self):
-        for provider, connection in self.store.docs(None, "connection"):
+        connections = await asyncio.to_thread(self.store.docs, None, "connection")
+        for provider, connection in connections:
             uid = connection["user_id"]
             if connection.get("refresh_at", 0) > utcnow().timestamp() or connection["status"] == "reconnect":
                 continue
             try:
-                token = self.vault.open(self.store.get(uid, "token", provider))
+                sealed = await asyncio.to_thread(self.store.get, uid, "token", provider)
+                token = self.vault.open(sealed)
                 cid, secret = self.credentials(provider)
                 r = await self.http.post(
                     self.token_url(provider),
@@ -170,9 +173,15 @@ class OAuth:
                     },
                 )
                 r.raise_for_status()
-                self.save(uid, provider, {**token, **r.json()})
+                await asyncio.to_thread(self.save, uid, provider, {**token, **r.json()})
             except Exception:
-                self.store.put(uid, "connection", {**connection, "status": "reconnect"}, provider)
+                await asyncio.to_thread(
+                    self.store.put,
+                    uid,
+                    "connection",
+                    {**connection, "status": "reconnect"},
+                    provider,
+                )
                 # Failure is visible in connection status; secrets and provider response bodies never enter logs.
 
     async def disconnect(self, user_id, provider):
