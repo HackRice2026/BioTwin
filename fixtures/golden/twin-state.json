@@ -1,35 +1,36 @@
 {
+  "energy_reserve_pct": 63,
   "schema_version": "1.0.0",
   "sequence": 464,
-  "server_time": "2026-09-12T07:13:33.214767Z",
+  "server_time": "2026-09-13T01:58:09.851994Z",
   "readiness": {
     "user_id": "demo",
-    "computed_at": "2026-09-12T07:13:33.214767Z",
-    "score": 54.4,
+    "computed_at": "2026-09-13T01:58:09.851994Z",
+    "score": 54.9,
     "state": "balanced",
     "contributions": {
-      "sleep": 0.272,
-      "hrv": 0.749,
-      "resting_hr": 0.524,
-      "sleep_debt": -1.065
+      "sleep": 0.397,
+      "hrv": 0.764,
+      "resting_hr": 0.55,
+      "sleep_debt": -1.226
     },
-    "confidence": 0.75,
+    "confidence": 0.72,
     "degraded_reason": null,
-    "sleep_debt_minutes": 191.7,
+    "sleep_debt_minutes": 220.7,
     "cuts": [
-      20.5,
-      34.7,
+      20.0,
+      34.4,
       49.6,
       65.1,
-      79.1
+      79.6
     ]
   },
   "latest": {
     "user_id": "demo",
-    "event_time": "2026-09-12T07:13:21.214485Z",
-    "ingest_time": "2026-09-12T07:13:33.214490Z",
+    "event_time": "2026-09-13T01:57:57.851678Z",
+    "ingest_time": "2026-09-13T01:58:09.851685Z",
     "provenance": "synthetic",
-    "dedupe_key": "d38b95c89a0ce5f14f29070f99abc4f19caa42821e3f8097d1e1bd6df559c17f",
+    "dedupe_key": "e7bf20610e9a29692d6000ffd722b9139913c6aeae38ad9166bf0bc48dac8956",
     "sequence": 464,
     "source_record_id": null,
     "heart_rate_bpm": 66.0,
@@ -39,43 +40,59 @@
     "spo2_pct": 98.1,
     "activity_level": 0.04,
     "sleep": {
-      "start": "2026-09-11T21:13:32.994875Z",
-      "end": "2026-09-12T05:13:32.994875Z",
+      "start": "2026-09-12T15:58:09.623760Z",
+      "end": "2026-09-12T23:58:09.623760Z",
       "total_minutes": 460,
       "awake_minutes": 20,
       "light_minutes": 245,
       "deep_minutes": 100,
       "rem_minutes": 115,
-      "efficiency_pct": null
+      "efficiency_pct": null,
+      "score": null
     },
     "steps": 6240,
+    "max_hr_bpm": null,
+    "min_hr_bpm": null,
+    "distance_meters": null,
+    "floors_ascended": null,
+    "active_kcal": null,
+    "body_battery_pct": null,
+    "stress_level": null,
+    "stress_high_min": null,
+    "stress_medium_min": null,
+    "stress_low_min": null,
+    "body_battery_charged": null,
+    "body_battery_drained": null,
+    "body_battery_at_wake": null,
+    "moderate_intensity_min": null,
+    "vigorous_intensity_min": null,
     "confidence": 1.0
   },
   "baseline_summary": {
     "user_id": "demo",
-    "computed_at": "2026-09-12T07:13:33.206521Z",
+    "computed_at": "2026-09-13T01:58:09.843571Z",
     "n_observations": 463,
-    "shrinkage_weight": 0.562,
+    "shrinkage_weight": 0.533,
     "resting_hr": {
-      "median": 64.02,
-      "mad": 3.89,
-      "p10": 60.4,
-      "p90": 66.26,
-      "n_days": 9
+      "median": 64.1,
+      "mad": 3.8,
+      "p10": 60.31,
+      "p90": 66.49,
+      "n_days": 8
     },
     "hrv_rmssd": {
-      "median": 48.37,
-      "mad": 8.67,
-      "p10": 39.5,
-      "p90": 57.92,
-      "n_days": 8
+      "median": 47.28,
+      "mad": 9.46,
+      "p10": 39.36,
+      "p90": 57.46,
+      "n_days": 7
     },
     "sleep_minutes": {
-      "median": 446.45,
-      "mad": 33.65,
-      "p10": 379.99,
-      "p90": 469.53,
-      "n_days": 8
+      "median": 437.66,
+      "mad": 37.98,
+      "p10": 377.36,
+      "p90": 465.13,
+      "n_days": 7
     },
     "respiration": {
       "median": 14.64,
@@ -84,12 +101,12 @@
       "p90": 14.89,
       "n_days": 7
     },
-    "recovery_tau_s": 174.0,
+    "recovery_tau_s": 173.6,
     "tau_fit_rmse": 13.56,
     "tau_fit_n_sessions": 6,
     "tau_iqr": [
-      171.1,
-      177.1
+      170.7,
+      176.7
     ],
     "cv_errors": [
       13.06,
@@ -105,74 +122,74 @@
   "drivers": {
     "pulse_hz": 1.1,
     "breath_hz": 0.23333333333333334,
-    "fatigue": 0.45599999999999996,
+    "fatigue": 0.45100000000000007,
     "exertion": 0.04,
-    "recovery_progress": 0.9717142857142856
+    "recovery_progress": 0.9728571428571428
   },
   "simulation": null,
   "provenance_banner": "synthetic",
   "quality": {
     "heart_rate_bpm": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T07:13:21.214485Z",
+      "event_time": "2026-09-13T01:57:57.851678Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "resting_hr_bpm": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T05:13:32.994875Z",
+      "event_time": "2026-09-12T23:58:09.623760Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "hrv_rmssd_ms": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T05:13:32.994875Z",
+      "event_time": "2026-09-12T23:58:09.623760Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "respiration_brpm": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T07:13:21.214485Z",
+      "event_time": "2026-09-13T01:57:57.851678Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "spo2_pct": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T05:13:32.994875Z",
+      "event_time": "2026-09-12T23:58:09.623760Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "activity_level": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T07:13:21.214485Z",
+      "event_time": "2026-09-13T01:57:57.851678Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "sleep": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T05:13:32.994875Z",
+      "event_time": "2026-09-12T23:58:09.623760Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     },
     "steps": {
       "provenance": "synthetic",
-      "event_time": "2026-09-12T05:13:32.994875Z",
+      "event_time": "2026-09-12T23:58:09.623760Z",
       "confidence": 1.0,
       "contested": false,
       "alternatives": []
     }
   },
-  "latency_ms": 1.21,
+  "latency_ms": 1.39,
   "prediction": {
-    "id": "650f9048c830436182eb08587244270a",
-    "issued_at": "2026-09-10T15:00:20Z",
+    "id": "e4eaaef581f143d5912c8c09080bf3c9",
+    "issued_at": "2026-09-11T15:00:20Z",
     "horizon_s": 600,
     "curve": [],
     "observed": [],
