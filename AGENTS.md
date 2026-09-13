@@ -143,8 +143,11 @@ This file is a living document. The agent MUST:
   lock, idle-transaction and pool waits; dead connections are pre-pinged and
   connections recycle after five minutes. The always-on outbox poll and
   maintenance database work run through `asyncio.to_thread` instead of occupying
-  the event loop. Two regression tests deliberately make those Store calls slow
-  and verify the event loop remains responsive. VERIFIED against the real
+  the event loop. WebSocket session lookup and first-state computation are also
+  moved off-loop; this was the remaining 5–10 second stall observed whenever a
+  browser reconnected after server restart. Two regression tests deliberately
+  make recurring Store calls slow and verify the event loop remains responsive.
+  VERIFIED against the real
   Supabase pooler (`statement_timeout=10s`, `lock_timeout=5s`) and the running
   backend: warm `/readyz` 0.23s, `/api/session` 0.16s, and `/healthz` 0.001s;
   full backend suite 112 passed / 3 skipped.

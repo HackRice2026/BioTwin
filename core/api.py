@@ -1117,9 +1117,11 @@ def create_app(config=None):
         if ws.headers.get("origin") not in allowed:
             await ws.close(code=1008)
             return
-        u = rt().store.session_user(ws.cookies.get("biotwin_session"))
+        u = await asyncio.to_thread(
+            rt().store.session_user, ws.cookies.get("biotwin_session")
+        )
         if not u and config.demo_enabled:
-            u = rt().store.user("demo")
+            u = await asyncio.to_thread(rt().store.user, "demo")
         if not u:
             await ws.close(code=1008)
             return
@@ -1133,7 +1135,9 @@ def create_app(config=None):
                 await ws.close(code=1008)
                 return
             last = int(hello.get("last_sequence", 0))
-            current = rt().states.get(uid) or rt().compute(uid)
+            current = rt().states.get(uid)
+            if current is None:
+                current = await asyncio.to_thread(rt().compute, uid)
             states = [s for s in rt().buffers[uid] if s.sequence > last]
             if last and states and rt().buffers[uid][0].sequence <= last + 1:
                 await ws.send_json({"type": "resume", "from": states[0].sequence})
