@@ -128,11 +128,6 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
-- 2026-09-13 — The desktop Overview no longer reserves the removed top-navbar
-  height when its page intro is empty. Its workspace uses a compact 18px top
-  inset; other section pages retain their own header spacing. This follows
-  Shivendra's explicit request to remove the vacant area above the twin hero.
-
 - 2026-09-13 — Merged `simulate-my-day` into `dev`. Its `/api/simulate/day`
   endpoint applies deterministic planning overlays to the existing MATLAB
   Body Battery trajectory for current-plan, train-now, best-window, extra-step
