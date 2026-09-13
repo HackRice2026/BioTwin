@@ -603,7 +603,7 @@ export function SimulateDayChart({
         <Area
           dataKey="high"
           stroke="none"
-          fill="#8fc4ff"
+          fill="var(--green)"
           fillOpacity={0.11}
           isAnimationActive={false}
         />
@@ -626,9 +626,9 @@ export function SimulateDayChart({
         <Line
           dataKey="scenario"
           name={scenario.label}
-          stroke="#8fc4ff"
+          stroke="var(--green)"
           strokeWidth={2.8}
-          dot={{ r: 4, fill: "#8fc4ff", stroke: "#0c1512", strokeWidth: 2 }}
+          dot={{ r: 4, fill: "#8ce5b0", stroke: "#0c1512", strokeWidth: 2 }}
           isAnimationActive
         />
       </ComposedChart>
