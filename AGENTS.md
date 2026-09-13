@@ -128,6 +128,79 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-12 — Shivendra explicitly requested merging `biotwin2.0` into
+  `dev`, superseding the feature-only branch instruction. Normal merge
+  preserves all redesign commits and dev's newer Audio2Face documentation
+  corrections; the combined application code matches the verified redesign.
+
+- 2026-09-12 — Hosted Chromium passed layout/PWA checks but exceeded a
+  voice-test-only 450ms paint deadline. Topic regression now explicitly holds
+  the narration response until the panel is visible, verifying causal order
+  independently of hosted CPU speed. Real-provider latency stays measured
+  separately by the recorded-question check.
+
+- 2026-09-12 — BioTwin 2.0 implementation and verification commits published
+  to `origin/biotwin2.0`, with upstream tracking that feature branch. All
+  redesign commits use Shivendra's existing configured author identity.
+
+- 2026-09-12 — PWA now precaches the existing 15 MB ARKit model and its
+  formerly remote lighting HDRI as content-versioned public assets; the
+  cache limit is 20 MB for that model. Health endpoints remain excluded.
+  Supplied iOS/PNG/maskable icons are committed and referenced by manifest.
+  Existing unused calendar-test import removed because it blocked required
+  repository Ruff verification. UI account/import checks now run in CI too.
+
+- 2026-09-12 — VERIFIED live HTTP ElevenLabs stream timings are ABSOLUTE
+  within the utterance (observed successive starts 0, 0.917, 5.004 seconds),
+  not chunk-relative like some WebSocket variants. Do not add chunk offsets
+  to HTTP alignments: that desynchronizes long answers. Audio-only chunks
+  legitimately have null alignment. Captions use audio currentTime.
+- 2026-09-12 — End-to-end voice check: recorded spoken steps question passed
+  browser MediaRecorder -> Vertex transcription -> vertex:gemini-2.5-flash
+  -> ElevenLabs George -> timed captions -> automatic Overview -> history
+  reload. Topic panel opened within 60ms of the question request. This used
+  a generated spoken recording and isolated test account, not an iPhone mic.
+  A second complete loop verified a 25.94-second answer with 49 caption-word
+  changes and zero browser errors, including return and transcript reload.
+  Layout/navigation verified at 360/390/1024/1440px; calendar request/reminder
+  contract, simulations, offline PWA and real FIT/account flows passed.
+  Old App.tsx/style.css/LiveSchedule.tsx removed after those checks. Planning
+  questions now use the same narration/speech loop and explicit Add buttons.
+- 2026-09-12 — Account/import verification caught an R3F asynchronous Canvas
+  startup race: its onCreated can run after an account switch unmounts the
+  event-source div. Wrap the standard pointer event manager to ignore null
+  or detached targets. Regression reproduced before and passed after.
+
+- 2026-09-12 — New UI entry is `BioTwinApp.tsx` with `biotwin.css`; data
+  loading lives in `useDashboard`, reusable page content in `DashboardPanels`.
+  Connections stays mounted across tabs so direct Bluetooth does not drop
+  when leaving its page. The old UI has been removed after verification.
+  Product diagnostics removed; avatar movement/view controls and both GPU
+  audio fan-outs remain. Verified renders at 1440px and 390px: no page errors
+  or horizontal overflow. The two viewports use distinct navigation/layouts.
+
+- 2026-09-12 — Body Battery is an explicitly unvalidated presentation estimate:
+  80% existing readiness + 20% live recovery progress, using readiness alone
+  when the live pulse is stale/missing, and null when readiness is missing.
+  It never treats missing recovery as zero and never overwrites Garmin’s
+  reported battery. The optional state field and narration facts share the
+  server-computed value; active calories are also now available to narration.
+
+- 2026-09-12 — BioTwin 2.0 speech supports optional timestamped NDJSON on
+  the existing account-scoped, single-use ticket endpoint. Caption timing
+  follows audio currentTime; only the ended event triggers automatic return.
+  Microphone questions use the existing recorded-audio transcription endpoint
+  so the Vertex path is exercised in every supported recording browser.
+  Topic detection consumes the question before the provider request.
+
+- 2026-09-12 — Shivendra authorized recording the full BioTwin 2.0 redesign
+  in `global context.md`; it is now the central plan. User overrides the
+  default dev workflow: implement on `biotwin2.0` (base `ccfe601` from dev),
+  with logical commits as Shivendra using the existing configured email.
+  Preserve existing PWA icons and both avatar GPU integrations. Design
+  assumption: the persistent Body Battery is a labeled BioTwin estimate
+  from existing computed signals, separate from Garmin’s measured score.
+
 - 2026-09-12 — Origin checking is enforced in **three separate places** in
   core/api.py, not one: `CORSMiddleware`'s `allow_origins` (~line 97), the
   custom `protections` middleware for POST/PUT/DELETE (~line 108), and the
@@ -240,9 +313,6 @@ This file is a living document. The agent MUST:
   screenshotted at 390px and 1280px via a scratch Playwright script (no
   `chromium-cli` in this environment), zero console errors, live BPM
   confirmed actually changing between two screenshots seconds apart.
-- 2026-09-11 — AGENTS.md created. `global context.md` does not exist yet;
-  user will add the central plan later. Until it exists, non-trivial work
-  requires explicit user direction (Prime Directive).
 - 2026-09-12 — Added `src/garmin_grafana/ble_hr_live.py` for true live
   (push-based, not polled) heart-rate streaming during a workout. Garmin
   Connect's cloud API (what `garmin_fetch.py` polls) has no real-time path —
@@ -803,7 +873,8 @@ This file is a living document. The agent MUST:
 
 ## Branch workflow
 
-- Use `dev` for ongoing development and track `origin/dev`.
-- Keep changes in logical commits and push completed, verified work to `origin/dev`.
+- BioTwin 2.0 was developed on `biotwin2.0` and merged into `dev` at Shivendra's request.
+- Make logical verified commits as Shivendra; this integration is pushed to `origin/dev`.
+- Other work follows its explicitly requested branch.
 - Fetch before synchronizing. Incorporate newer `main` changes into `dev` with a normal merge when needed; preserve existing branch history.
 - Keep local secrets, personal data, dependencies, and build output out of commits.

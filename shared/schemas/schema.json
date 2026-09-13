@@ -1361,6 +1361,20 @@
     "TwinState": {
       "additionalProperties": false,
       "properties": {
+        "energy_reserve_pct": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Energy Reserve Pct"
+        },
         "schema_version": {
           "default": "1.0.0",
           "title": "Schema Version",

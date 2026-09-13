@@ -10,4 +10,14 @@
 | Three.js / React Three Fiber / Drei | Open-source npm dependencies | MIT; see each locked package's license |
 | React / Recharts / Vite | Open-source npm dependencies | MIT; see each locked package's license |
 
-The avatar has no external textures or animation downloads. Its GLB is about 400 KB with 13,212 triangles. System fonts are used; there are no font-CDN requests. Dependency versions are locked in `uv.lock` and `frontend/package-lock.json`.
+The active avatar is the existing team-supplied `model.glb` (about 15 MB),
+not the legacy generated `twin.glb`. Its rig and animation integrations are
+preserved by the redesign; see `AVATAR_IMPLEMENTATION_PLAN.md` for their origins.
+
+`frontend/public/assets/studio.hdr` is Greg Zaal’s **Lebombo** HDRI from
+[Poly Haven](https://polyhaven.com/a/lebombo), CC0. It is the same lighting asset
+Drei’s apartment preset used, now stored locally for offline operation (copied
+from pmndrs/drei-assets commit 456060a26bbeb8fdf79326f224b6d99b8bcce736).
+DM Sans and Manrope are loaded through Google Fonts, with local system-font
+fallbacks when offline. Dependency versions remain locked in `uv.lock` and
+`frontend/package-lock.json`.
