@@ -195,6 +195,17 @@ export type TrainingDecision =
           confidence: "High" | "Moderate" | "Low";
           workout: { title: string; intensity: string; minutes: number };
           reasons: string[];
+          score?: {
+            total: number;
+            candidates: number;
+            terms: {
+              energy: number;
+              time_of_day: number;
+              confidence: number;
+              free_time: number;
+              high_load_penalty: number;
+            };
+          };
         };
         evening_at: string;
         scenarios: TrainingScenario[];
