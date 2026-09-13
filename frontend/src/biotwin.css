@@ -558,8 +558,10 @@ button.primary:hover:not(:disabled) {
   color: #a4cbb1;
 }
 .hero-copy p {
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: 16px;
+  font-weight: 500;
+  color: #e4f2e7;
+  line-height: 1.5;
 }
 .hero-prompts {
   display: flex;
