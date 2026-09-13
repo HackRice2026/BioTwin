@@ -128,6 +128,13 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Forecast replaces the passive “Ready for today” overview card.
+  It converts existing readiness, signal contributions, profile sleep target and
+  calendar-aware plan proposals into checkable daily assignments. Training is
+  light below readiness 65 and “heavy cardio” appears only at 65 or above;
+  hydration is phrased as a consistent habit rather than prescribing a universal
+  volume. Completion is intentionally session-local and resets for a new day.
+
 - 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
   correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
   during this fix that process was running from a Claude scratchpad cwd, so

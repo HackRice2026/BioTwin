@@ -47,7 +47,10 @@ missing-data states, and honest labels for estimates and scenarios.
   from Garmin's reported battery measurement.
 - Overview: digital twin hero first, with current state and listening,
   thinking, speaking or idle status. Below: compact heart rate, sleep,
-  calories burned and steps cards, readiness score and recovery chart.
+  calories burned and steps cards, Forecast assignments driven by current
+  readiness, sleep and calendar-aware planning, and a recovery chart. Forecast
+  uses the hook “Data into actionable steps” and recommends only intensity
+  appropriate to the current readiness state.
 - Detect the topic of the user's question immediately, before Gemini answers.
   Both typed and genuinely transcribed questions can open heart rate, sleep,
   calories, steps, plan or what-if panels across the lower screen. Display

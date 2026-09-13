@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -353,48 +353,198 @@ export function SignalDetail({
 }
 export function ReadinessPanel({ data }: { data: Dashboard }) {
   const r = data.state!.readiness,
-    score = r.score;
+    score = r.score,
+    day = data.plan?.date ?? r.computed_at.slice(0, 10),
+    [completed, setCompleted] = useState<string[]>([]);
+  useEffect(() => setCompleted([]), [day]);
+  const workout = data.plan?.proposals.find((proposal) => proposal.kind === "workout");
+  const nap = data.plan?.proposals.find((proposal) => proposal.kind === "nap");
+  const sleepHours = Math.round((data.session?.user.profile.target_sleep ?? 480) / 60);
+  const actions =
+    score == null
+      ? [
+          {
+            id: "baseline",
+            title: "Build today's baseline",
+            detail: "Wear your watch through the day so Forecast can personalize tomorrow.",
+            icon: Activity,
+            tone: "blue",
+          },
+          {
+            id: "sleep",
+            title: `Protect ${sleepHours} hours of sleep`,
+            detail: "Set a wind-down time that makes your target sleep window realistic.",
+            icon: Moon,
+            tone: "blue",
+          },
+          {
+            id: "hydrate",
+            title: "Hydrate consistently",
+            detail: "Keep water nearby and spread it through your day.",
+            icon: Wind,
+            tone: "green",
+          },
+        ]
+      : score < 45
+        ? [
+            {
+              id: "cardio",
+              title: "Light cardio",
+              detail: workout
+                ? `${workout.title} is your calendar-aware movement option today.`
+                : "Choose an easy walk, bike ride or mobility session; keep the effort light.",
+              icon: Activity,
+              tone: "green",
+            },
+            {
+              id: "nap",
+              title: "Power nap",
+              detail: nap
+                ? `${nap.title} is available in your plan. Keep it to the planned window.`
+                : "Take a short early-afternoon reset if your schedule allows.",
+              icon: Moon,
+              tone: "blue",
+            },
+            {
+              id: "sleep",
+              title: `Protect ${sleepHours} hours of sleep`,
+              detail: "Start your wind-down early and leave space to recharge tonight.",
+              icon: Moon,
+              tone: "blue",
+            },
+            {
+              id: "hydrate",
+              title: "Hydrate consistently",
+              detail: "Keep water nearby and take regular breaks to drink.",
+              icon: Wind,
+              tone: "green",
+            },
+          ]
+        : score < 65
+          ? [
+              {
+                id: "cardio",
+                title: "Light cardio",
+                detail: workout
+                  ? `${workout.title} fits your calendar and current readiness.`
+                  : "Use a steady, conversational-effort session today.",
+                icon: Activity,
+                tone: "green",
+              },
+              {
+                id: "focus",
+                title: "Schedule one focus block",
+                detail: "Use your strongest part of the day for one important task.",
+                icon: Flame,
+                tone: "amber",
+              },
+              {
+                id: "sleep",
+                title: `Keep your ${sleepHours}-hour sleep target`,
+                detail: "A consistent sleep window supports tomorrow's forecast.",
+                icon: Moon,
+                tone: "blue",
+              },
+              {
+                id: "hydrate",
+                title: "Hydrate consistently",
+                detail: "Keep water nearby and take regular breaks to drink.",
+                icon: Wind,
+                tone: "green",
+              },
+            ]
+          : [
+              {
+                id: "cardio",
+                title: "Heavy cardio",
+                detail: workout
+                  ? `${workout.title} is the intensity your plan supports today.`
+                  : "Use today for your harder training session if it fits your schedule.",
+                icon: Activity,
+                tone: "green",
+              },
+              {
+                id: "focus",
+                title: "Use a high-focus block",
+                detail: "Put your most demanding work in a protected calendar window.",
+                icon: Flame,
+                tone: "amber",
+              },
+              {
+                id: "sleep",
+                title: `Keep your ${sleepHours}-hour sleep target`,
+                detail: "Finish your training and work with enough room to wind down.",
+                icon: Moon,
+                tone: "blue",
+              },
+              {
+                id: "hydrate",
+                title: "Hydrate consistently",
+                detail: "Support your activity by drinking regularly through the day.",
+                icon: Wind,
+                tone: "green",
+              },
+            ];
+  const drivers = Object.entries(r.contributions)
+    .sort(([, left], [, right]) => Math.abs(right) - Math.abs(left))
+    .slice(0, 2)
+    .map(([name, contribution]) =>
+      `${humanize(name)} ${contribution >= 0 ? "supports" : "limits"} today's load`,
+    );
   return (
-    <Panel className="readiness-panel">
-      <PanelTitle title="Ready for today" note="Your personal readiness">
+    <Panel className="readiness-panel forecast-panel">
+      <PanelTitle title="Forecast" note="Data into actionable steps">
         <Leaf size={19} className="green" />
       </PanelTitle>
-      <div className="readiness-body">
-        <div
-          className="readiness-ring"
-          style={{
-            background: `conic-gradient(var(--green) ${(score ?? 0) * 3.6}deg, #ffffff0a 0deg)`,
-          }}
-        >
-          <div>
-            <strong>{value(score)}</strong>
-            <small>READINESS</small>
-          </div>
-        </div>
+      <div className="forecast-summary">
         <div>
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
           </span>
-          <h3>
-            {score == null
-              ? "Your story starts here."
-              : score >= 65
-                ? "A little more in the tank."
-                : score >= 45
-                  ? "Find your own rhythm."
-                  : "Make room to recharge."}
-          </h3>
-          <p>
-            Sleep, heart-rate variability and rest, relative to your pattern.
-          </p>
+          <h3>{score == null ? "Your first plan starts here." : `${value(score)} readiness`}</h3>
+          <p>{drivers.length ? drivers.join(" · ") : "Forecast will adapt as more wearable data arrives."}</p>
         </div>
+        <span className="forecast-progress">
+          {completed.length}/{actions.length} done
+        </span>
       </div>
-      <div className="confidence-row">
-        <span>Estimate confidence</span>
-        <b>{value(r.confidence * 100)}%</b>
+      <div className="forecast-heading">
+        <div>
+          <span>According to today’s data</span>
+          <h3>Your assignments</h3>
+        </div>
+        <small>{value(r.confidence * 100)}% confidence</small>
       </div>
-      <div className="meter">
-        <i style={{ width: `${r.confidence * 100}%` }} />
+      <div className="forecast-actions" role="list" aria-label="Today's Forecast assignments">
+        {actions.map((action) => {
+          const done = completed.includes(action.id);
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.id}
+              className={`forecast-action ${done ? "complete" : ""}`}
+              type="button"
+              role="listitem"
+              aria-pressed={done}
+              onClick={() =>
+                setCompleted((items) =>
+                  items.includes(action.id)
+                    ? items.filter((item) => item !== action.id)
+                    : [...items, action.id],
+                )
+              }
+            >
+              <span className={`forecast-action-icon ${action.tone}`}>
+                {done ? <Check size={16} /> : <Icon size={16} />}
+              </span>
+              <span className="forecast-action-copy">
+                <b>{action.title}</b>
+                <small>{action.detail}</small>
+              </span>
+              <span className="forecast-action-state">{done ? "Done" : "Start"}</span>
+            </button>
+          );
+        })}
       </div>
     </Panel>
   );
