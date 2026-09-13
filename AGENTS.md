@@ -128,6 +128,15 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Voice input is deliberately push-to-talk: tapping Start begins
+  a single capture, tapping Stop submits it, and neither a wake-word listener
+  nor post-answer auto-listening may restart capture. Browser speech recognition
+  supplies the recognized text immediately when supported; the existing recorded
+  audio → Gemini/Vertex transcription endpoint remains the fallback. The
+  `scripts/voice-check.mjs` regression stubs browser recognition and verifies
+  that Stop asks exactly once, sends no transcription request on that path, and
+  returns the control to Start after speech ends.
+
 - 2026-09-13 — During the `origin/dev` merge, retained the incoming training
   window, scenario simulation, coach UI and dynamic forecast horizon while
   preserving progressive metric loading, fixed Day/Week/28-day chart domains,
