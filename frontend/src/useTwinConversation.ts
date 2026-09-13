@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, post, type OfflineBundle, type Session } from "./api";
-import type { AvatarEmotion, AvatarPipeline, Conversation } from "./contracts";
+import type { AvatarPipeline, Conversation } from "./contracts";
 import { TwinVoice } from "./voice";
 import { recordQuestion } from "./microphone";
 import { emitAvatarSemantic } from "./avatar/avatarBus";
-import type { AvatarSemanticState } from "./avatar/state/AvatarState";
-import { defaultEmotion } from "./avatar/state/AvatarState";
-import { normalizeAvatarIntent } from "./avatar/pipeline/intent";
+import { useAvatarStore } from "./avatar/store/avatarStore";
 
 export type Reply = {
   id?: string;
@@ -73,48 +71,10 @@ export function useTwinConversation({
     setNeedsTap(false);
     void voice.current?.resume();
   }
-  function cleanEmotion(emotion?: AvatarEmotion | Partial<AvatarSemanticState["emotion"]>) {
-    const cleaned: Partial<AvatarSemanticState["emotion"]> = {};
-    if (!emotion) return cleaned;
-    for (const key of [
-      "energy",
-      "happiness",
-      "fatigue",
-      "stress",
-      "confidence",
-      "excitement",
-      "concern",
-    ] as const) {
-      const value = emotion[key];
-      if (typeof value === "number") cleaned[key] = value;
-    }
-    return cleaned;
-  }
   function applyAvatar(reply: Reply) {
-    const fallbackIntent = normalizeAvatarIntent(reply.avatar?.fallback?.intent);
-    const action =
-      reply.avatar?.body?.semantic_action ??
-      fallbackIntent.action ??
-      (reply.avatar?.body?.deterministic_motion === "squat.bodyweight.v1"
-        ? "squat"
-        : "talk");
-    const gaze = reply.avatar?.face?.gaze ?? fallbackIntent.gaze ?? "user";
-    emitAvatarSemantic({
-      emotion: {
-        ...defaultEmotion,
-        ...cleanEmotion(fallbackIntent.emotion),
-        ...cleanEmotion(reply.avatar?.face?.emotion),
-      },
-      action,
-      gaze,
-      camera:
-        reply.avatar?.body?.deterministic_motion &&
-        reply.avatar.body.deterministic_motion !== "none"
-          ? "exercise"
-          : action === "walk" || action === "run"
-            ? "full_body"
-            : "conversation",
-    });
+    const store = useAvatarStore.getState();
+    store.applyAvatarPayload(reply.avatar);
+    emitAvatarSemantic(useAvatarStore.getState().semantic);
   }
   function reset() {
     epoch.current++;

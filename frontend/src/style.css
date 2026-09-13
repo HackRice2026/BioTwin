@@ -731,6 +731,25 @@ h1 {
   letter-spacing: 0;
   line-height: 1;
 }
+.avatar-bone-hud {
+  pointer-events: none;
+  transform: translate3d(-50%, -50%, 0);
+}
+.avatar-bone-hud span {
+  display: block;
+  max-width: min(220px, 46vw);
+  padding: 7px 10px;
+  border: 1px solid #8fe6a666;
+  border-radius: 7px;
+  background: #07130fd9;
+  box-shadow: 0 12px 32px #07130f78;
+  color: #bdf7c7;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
 .avatar-workout-icon {
   position: absolute;
   left: 24px;

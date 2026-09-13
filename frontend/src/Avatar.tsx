@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, Html, OrbitControls, useGLTF } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -48,6 +48,12 @@ import {
   defaultAvatarState,
   defaultEmotion,
 } from "./avatar/state/AvatarState";
+import { useAvatarStore } from "./avatar/store/avatarStore";
+import {
+  findMotionPhase,
+  squatBodyweightManifest,
+} from "./avatar/pipeline/motionManifest";
+import type { AvatarTarget } from "./avatar/pipeline/intent";
 
 class CanvasBoundary extends Component<
   { children: ReactNode },
@@ -280,6 +286,7 @@ function Body({
   const performance = useRef<number[]>([]);
   const reported = useRef(0);
   const lastMotion = useRef("IDLE");
+  const lastResolverPhase = useRef<string | null>(null);
   const { camera } = useThree();
 
   useFrame((three, rawDt) => {
@@ -380,6 +387,20 @@ function Body({
       action === "squat"
         ? (1 - Math.cos(((clock % 2.7) * Math.PI * 2) / 2.7)) / 2
         : 0;
+    if (action === "squat") {
+      const squatProgress = (clock % 2.7) / 2.7;
+      const resolverPhase = findMotionPhase(
+        squatBodyweightManifest,
+        squatProgress,
+      ).name;
+      if (lastResolverPhase.current !== resolverPhase) {
+        useAvatarStore.getState().setPhase(resolverPhase);
+        lastResolverPhase.current = resolverPhase;
+      }
+    } else if (lastResolverPhase.current) {
+      useAvatarStore.getState().setPhase(null);
+      lastResolverPhase.current = null;
+    }
     const point = action === "point";
     const celebrate = action === "celebrate";
     const nod = action === "nod";
@@ -529,12 +550,51 @@ function Body({
   });
 
   return (
-    <primitive
-      object={model}
-      position={[0, -1.08, 0]}
-      rotation={[0, 0, 0]}
-      scale={0.95}
-    />
+    <>
+      <primitive
+        object={model}
+        position={[0, -1.08, 0]}
+        rotation={[0, 0, 0]}
+        scale={0.95}
+      />
+      <HudLayer nodes={nodes} />
+    </>
+  );
+}
+
+const hudTargetNodes: Record<AvatarTarget, string[]> = {
+  user: ["Head", "Spine2", "Spine"],
+  workout_panel: ["Spine2", "Spine", "Hips"],
+  readiness_score: ["Spine2", "Spine", "Hips"],
+  heart_rate_chart: ["Spine2", "Spine", "Hips"],
+  knees: ["LeftLeg", "RightLeg", "LeftUpLeg", "RightUpLeg"],
+  hips: ["Hips", "Spine"],
+  spine: ["Spine2", "Spine1", "Spine"],
+  feet: ["LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"],
+  breathing: ["Spine2", "Spine1", "Spine"],
+};
+
+function HudLayer({ nodes }: { nodes: Record<string, THREE.Object3D> }) {
+  const activeHud = useAvatarStore((state) => state.activeHud);
+  const group = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (!activeHud || !group.current) return;
+    const target = hudTargetNodes[activeHud.target]
+      .map((name) => nodes[name])
+      .find(Boolean);
+    if (!target) return;
+    target.getWorldPosition(group.current.position);
+    group.current.position.y += activeHud.target === "knees" ? 0.08 : 0.16;
+  });
+
+  if (!activeHud) return null;
+  return (
+    <group ref={group}>
+      <Html center distanceFactor={5} className="avatar-bone-hud">
+        <span>{activeHud.text}</span>
+      </Html>
+    </group>
   );
 }
 
