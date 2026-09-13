@@ -6,7 +6,7 @@ import pytest
 
 from core.config import Settings
 from modeling.explanations import narration_context
-from narration.service import guard, narrate, template
+from narration.service import guard, narrate, SYSTEM_PROMPT, template
 from shared.schemas import TwinState
 
 
@@ -52,6 +52,59 @@ async def test_gemini_receives_complete_context_and_returns_plain_answer(context
     assert result.answer == answer
     assert result.mode == "language_service"
     assert result.notice is None
+
+
+@pytest.mark.asyncio
+async def test_recent_turns_travel_separately_from_grounding_context(context):
+    """recent_conversation must never widen what guard() will accept -- it's there to
+    resolve "what about earlier", not to smuggle in new evidence."""
+
+    def mock(request):
+        body = json.loads(request.content)
+        supplied = json.loads(body["messages"][1]["content"])
+        assert supplied["recent_conversation"] == [
+            {"question": "When should I train?", "answer": "Around 5 PM looks best."}
+        ]
+        assert supplied["context"] == context.model_dump(mode="json")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps(
+                                {"answer": f"Readiness is {context.readiness.score}.", "evidence": ["readiness.score"]}
+                            )
+                        },
+                    }
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(mock)) as client:
+        result = await narrate(
+            "What about tomorrow?",
+            context,
+            Settings(_env_file=None, allow_external_narration=True, narration_api_key="test-gemini-key"),
+            client,
+            recent_turns=(("When should I train?", "Around 5 PM looks best."),),
+        )
+    assert result.mode == "language_service"
+
+
+def test_no_recent_turns_keeps_the_payload_shape_unchanged(context):
+    from narration.service import _payload
+
+    assert json.loads(_payload("hi", context, ())) == {"question": "hi", "context": context.model_dump(mode="json")}
+
+
+def test_persona_reads_like_a_coaching_friend_not_a_metrics_dump():
+    lowered = SYSTEM_PROMPT.lower()
+    assert "friend" in lowered
+    assert "not like an analyst" in lowered or "not an analyst" in lowered
+    assert "recent_conversation" in SYSTEM_PROMPT
+    assert "current context is what actually happened" in lowered or "current context" in lowered
 
 
 def test_plan_time_claims_must_match_coach_evidence(context):

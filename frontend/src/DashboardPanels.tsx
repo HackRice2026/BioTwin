@@ -160,7 +160,7 @@ export function PanelTitle({
   note,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   note?: string;
   children?: ReactNode;
 }) {
@@ -519,22 +519,30 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
     );
   return (
     <Panel className="readiness-panel forecast-panel current-battery-panel">
-      <PanelTitle title="Current Body Battery" note="Your energy reserve">
-        <Battery size={19} className="green" />
-      </PanelTitle>
+      <PanelTitle
+        title={
+          <span className="current-battery-title">
+            <span>Current Body Battery</span>
+            <span
+              className="current-battery-meter"
+              role="img"
+              aria-label={
+                score == null
+                  ? "Body Battery is awaiting a reading"
+                  : `Body Battery ${value(score)} percent`
+              }
+            >
+              <span className="current-battery-meter-fill" aria-hidden="true">
+                <i style={{ width: `${score == null ? 0 : value(score)}%` }} />
+              </span>
+              <Battery aria-hidden="true" />
+              <b aria-hidden="true">{score == null ? "—" : `${value(score)}%`}</b>
+            </span>
+          </span>
+        }
+        note="BioTwin estimate of your energy reserve"
+      />
       <div className="forecast-summary current-battery-summary">
-        <span
-          className="readiness-battery"
-          role="img"
-          aria-label={
-            score == null
-              ? "Body Battery is awaiting a reading"
-              : `Body Battery ${value(score)} percent`
-          }
-        >
-          <Battery aria-hidden="true" />
-          <b>{score == null ? "—" : `${value(score)}%`}</b>
-        </span>
         <div>
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
@@ -550,8 +558,8 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
         </div>
         <small>{value(r.confidence * 100)}% confidence</small>
       </div>
-      <div className="forecast-recommendations" role="region" aria-label="Body Battery recommendations">
-        <div className="forecast-actions" role="list" aria-label="Today's Body Battery recommendations">
+      <div className="forecast-recommendations" role="region" aria-label="Readiness recommendations">
+        <div className="forecast-actions" role="list" aria-label="Today's recommendations">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
@@ -609,7 +617,9 @@ export function TomorrowPanel({ data }: { data: Dashboard }) {
             />
           </div>
           <p className="forecast-credibility">
-            Prediction based on our mathematical numerical calculations and your recent numbers.
+            {trajectory.basis === "model"
+              ? "From the ridge model fitted in MATLAB on your current level and recent trend."
+              : "Your last reading was too old for the fitted model, so this uses your own hour-of-day rhythm instead."}
           </p>
         </>
       ) : (

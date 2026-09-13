@@ -16,6 +16,7 @@ const report = {
   errors: [],
   instantTopics: [],
   autoplayRecovery: false,
+  browserRecognition: false,
   recording: false,
   voiceFailure: false,
   requestFailure: false,
@@ -110,6 +111,15 @@ try {
       }
     };
     if (window.MediaSource) window.MediaSource.isTypeSupported = () => false;
+    window.SpeechRecognition = class {
+      start() {}
+      stop() {
+        const results = [[{ transcript: "How many steps today?" }]];
+        results[0].isFinal = true;
+        this.onresult?.({ results });
+        this.onend?.();
+      }
+    };
     navigator.mediaDevices.getUserMedia = async () => {
       const audio = new AudioContext();
       await audio.resume();
@@ -214,14 +224,20 @@ try {
   // The persistent coach control drives the avatar's voice loop; the compact
   // composer offers the same action as a convenience and is not this test's
   // target.
-  await page.locator(".coach-mic").click();
-  await page.locator('.coach-mic[aria-label="Stop listening"]').waitFor();
+  await page.locator('.coach-mic[aria-label="Start voice input"]').click();
+  await page
+    .locator('.coach-mic[aria-label="Stop voice input and answer"]')
+    .waitFor();
   await page.waitForTimeout(400);
   ended = await page.evaluate(() => window.__ended);
-  await page.locator('.coach-mic[aria-label="Stop listening"]').click();
+  await page
+    .locator('.coach-mic[aria-label="Stop voice input and answer"]')
+    .click();
   await page.locator('[data-topic="steps"]').waitFor();
   await page.waitForFunction((n) => window.__ended > n, ended);
-  assert.ok(recordingBytes > 100);
+  await page.locator('.coach-mic[aria-label="Start voice input"]').waitFor();
+  assert.equal(recordingBytes, 0);
+  report.browserRecognition = true;
   report.recording = true;
   await context.unroute("**/api/voice/**");
   await context.route("**/api/voice/**", (route) =>

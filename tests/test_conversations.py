@@ -35,7 +35,15 @@ def client(tmp_path):
     def mock(request):
         calls.append(request)
         if request.url.host == "generativelanguage.googleapis.com":
-            data = json.loads(json.loads(request.content)["messages"][1]["content"])
+            body = json.loads(request.content)
+            if body.get("model") == config.insight_model:
+                # Runtime._refresh_briefing's background curation call: single message,
+                # no NarrationContext -- answer with something harmless and validatable.
+                return httpx.Response(
+                    200,
+                    json={"choices": [{"finish_reason": "stop", "message": {"content": "Nothing notable yet."}}]},
+                )
+            data = json.loads(body["messages"][1]["content"])
             facts = data["context"]["facts"]
             index = next((i for i, fact in enumerate(facts) if "latest recorded heart rate" in fact), None)
             result = {
@@ -82,7 +90,11 @@ def test_exchange_persists_gemini_answer_and_speech_uses_same_text(client):
         "/api/twin/ask", json={"question": "What is my heart rate?", "request_id": "same-request-000001"}
     )
     assert replay.json()["id"] == reply["id"]
-    assert sum(r.url.host == "generativelanguage.googleapis.com" for r in client.provider_calls) == 1
+    narration_model = client.app.state.runtime.config.narration_model
+    assert sum(
+        r.url.host == "generativelanguage.googleapis.com" and json.loads(r.content)["model"] == narration_model
+        for r in client.provider_calls
+    ) == 1
     assert len(client.get("/api/twin/conversations").json()["conversations"]) == 1
     assert (
         client.post(
@@ -191,6 +203,25 @@ def test_timestamped_speech_is_scoped_and_preserves_alignment(client):
     assert calls[0].url.path.endswith("/stream/with-timestamps")
     assert json.loads(calls[0].content)["text"] == reply["answer"]
     assert client.get(f"/api/voice/{reply['reply_id']}?timestamps=true").status_code == 404
+
+
+def test_followup_question_carries_the_prior_turn_for_continuity(client):
+    """"What about tomorrow?" only makes sense with the previous exchange attached."""
+    register(client)
+    client.post("/api/ingest/bluetooth", json={"heart_rate_bpm": 71})
+    narration_model = client.app.state.runtime.config.narration_model
+
+    def turns():
+        return [
+            json.loads(json.loads(r.content)["messages"][1]["content"])
+            for r in client.provider_calls
+            if r.url.host == "generativelanguage.googleapis.com" and json.loads(r.content)["model"] == narration_model
+        ]
+
+    first = client.post("/api/twin/ask", json={"question": "What is my heart rate?"}).json()
+    assert "recent_conversation" not in turns()[-1]
+    client.post("/api/twin/ask", json={"question": "What about now?"})
+    assert turns()[-1]["recent_conversation"] == [{"question": "What is my heart rate?", "answer": first["answer"]}]
 
 
 def test_energy_estimate_is_missing_without_signals_and_grounded_when_available(client):

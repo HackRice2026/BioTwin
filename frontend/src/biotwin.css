@@ -482,7 +482,7 @@ button.primary:hover:not(:disabled) {
 }
 @media (min-width: 761px) {
   .workspace:has(> .page-intro:empty) {
-    padding-top: 18px;
+    padding-top: calc(var(--bar) + 14px);
   }
 }
 .page-intro {
@@ -558,8 +558,10 @@ button.primary:hover:not(:disabled) {
   color: #a4cbb1;
 }
 .hero-copy p {
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: 16px;
+  font-weight: 500;
+  color: #e4f2e7;
+  line-height: 1.5;
 }
 .hero-prompts {
   display: flex;
@@ -1011,12 +1013,6 @@ button.primary:hover:not(:disabled) {
   min-width: 0;
   height: 38px;
 }
-.overview-insights {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin-top: 18px;
-}
 .readiness-body {
   display: flex;
   align-items: center;
@@ -1068,6 +1064,7 @@ button.primary:hover:not(:disabled) {
 .current-battery-panel,
 .body-battery-forecast-panel {
   min-width: 0;
+  margin-top: 18px;
 }
 .forecast-summary {
   display: flex;
@@ -1090,31 +1087,62 @@ button.primary:hover:not(:disabled) {
 }
 .current-battery-summary {
   align-items: center;
-  gap: 16px;
   padding: 8px 0 14px;
 }
-.readiness-battery {
-  color: #8cdfb0;
-  display: grid;
-  flex: 0 0 88px;
-  height: 48px;
+.current-battery-title {
+  align-items: center;
+  display: inline-flex;
+  gap: 11px;
+}
+.current-battery-meter {
+  color: var(--green);
+  display: inline-grid;
+  flex: 0 0 82px;
+  height: 38px;
   place-items: center;
   position: relative;
-  width: 88px;
+  width: 82px;
 }
-.readiness-battery > svg {
-  height: 48px;
-  stroke-width: 1.5;
-  width: 88px;
+.current-battery-meter-fill {
+  background: #0a1712;
+  border-radius: 5px;
+  height: 21px;
+  left: 6px;
+  overflow: hidden;
+  position: absolute;
+  top: 8px;
+  width: 64px;
 }
-.readiness-battery > b {
-  color: #ecfff1;
+.current-battery-meter-fill i {
+  background: linear-gradient(90deg, #5dcf8f, #9af1bc);
+  border-radius: inherit;
+  box-shadow: 0 0 12px #8ce5b06e;
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+.current-battery-meter > svg {
+  filter: drop-shadow(0 0 5px #8ce5b03d);
+  height: 38px;
+  position: relative;
+  stroke-width: 2.3;
+  width: 82px;
+}
+.current-battery-meter > b {
+  align-items: center;
+  color: #f5fff8;
+  display: flex;
+  font-family: Manrope, sans-serif;
   font-size: 13px;
-  left: 0;
-  letter-spacing: -0.4px;
+  font-weight: 800;
+  inset: 0 10px 0 0;
+  letter-spacing: -0.45px;
+  line-height: 1;
+  pointer-events: none;
   position: absolute;
   text-align: center;
-  width: 74px;
+  text-shadow: 0 1px 6px #08110ddd;
+  justify-content: center;
 }
 .current-battery-summary h3 {
   font-size: 16px;
@@ -2556,10 +2584,8 @@ button.primary:hover:not(:disabled) {
     font-size: 8px;
     max-width: 65px;
   }
-  .overview-insights {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+  .current-battery-panel,
+  .body-battery-forecast-panel {
     margin-top: 14px;
   }
   .panel-title h2 {
@@ -3183,11 +3209,6 @@ button.primary:hover:not(:disabled) {
   line-height: 1.2;
   margin: 5px 0 0;
 }
-.pill.blue {
-  color: #a9cdf9;
-  border-color: #8fc4ff33;
-  background: #8fc4ff12;
-}
 .scenario-rail {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3204,9 +3225,9 @@ button.primary:hover:not(:disabled) {
   color: #9bad9f;
 }
 .scenario-rail > button.selected {
-  color: #d9e8ff;
-  border-color: #8fc4ff55;
-  background: linear-gradient(180deg, #8fc4ff18, #8fc4ff08);
+  color: #d9ffe8;
+  border-color: #8ce5b055;
+  background: linear-gradient(180deg, #8ce5b018, #8ce5b008);
 }
 .scenario-rail b,
 .simulate-decisions b,
@@ -3231,7 +3252,7 @@ button.primary:hover:not(:disabled) {
 }
 .steps-control input {
   width: 100%;
-  accent-color: #8fc4ff;
+  accent-color: var(--green);
   margin-top: 8px;
 }
 .simulate-visual {
@@ -3239,7 +3260,7 @@ button.primary:hover:not(:disabled) {
   border-radius: 14px;
   border: 1px solid #ffffff0f;
   background:
-    radial-gradient(circle at 20% 0%, #8fc4ff12, transparent 34%),
+    radial-gradient(circle at 20% 0%, #8ce5b012, transparent 34%),
     #ffffff03;
   padding: 8px 8px 4px;
 }

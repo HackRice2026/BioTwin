@@ -115,8 +115,10 @@ try {
     .locator(".twin-hero canvas, .twin-hero .coach-portrait img")
     .first()
     .waitFor();
-  await page.getByLabel("Start listening", { exact: true }).click();
-  await page.getByLabel("Stop listening", { exact: true }).waitFor();
+  await page.getByLabel("Start voice input", { exact: true }).click();
+  await page
+    .getByLabel("Stop voice input and answer", { exact: true })
+    .waitFor();
   console.log("Recording started");
   await page.waitForTimeout(Number(process.env.BIOTWIN_RECORD_MS || 4000));
   const transcribed = page.waitForResponse(
@@ -137,7 +139,9 @@ try {
   page.on("request", (r) => {
     if (r.url().endsWith("/api/twin/ask")) questionRequestedAt = Date.now();
   });
-  await page.getByLabel("Stop listening", { exact: true }).click();
+  await page
+    .getByLabel("Stop voice input and answer", { exact: true })
+    .click();
   console.log("Recording stopped");
   const tr = await transcribed;
   console.log("Transcription status", tr.status());

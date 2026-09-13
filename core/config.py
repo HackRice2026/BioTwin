@@ -51,3 +51,8 @@ class Settings(BaseSettings):
     vertex_project_id: str = ""
     vertex_region: str = "us-central1"
     vertex_model: str = "gemini-2.5-flash"
+    # A stronger, slower model that periodically curates the fast conversational
+    # model's per-account context into a short briefing (Runtime._refresh_briefing).
+    # Off the live request path -- it runs in the background on a throttle, not once
+    # per turn -- so it can afford to be the bigger of the two models.
+    insight_model: str = "gemini-3.1-pro-preview"

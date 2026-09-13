@@ -526,6 +526,18 @@
           },
           "title": "Quality",
           "type": "object"
+        },
+        "briefing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Briefing"
         }
       },
       "required": [

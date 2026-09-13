@@ -112,6 +112,52 @@ def test_narration_does_not_trust_client_numbers_or_make_diagnoses(client):
     assert "cannot assess" in result["answer"]
 
 
+def test_ask_always_carries_the_training_window_even_off_topic(client):
+    """The agent should already know the best training window on any question, not
+    just ones that mention "workout" -- that's the whole point of turn_context."""
+    uid = register(client)
+    now = utcnow()
+    for m in range(0, 120, 5):
+        client.post(
+            "/api/ingest/file",
+            files={
+                "file": (
+                    "g.json",
+                    json.dumps(
+                        [
+                            {
+                                "event_time": (now - timedelta(minutes=m)).isoformat(),
+                                "body_battery_pct": 60 - m // 20,
+                                "heart_rate_bpm": 70,
+                            }
+                        ]
+                    ),
+                    "application/json",
+                )
+            },
+        )
+    result = client.post("/api/twin/ask", json={"question": "How did I sleep?"}).json()
+    stored = client.app.state.runtime.store.conversation(uid, result["id"])
+    facts = " ".join(stored["context"]["facts"])
+    assert "training window" in facts.lower()
+
+
+def test_turn_context_is_cached_and_invalidated_on_delete(client):
+    import asyncio
+
+    uid = register(client)
+    rt = client.app.state.runtime
+    u = rt.store.user(uid)
+    first = asyncio.run(rt.turn_context(u))
+    assert rt.turn_context_cache.get(uid) is not None
+    second = asyncio.run(rt.turn_context(u))
+    assert second is first  # cache hit returns the same object, not a recomputation
+    forced = asyncio.run(rt.turn_context(u, force=True))
+    assert forced is not first
+    rt.invalidate_turn_context(uid)
+    assert uid not in rt.turn_context_cache
+
+
 def test_delete_cascades_private_data_and_sessions(client):
     uid = register(client)
     client.post("/api/ingest/bluetooth", json={"heart_rate_bpm": 70})
@@ -390,6 +436,52 @@ def test_simulate_my_day_layers_scenarios_on_the_forecast():
     assert scenarios["train_now"]["decision"]["activity_load"] == "High"
     assert scenarios["recovery_break"]["decision"]["evening_state"] <= baseline_evening + 4.1
     assert "scenario overlays" in " ".join(result["assumptions"])
+
+
+def test_simulate_my_day_uses_the_best_training_window_verbatim_when_given_one():
+    """Best Training Window and Simulate My Day used to pick their own, sometimes
+    different, workout time. A decision passed in must win outright: no re-deriving,
+    no disagreement between what the two features tell the user."""
+    from datetime import datetime, timedelta, timezone as tzmod
+    from modeling.day_simulation import simulate_day
+    from modeling.training_window import best_training_window
+    from shared.schemas import EnergyState, TwinFrame, Provenance, Readiness
+
+    now = datetime(2026, 9, 12, 18, 0, tzinfo=tzmod.utc)
+    history = [
+        TwinFrame(
+            user_id="u",
+            event_time=now - timedelta(minutes=m),
+            provenance=Provenance.GARMIN_FIT_REPLAY,
+            body_battery_pct=float(62 - m // 20),
+            heart_rate_bpm=72,
+            stress_max=35,
+        )
+        for m in range(0, 120, 5)
+    ]
+
+    from pathlib import Path
+    from modeling.forecast import trajectory as trajectory_fn
+    from shared.schemas import TwinState
+
+    state = TwinState.model_validate_json(Path("fixtures/golden/twin-state.json").read_text()).model_copy(
+        update={
+            "readiness": Readiness(
+                user_id="u", computed_at=now, score=70, state=EnergyState.BALANCED, contributions={}, confidence=0.8
+            )
+        }
+    )
+    base_trajectory = trajectory_fn(history, now, "America/Chicago")
+    profile = {"timezone": "America/Chicago", "bedtime": "23:00", "workout_minutes": 30}
+    decision = best_training_window(state, base_trajectory, [], profile, now, "unavailable")
+    assert decision["available"]
+
+    result = simulate_day(history, now, "America/Chicago", steps=8000, decision=decision)
+    scenarios = {s["id"]: s for s in result["scenarios"]}
+    expected_start = datetime.fromisoformat(decision["window"]["start"])
+    expected_label = expected_start.astimezone(expected_start.tzinfo).strftime("%-I:%M %p")
+    assert scenarios["train_best_window"]["decision"]["best_window"] == expected_label
+    assert scenarios["train_best_window"]["decision"]["workout"] == decision["window"]["workout"]["title"]
 
 
 def test_simulate_my_day_endpoint_uses_account_frames(client):
