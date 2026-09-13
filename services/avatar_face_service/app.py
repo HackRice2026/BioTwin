@@ -238,6 +238,7 @@ class ConnectionState:
     viseme_queue: deque[int] = field(default_factory=deque)
     current_viseme: int | None = None
     inference_busy: bool = False
+    energy: float = 0.0
 
 
 async def _pump_ffmpeg_output(proc: asyncio.subprocess.Process, state: ConnectionState) -> None:
@@ -287,11 +288,65 @@ async def _pump_ffmpeg_output(proc: asyncio.subprocess.Process, state: Connectio
             state.inference_busy = False
 
 
+async def _receive_loop(
+    websocket: WebSocket, state: ConnectionState, proc: asyncio.subprocess.Process | None
+) -> None:
+    """Reads audio chunks from the client and forwards them to ffmpeg --
+    nothing here ever sends a frame back. Emission used to happen right in
+    this loop, sized off of *this one received chunk's* byte length -- fine
+    for a steady trickle of small chunks, but a real TTS client sends a
+    whole utterance as one or two large bursts (confirmed live: a single
+    ~37KB message for one reply), and that per-message size estimate was
+    capped at 180ms regardless of how much audio actually arrived. The
+    result: ~11 frames got sent for the start of the utterance, then the
+    socket went silent waiting for another message that never came, while
+    the ASR inference queue kept filling in the background and pegged at
+    its cap, undrained -- the mouth would twitch for ~180ms then freeze.
+    Emission is now driven by _emit_loop's own steady clock instead."""
+    while True:
+        payload = await websocket.receive()
+        if "bytes" in payload and payload["bytes"] is not None:
+            chunk = payload["bytes"]
+        elif "text" in payload and payload["text"] is not None:
+            try:
+                decoded = json.loads(payload["text"])
+                chunk = bytes(decoded.get("audio", []))
+            except Exception:
+                chunk = b""
+        else:
+            chunk = b""
+        if proc is not None and proc.stdin is not None and chunk:
+            try:
+                proc.stdin.write(chunk)
+                await proc.stdin.drain()
+            except Exception:
+                log.exception("ffmpeg pipe broke -- falling back to heuristic for the rest of this connection")
+        if chunk:
+            state.energy = chunk_energy(chunk)
+            metrics.audio_buffer_ms = max(33, min(180, int(len(chunk) / 96)))
+
+
+async def _emit_loop(websocket: WebSocket, state: ConnectionState) -> None:
+    """Sends one blendshape_frame every 16ms for the life of the
+    connection, decoupled from when (or how much) audio arrives -- drains
+    whatever the ASR pump has queued at a steady, real-time pace instead of
+    only when a new client message shows up."""
+    phase = 0.0
+    timestamp_ms = 0
+    while True:
+        timestamp_ms += 16
+        phase += 0.35 + state.energy * 0.4
+        if state.viseme_queue:
+            state.current_viseme = state.viseme_queue.popleft()
+        frame = make_frame(timestamp_ms, state.energy, phase, state.current_viseme)
+        await websocket.send_json(frame)
+        metrics.frames += 1
+        await asyncio.sleep(0.016)
+
+
 @app.websocket("/ws/face")
 async def face_socket(websocket: WebSocket) -> None:
     await websocket.accept()
-    phase = 0.0
-    timestamp_ms = 0
     state = ConnectionState()
     proc: asyncio.subprocess.Process | None = None
     pump_task: asyncio.Task | None = None
@@ -309,43 +364,20 @@ async def face_socket(websocket: WebSocket) -> None:
         except Exception:
             log.exception("could not start ffmpeg -- falling back to heuristic for this connection")
             proc = None
+    receive_task = asyncio.create_task(_receive_loop(websocket, state, proc))
+    emit_task = asyncio.create_task(_emit_loop(websocket, state))
     try:
-        while True:
-            started = time.perf_counter()
-            payload = await websocket.receive()
-            if "bytes" in payload and payload["bytes"] is not None:
-                chunk = payload["bytes"]
-            elif "text" in payload and payload["text"] is not None:
-                try:
-                    decoded = json.loads(payload["text"])
-                    chunk = bytes(decoded.get("audio", []))
-                except Exception:
-                    chunk = b""
-            else:
-                chunk = b""
-            if proc is not None and proc.stdin is not None and chunk:
-                try:
-                    proc.stdin.write(chunk)
-                    await proc.stdin.drain()
-                except Exception:
-                    log.exception("ffmpeg pipe broke -- falling back to heuristic for the rest of this connection")
-                    proc = None
-            energy = chunk_energy(chunk)
-            estimated_ms = max(33, min(180, int(len(chunk) / 96)))
-            metrics.audio_buffer_ms = estimated_ms
-            frames = max(1, estimated_ms // 16)
-            for _ in range(frames):
-                timestamp_ms += 16
-                phase += 0.35 + energy * 0.4
-                if state.viseme_queue:
-                    state.current_viseme = state.viseme_queue.popleft()
-                frame = make_frame(timestamp_ms, energy, phase, state.current_viseme)
-                await websocket.send_json(frame)
-                metrics.frames += 1
-                await asyncio.sleep(0)
+        done, pending = await asyncio.wait(
+            [receive_task, emit_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in done:
+            task.result()
     except WebSocketDisconnect:
         return
     finally:
+        receive_task.cancel()
+        emit_task.cancel()
+        await asyncio.gather(receive_task, emit_task, return_exceptions=True)
         if pump_task is not None:
             pump_task.cancel()
         if proc is not None:

@@ -655,9 +655,12 @@ export default function Avatar({
       if (stopped) return;
       if (socket.current?.readyState === WebSocket.OPEN) return;
       const ws = new WebSocket(faceWs);
+      console.log("[avatar-debug] face ws connecting to", faceWs);
       ws.binaryType = "arraybuffer";
       socket.current = ws;
+      let framesLogged = 0;
       ws.onopen = () => {
+        console.log("[avatar-debug] face ws OPEN");
         retry = 0;
         setFaceState("online");
       };
@@ -665,13 +668,24 @@ export default function Avatar({
         const raw =
           typeof event.data === "string" ? JSON.parse(event.data) : null;
         const frame = parseFaceFrame(raw);
-        if (!frame) return;
+        if (!frame) {
+          console.warn("[avatar-debug] face ws message did not parse as a frame:", raw);
+          return;
+        }
+        if (framesLogged < 5 || framesLogged % 30 === 0) {
+          console.log("[avatar-debug] face frame #" + framesLogged, frame.weights);
+        }
+        framesLogged++;
         frame.timestampMs = window.performance.now();
         faceFrames.current.push(frame);
         if (faceFrames.current.length > 16) faceFrames.current.shift();
       };
-      ws.onerror = () => setFaceState("fallback");
-      ws.onclose = () => {
+      ws.onerror = (err) => {
+        console.error("[avatar-debug] face ws ERROR", err);
+        setFaceState("fallback");
+      };
+      ws.onclose = (event) => {
+        console.warn("[avatar-debug] face ws CLOSED code=" + event.code + " reason=" + event.reason);
         if (socket.current === ws) socket.current = null;
         setFaceState("fallback");
         if (!stopped)
@@ -738,8 +752,13 @@ export default function Avatar({
     const stopAudio = listenAvatarAudio(({ bytes }) => {
       audioEnergy.current = Math.min(0.75, bytes.byteLength / 18000);
       const ws = socket.current;
-      if (ws?.readyState === WebSocket.OPEN) ws.send(bytes.slice(0));
       const bws = bodySocket.current;
+      console.log(
+        "[avatar-debug] listenAvatarAudio bytes=" + bytes.byteLength +
+          " faceWsState=" + (ws ? ws.readyState : "null") +
+          " bodyWsState=" + (bws ? bws.readyState : "null"),
+      );
+      if (ws?.readyState === WebSocket.OPEN) ws.send(bytes.slice(0));
       if (bws?.readyState === WebSocket.OPEN) bws.send(bytes.slice(0));
     });
     return () => {

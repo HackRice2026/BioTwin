@@ -135,7 +135,12 @@ export class TwinVoice {
         typeof MediaSource !== "undefined" &&
         MediaSource.isTypeSupported("audio/mpeg") &&
         response.body;
+      console.log("[avatar-debug] voice canStream:", canStream);
       if (!canStream) {
+        console.warn(
+          "[avatar-debug] MediaSource streaming unavailable -- falling back to a plain <audio> blob. " +
+            "emitAvatarAudio() is never called on this path, so the avatar face/body will NOT move.",
+        );
         const blob = await response.blob();
         if (!blob.size)
           throw new Error(
@@ -164,6 +169,7 @@ export class TwinVoice {
         if (done) break;
         const bytes = new Uint8Array(value).buffer;
         chunks.push(bytes);
+        console.log("[avatar-debug] emitAvatarAudio chunk bytes:", bytes.byteLength);
         emitAvatarAudio(bytes.slice(0));
         await event(buffer, "updateend", signal, () =>
           buffer.appendBuffer(bytes),
