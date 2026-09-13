@@ -92,6 +92,21 @@ outbox = Table(
     Column("available", Float),
     Column("error", Text),
 )
+# Precomputed narration grounding: the MATLAB model-comparison writeup (docs/Matlab.md,
+# matlab/results/) turned into short natural-language facts by scripts/generate_insights.py,
+# each embedded so the voice agent can pull in the one relevant fact instead of the coach
+# having no way to answer "how accurate is your forecast" at all. The embedding is stored as
+# a plain JSON float array rather than a native pgvector column -- this corpus is a handful of
+# rows, so an ANN index buys nothing, and a JSON column keeps SQLite (local dev) and Supabase
+# Postgres on one schema/code path instead of two.
+insights = Table(
+    "analysis_insights",
+    metadata,
+    Column("topic", String, primary_key=True),
+    Column("content", Text, nullable=False),
+    Column("source_numbers", JSON, nullable=False),
+    Column("embedding", JSON, nullable=False),
+)
 
 
 class Store:
@@ -512,3 +527,16 @@ class Store:
             for table in [frames, documents, sessions, conversations]:
                 c.execute(delete(table).where(table.c.user_id == user_id))
             c.execute(delete(users).where(users.c.id == user_id))
+
+    def put_insight(self, topic, content, source_numbers, embedding):
+        with self.engine.begin() as c:
+            c.execute(delete(insights).where(insights.c.topic == topic))
+            c.execute(
+                insert(insights).values(
+                    topic=topic, content=content, source_numbers=source_numbers, embedding=embedding
+                )
+            )
+
+    def list_insights(self):
+        with self.engine.connect() as c:
+            return [dict(row) for row in c.execute(select(insights)).mappings().all()]

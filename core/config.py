@@ -51,3 +51,7 @@ class Settings(BaseSettings):
     vertex_project_id: str = ""
     vertex_region: str = "us-central1"
     vertex_model: str = "gemini-2.5-flash"
+    # Used offline by scripts/generate_insights.py only, never on the live request path --
+    # that script can afford a slower, stronger model since it runs once per analysis
+    # refresh, not once per question. Shares narration_url/narration_api_key.
+    insight_model: str = "gemini-2.5-pro"

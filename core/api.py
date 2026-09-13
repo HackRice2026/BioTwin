@@ -43,6 +43,7 @@ from modeling.explanations import narration_context
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
 from narration.service import narrate
+from narration.insights import retrieve_insight
 from narration.transcription import transcribe
 
 
@@ -637,6 +638,9 @@ def create_app(config=None):
             outlook,
             energy_trajectory,
         )
+        insight_facts = await retrieve_insight(question, rt().store, config, rt().http)
+        if insight_facts:
+            ctx = ctx.model_copy(update={"facts": ctx.facts + tuple(insight_facts)})
         agenda = None
         if data.calendar_mode or calendar_question(question):
             agenda = await AgendaService(rt().calendar).list(u, data.calendar_start, data.calendar_end)

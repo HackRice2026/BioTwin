@@ -128,6 +128,32 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Precomputed model-analysis grounding: the locked MATLAB
+  model-comparison results (`matlab/results/BASELINES.md`, `docs/Matlab.md`)
+  were never wired into `NarrationContext`, so a question like "how accurate
+  is your 1-hour forecast" had zero grounding and fell through to
+  `guard_fallback`. `scripts/generate_insights.py` now turns each locked
+  finding into one short paragraph via a stronger, offline-only model
+  (`INSIGHT_MODEL`, default `gemini-2.5-pro` — never on the live request
+  path), embeds it (`narration/embeddings.py`, reusing `NARRATION_API_KEY`),
+  and stores it in `analysis_insights` (`core/store.py`, mirrored in
+  `supabase/migrations/202609131200_analysis_insights.sql`). At ask time,
+  `narration/insights.retrieve_insight` only fires the embedding call for
+  methodology-flavored questions (regex gate, no network cost otherwise),
+  does the similarity match in Python (embeddings stored as a JSON float
+  array, not a native pgvector column — this corpus is a handful of rows, so
+  an ANN index buys nothing), and folds the winning fact into `ctx.facts`,
+  the same free-text grounding slot `modeling/explanations.py` already
+  fills — no new NarrationResponse mode needed. Regenerate after any MATLAB
+  re-run with `uv run python -m scripts.generate_insights`.
+  CAUTION: while adding `put_insight`/`list_insights` to `core/store.py`, an
+  Edit landed the new methods mid-function inside `delete_user`, stranding
+  its final `delete(users)...` statement as unreachable code after an
+  earlier `return` — account deletion silently stopped removing the `users`
+  row. Caught by `tests/test_api.py::test_delete_cascades_private_data_and_sessions`
+  failing; always rerun the full suite after inserting new methods near the
+  end of an existing one, not just after touching call sites.
+
 - 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
   correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
   during this fix that process was running from a Claude scratchpad cwd, so
