@@ -95,6 +95,8 @@ For PostgreSQL contract tests, set `TEST_POSTGRES_URL` to a dedicated test datab
 
 See [verification evidence and limits](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [model assumptions](docs/MODEL_CARD.md), and [asset licenses](docs/LICENSES.md).
 
+For hosted PostgreSQL, see the [Supabase database setup](docs/SUPABASE.md).
+
 ## Production deployment
 
 The container serves the compiled frontend and FastAPI from one origin. Configure `.env`, set `POSTGRES_PASSWORD`, and run:
