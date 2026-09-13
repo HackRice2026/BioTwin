@@ -491,28 +491,30 @@ export default function BioTwinApp() {
                 <div className="coach-portrait">
                   <img src="/assets/coach-mascot.png" alt="" />
                 </div>
-                <button
-                  type="button"
-                  className={`coach-mic ${listening ? "listening" : ""}`}
-                  disabled={asking}
-                  aria-label={listening ? "Stop listening" : "Start listening"}
-                  aria-pressed={listening}
-                  onClick={conversation.microphone}
-                >
-                  <span aria-hidden="true" />
-                  <Mic size={26} />
-                </button>
-                <div className="coach-status">
-                  <b>{phase}</b>
-                  <span>
-                    {listening
-                      ? "Say it naturally"
-                      : speaking
-                        ? "Answering out loud"
-                        : asking || transcribing
-                          ? "Reading the room"
-                          : "Tap the mic"}
-                  </span>
+                <div className="coach-control">
+                  <button
+                    type="button"
+                    className={`coach-mic ${listening ? "listening" : ""}`}
+                    disabled={asking}
+                    aria-label={listening ? "Stop listening" : "Start listening"}
+                    aria-pressed={listening}
+                    onClick={conversation.microphone}
+                  >
+                    <span aria-hidden="true" />
+                    <Mic size={24} />
+                  </button>
+                  <div className="coach-status">
+                    <b>{phase}</b>
+                    <span>
+                      {listening
+                        ? "Say it naturally"
+                        : speaking
+                          ? "Answering out loud"
+                          : asking || transcribing
+                            ? "Reading the room"
+                            : "Tap the mic"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
