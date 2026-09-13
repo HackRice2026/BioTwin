@@ -463,14 +463,14 @@ export default function BioTwinApp() {
                 YOUR DIGITAL TWIN
               </span>
               <h2>
-                In sync
+                Beyond
                 <br />
-                <em>with you.</em>
+                <em>Numbers</em>
               </h2>
               <p>
-                Your signals, brought to life.
+                Wearables give you numbers.
                 <br />
-                Ask your twin what's on your mind.
+                BioTwin gives you understanding.
               </p>
               <div className="hero-prompts">
                 {["How did I sleep?", "When should I work out?"].map((q) => (
