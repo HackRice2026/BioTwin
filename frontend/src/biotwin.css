@@ -153,8 +153,7 @@ button.primary:hover:not(:disabled) {
   gap: 8px;
   align-items: center;
 }
-.eyebrow i,
-.status-dot {
+.eyebrow i {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -352,23 +351,6 @@ button.primary:hover:not(:disabled) {
 .nav-bottom {
   margin-top: auto;
 }
-.nav-note {
-  padding: 26px 12px 24px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 16px;
-}
-.nav-note p {
-  color: #9aac9f;
-  font-size: 14px;
-}
-.nav-note button {
-  padding: 18px 0 0;
-  color: var(--green);
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .account-control {
   display: flex;
   align-items: center;
@@ -416,19 +398,6 @@ button.primary:hover:not(:disabled) {
   backdrop-filter: blur(30px);
   border-bottom: 1px solid var(--line);
   z-index: 55;
-}
-.bar-location {
-  display: grid;
-  gap: 5px;
-}
-.bar-location > span {
-  font-size: 8px;
-  letter-spacing: 0.15em;
-  color: #72877c;
-}
-.bar-location > b {
-  font-size: 11px;
-  font-weight: 500;
 }
 .body-battery {
   display: flex;
@@ -525,42 +494,6 @@ button.primary:hover:not(:disabled) {
   font-size: 12px;
   margin-top: 5px;
 }
-.connection-pill {
-  font-size: 10px;
-  border: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 11px;
-  border-radius: 20px;
-  white-space: nowrap;
-  color: #9eafa5;
-}
-.connection-pill i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--green);
-}
-.connection-pill.offline i {
-  background: var(--amber);
-}
-.preview-note {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  color: #7b9285;
-  font-size: 10px;
-  margin: -7px 0 20px;
-}
-.preview-note button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #afc6b6;
-  font-size: 10px;
-}
 .notice {
   background: #edc17f0a;
   border: 1px solid #edc17f20;
@@ -620,14 +553,6 @@ button.primary:hover:not(:disabled) {
   font-size: 12px;
   line-height: 1.8;
 }
-.hero-state {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 16px;
-  font-size: 10px;
-  color: #9cc4ab;
-}
 .hero-prompts {
   display: flex;
   gap: 7px;
@@ -656,18 +581,18 @@ button.primary:hover:not(:disabled) {
 .hero-avatar:before {
   content: "";
   position: absolute;
-  width: 270px;
-  height: 270px;
+  width: 292px;
+  height: 292px;
   left: 50%;
-  top: 43%;
+  top: 42%;
   transform: translate(-50%, -50%);
-  border: 1px solid #a5d7b712;
+  border: 1px solid #c4efd226;
   border-radius: 50%;
   box-shadow:
-    0 0 0 40px #99cdaa03,
-    0 0 0 41px #99cdaa08,
-    0 0 0 82px #99cdaa02,
-    0 0 0 83px #99cdaa06;
+    0 0 0 34px #99cdaa04,
+    0 0 0 35px #99cdaa0a,
+    0 0 0 74px #99cdaa02,
+    0 0 0 75px #99cdaa07;
 }
 .coach-presence {
   position: relative;
@@ -679,15 +604,19 @@ button.primary:hover:not(:disabled) {
   isolation: isolate;
 }
 .coach-portrait {
-  width: min(82%, 285px);
+  width: min(76%, 270px);
   aspect-ratio: 1;
-  border-radius: 28px;
-  overflow: hidden;
-  border: 1px solid #e0ffe829;
-  background: #16251e;
+  border-radius: 50%;
+  overflow: visible;
+  border: 1px solid #d9ffe322;
+  background:
+    radial-gradient(circle at 50% 45%, #2f513cf2 0 36%, #17291ff0 62%, transparent 73%),
+    linear-gradient(145deg, #eff8ee18, #5a95720d);
   box-shadow:
-    0 22px 60px #00000030,
+    0 22px 62px #0000002e,
+    0 0 0 14px #d6ffe608,
     inset 0 0 0 1px #ffffff10;
+  transform: translateY(-34px);
   transition:
     transform 0.28s ease,
     opacity 0.28s ease,
@@ -696,24 +625,45 @@ button.primary:hover:not(:disabled) {
 .coach-portrait img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  padding: 8px;
+  filter:
+    drop-shadow(0 21px 32px #06120b5a)
+    drop-shadow(0 0 20px #b5f0c620);
 }
 .coach-presence.listening .coach-portrait,
 .coach-presence.speaking .coach-portrait,
 .coach-presence.thinking .coach-portrait {
-  transform: translateY(-8px) scale(0.92);
-  opacity: 0.38;
-  filter: saturate(0.75) blur(1px);
+  transform: translateY(-42px) scale(0.96);
+  opacity: 0.72;
+  filter: saturate(0.92);
 }
-.coach-mic {
+.coach-control {
   position: absolute;
   left: 50%;
-  top: 52%;
+  bottom: 18px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(92%, 238px);
+  transform: translateX(-50%);
+  padding: 8px 11px 8px 8px;
+  border: 1px solid #d9ffe428;
+  border-radius: 999px;
+  background: #0f1e17e3;
+  box-shadow:
+    0 18px 44px #0000002e,
+    inset 0 1px 0 #ffffff12;
+  backdrop-filter: blur(16px);
+}
+.coach-mic {
+  position: relative;
+  flex: 0 0 56px;
   z-index: 3;
-  width: 74px;
-  height: 74px;
-  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -721,7 +671,7 @@ button.primary:hover:not(:disabled) {
   background: #a3d9af;
   border: 1px solid #f0fff07d;
   box-shadow:
-    0 18px 44px #00000033,
+    0 12px 26px #0000002b,
     0 0 0 10px #9fdcaf19;
   transition:
     transform 0.22s ease,
@@ -730,7 +680,7 @@ button.primary:hover:not(:disabled) {
     box-shadow 0.22s ease;
 }
 .coach-mic:hover:not(:disabled) {
-  transform: translate(-50%, -50%) scale(1.04);
+  transform: scale(1.04);
 }
 .coach-mic:disabled {
   cursor: wait;
@@ -761,20 +711,10 @@ button.primary:hover:not(:disabled) {
   opacity: 0.8;
 }
 .coach-status {
-  position: absolute;
-  left: 50%;
-  bottom: 26px;
-  z-index: 4;
-  transform: translateX(-50%);
-  min-width: 178px;
-  padding: 9px 13px;
-  border-radius: 16px;
-  border: 1px solid #d9ffe41f;
-  background: #102018d4;
+  min-width: 0;
+  padding: 0;
   color: #bfd6c6;
-  box-shadow: 0 12px 28px #00000024;
-  backdrop-filter: blur(14px);
-  text-align: center;
+  text-align: left;
 }
 .coach-status b {
   display: block;
@@ -849,22 +789,6 @@ button.primary:hover:not(:disabled) {
   color: #1c3826;
   display: grid;
   place-items: center;
-}
-.composer-hint {
-  font-size: 9px;
-  color: #738e7d;
-  margin-top: 9px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 3px;
-}
-.composer-hint button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #90ac9b;
-  font-size: 9px;
 }
 .avatar-card {
   position: relative;
@@ -1311,6 +1235,9 @@ button.primary:hover:not(:disabled) {
   color: #84a18e;
   padding: 30px;
 }
+.essentials-grid > .empty-state {
+  grid-column: 1 / -1;
+}
 .empty-state p {
   font-size: 12px;
 }
@@ -1603,7 +1530,6 @@ button.primary:hover:not(:disabled) {
   font-size: 13px;
 }
 .has-takeover .page-intro,
-.has-takeover .preview-note,
 .has-takeover .app-footer {
   display: none;
 }
@@ -1631,8 +1557,7 @@ button.primary:hover:not(:disabled) {
   content: " ";
 }
 .focused .hero-copy p,
-.focused .hero-prompts,
-.focused .hero-state {
+.focused .hero-prompts {
   display: none;
 }
 .focused .hero-avatar {
@@ -1644,17 +1569,21 @@ button.primary:hover:not(:disabled) {
 }
 .focused .coach-portrait {
   width: 118px;
-  border-radius: 20px;
+}
+.focused .coach-control {
+  bottom: -2px;
+  min-width: 168px;
+  padding: 6px 9px 6px 6px;
+  gap: 8px;
 }
 .focused .coach-mic {
-  width: 50px;
-  height: 50px;
-  top: 54%;
+  flex-basis: 44px;
+  width: 44px;
+  height: 44px;
 }
 .focused .coach-status {
-  bottom: 1px;
-  min-width: 132px;
-  padding: 6px 9px;
+  min-width: 0;
+  padding: 0;
 }
 .focused .coach-status b {
   font-size: 9px;
@@ -1673,9 +1602,6 @@ button.primary:hover:not(:disabled) {
 .focused .hero-composer {
   align-self: end;
   padding: 0 20px 12px;
-}
-.focused .composer-hint {
-  display: none;
 }
 .focused .avatar-top {
   top: 15px;
@@ -2228,9 +2154,6 @@ button.primary:hover:not(:disabled) {
     width: 27px;
     padding: 0;
   }
-  .bar-location {
-    display: none;
-  }
   .body-battery {
     margin-left: 4px;
     gap: 10px;
@@ -2259,10 +2182,6 @@ button.primary:hover:not(:disabled) {
   .bar-twin span {
     display: none;
   }
-  .history-launch {
-    border: 0;
-    width: 30px;
-  }
   .workspace {
     margin: 0;
     padding: calc(var(--bar) + env(safe-area-inset-top, 0px) + 23px) 18px
@@ -2285,30 +2204,6 @@ button.primary:hover:not(:disabled) {
   .page-intro p {
     font-size: 10px;
     max-width: 220px;
-  }
-  .connection-pill {
-    font-size: 0;
-    width: 20px;
-    height: 20px;
-    border: 0;
-    padding: 0;
-    justify-content: center;
-    margin-top: 28px;
-  }
-  .connection-pill i {
-    height: 5px;
-    width: 5px;
-  }
-  .preview-note {
-    font-size: 9px;
-    display: block;
-    margin: -3px 0 14px;
-  }
-  .preview-note button {
-    font-size: 9px;
-    display: inline-flex;
-    margin-left: 5px;
-    padding: 0;
   }
   .glass,
   .card {
@@ -2342,8 +2237,7 @@ button.primary:hover:not(:disabled) {
     margin-top: 14px;
   }
   .hero-copy p,
-  .hero-prompts,
-  .hero-state {
+  .hero-prompts {
     display: none;
   }
   .hero-avatar {
@@ -2357,16 +2251,20 @@ button.primary:hover:not(:disabled) {
   }
   .coach-portrait {
     width: 180px;
-    border-radius: 22px;
+  }
+  .coach-control {
+    bottom: 14px;
+    min-width: 190px;
+    padding: 6px 9px 6px 6px;
   }
   .coach-mic {
-    width: 58px;
-    height: 58px;
+    flex-basis: 48px;
+    width: 48px;
+    height: 48px;
   }
   .coach-status {
-    bottom: 19px;
-    min-width: 150px;
-    padding: 7px 10px;
+    min-width: 0;
+    padding: 0;
   }
   .hero-avatar:before {
     width: 170px;
@@ -2400,13 +2298,6 @@ button.primary:hover:not(:disabled) {
     height: 31px;
     width: 31px;
     border-radius: 9px;
-  }
-  .composer-hint {
-    font-size: 8px;
-    margin-top: 8px;
-  }
-  .composer-hint button {
-    font-size: 8px;
   }
   .avatar-top {
     right: 14px;
@@ -2721,12 +2612,19 @@ button.primary:hover:not(:disabled) {
   .focused .coach-portrait {
     width: 105px;
   }
+  .focused .coach-control {
+    bottom: 0;
+    min-width: 152px;
+    padding: 5px 8px 5px 5px;
+  }
   .focused .coach-mic {
-    width: 46px;
-    height: 46px;
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
   }
   .focused .coach-status {
-    bottom: 4px;
+    min-width: 0;
+    padding: 0;
   }
   .focused .hero-avatar:before {
     height: 100px;
@@ -3069,17 +2967,17 @@ button.primary:hover:not(:disabled) {
     font-size: 26px;
   }
 }
-/* The broadcast chart needs an explicit height: recharts' ResponsiveContainer
+/* The forecast chart needs an explicit height: recharts' ResponsiveContainer
    measures its parent, and inside a flex-column dialog that parent would
    otherwise collapse to nothing. Same 220px the signal charts use. */
-.broadcast-chart {
+.forecast-chart {
   height: 220px;
   margin: 4px 0 14px;
 }
-/* The broadcast button sits inside .body-battery, whose 15px gap is tuned for
+/* The forecast button sits inside .body-battery, whose 15px gap is tuned for
    the label-and-meter pair; bar-twin's 22px left padding would push the meter
    off-centre there, so only the divider and spacing are adjusted. */
-.battery-broadcast {
+.battery-forecast {
   padding-left: 15px;
   white-space: nowrap;
 }

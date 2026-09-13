@@ -8,6 +8,16 @@ Run `uv run python -m scripts.setup`. This creates a mode-0600 `.env` with a ran
 
 The encryption key must remain stable: rotating it without re-encrypting existing token envelopes makes those tokens unreadable. Reconnect accounts after such a rotation. Use your deployment secret manager in production.
 
+## Shared Supabase data source
+
+BioTwin does not use a separate Supabase browser client. The app's source of truth is the backend SQL database selected by `DATABASE_URL`; every dashboard, Gemini answer, calendar decision and conversation context reads through that backend path. To use shared real data for everyone, set `DATABASE_URL` to the Supabase pooled Postgres connection string, for example:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://postgres.<project-ref>:<password>@<host>:6543/postgres?sslmode=require
+```
+
+Keep the real password only in ignored local `.env` or deployment secrets. Restart the API after changing it, then verify `/api/session` returns `"data_source":"supabase"` and `/ops/status` returns `"storage":"supabase"`. If those still say `sqlite`, the app is still on local data no matter what the UI shows.
+
 ## Garmin watch and iPhone
 
 ### Recorded import, available now

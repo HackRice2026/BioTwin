@@ -165,6 +165,33 @@ This file is a living document. The agent MUST:
   `authenticated`; this unrelated warning was not modified without approval.
   The automatic OAuth attempt requested incompatible default scopes; explicit
   Supabase scopes succeeded.
+- 2026-09-13 — Gemini coach bug fix branch: the visible frontend may be
+  correct while Vite still proxies to an old backend on `127.0.0.1:8000`;
+  during this fix that process was running from a Claude scratchpad cwd, so
+  use `VITE_API_PROXY_TARGET=http://127.0.0.1:<port>` when verifying a
+  non-8000 backend. The actual Gemini rejection was caused by
+  `_coach_brief()` reusing `label` inside its contribution loop, overwriting
+  the readiness day label with a driver name like "resting heart rate day";
+  `DRIVER_DAY_LABELS` now guards against those invented phrases and
+  `tests/test_narration.py` covers natural time phrasing plus the label
+  regression. VERIFIED through the frontend proxy with
+  `mode: "language_service"` and `model: "vertex:gemini-2.5-flash"`.
+
+- 2026-09-13 — Shared data source check: Supabase in this app means the
+  backend `DATABASE_URL` points at Supabase Postgres; there is no separate
+  browser Supabase client. `/api/session.data_source` and `/ops/status.storage`
+  now expose the active backend (`sqlite`, `postgres`, or `supabase`). If they
+  say `sqlite`, the UI/Gemini/calendar stack is still reading local data even
+  if the screen looks connected. Dashboard metric cards/details now hide
+  unpopulated latest fields instead of rendering dashes as if they were data.
+
+- 2026-09-13 — Voice loop behavior: the coach flow is now meant to be
+  conversational (`record question -> Gemini -> ElevenLabs -> re-arm mic`) once
+  voice mode is activated. Space activates voice mode only when focus is not in
+  an editable/control element. "Hey twin" wake listening uses browser speech
+  recognition only after microphone permission is already granted; browsers do
+  not allow a reliable always-on hotword before that.
+
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The

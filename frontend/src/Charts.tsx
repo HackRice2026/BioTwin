@@ -383,6 +383,44 @@ export function ReadinessChart({
   );
 }
 
+// The trained model only answers at 1h/3h/6h (see matlab/params_trajectory.json)
+// -- these are the real predictions, so they get a bigger, labeled dot. The
+// axis still runs to 10h purely for visual headroom; no data exists past 6h,
+// and none is invented to fill it.
+const MODEL_HORIZONS_H = [1, 3, 6];
+function ForecastDot(props: {
+  cx?: number;
+  cy?: number;
+  payload?: { hours: number };
+}) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || !payload) return null;
+  if (!MODEL_HORIZONS_H.includes(payload.hours)) {
+    return <circle cx={cx} cy={cy} r={3} fill="var(--green)" />;
+  }
+  return (
+    <g>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={5}
+        fill="var(--green)"
+        stroke="#0c1512"
+        strokeWidth={2}
+      />
+      <text
+        x={cx}
+        y={cy - 12}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+        fill="var(--green)"
+      >
+        {payload.hours}h
+      </text>
+    </g>
+  );
+}
 export function TrajectoryChart({
   measured,
   points,
@@ -424,8 +462,8 @@ export function TrajectoryChart({
         <XAxis
           dataKey="hours"
           type="number"
-          domain={[Math.floor(first), 6]}
-          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6].filter(
+          domain={[Math.floor(first), 10]}
+          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6, 10].filter(
             (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
           )}
           tickFormatter={(h: number) => (h === 0 ? "now" : h < 0 ? `${h}h` : `+${h}h`)}
@@ -469,7 +507,7 @@ export function TrajectoryChart({
           stroke="var(--green)"
           strokeWidth={2}
           strokeDasharray="5 4"
-          dot={{ r: 3, fill: "var(--green)", stroke: "none" }}
+          dot={ForecastDot}
           connectNulls
           isAnimationActive={false}
         />

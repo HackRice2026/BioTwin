@@ -288,7 +288,11 @@ class Runtime:
         if normalized.event_time > utcnow() + timedelta(minutes=5):
             raise ValueError("Measurement time is too far in the future")
         async with self.ingest_lock:
-            existing = self.history(normalized.user_id)
+            existing = (
+                self.history(normalized.user_id)
+                if broadcast
+                else self.store.history(normalized.user_id, limit=1)
+            )
             committed = self.store.append(normalized)
             if not committed:
                 self.counters["duplicates_suppressed"] += 1
@@ -297,10 +301,17 @@ class Runtime:
             if existing and committed.event_time < existing[-1].event_time - timedelta(minutes=5):
                 self.refit_due.add(uid)
                 self.counters["late_frames"] += 1
-            if not existing or committed.event_time >= existing[-1].event_time:
-                existing.append(committed)
-            else:
-                insort_right(existing, committed, key=lambda f: (f.event_time, f.sequence))
+            if broadcast:
+                if not existing or committed.event_time >= existing[-1].event_time:
+                    existing.append(committed)
+                else:
+                    insort_right(existing, committed, key=lambda f: (f.event_time, f.sequence))
+            elif uid in self.history_cache:
+                cached = self.history_cache[uid]
+                if not cached or committed.event_time >= cached[-1].event_time:
+                    cached.append(committed)
+                else:
+                    insort_right(cached, committed, key=lambda f: (f.event_time, f.sequence))
             if uid in self.latest_index:
                 self.index_frame(uid, committed)
             self.counters[f"frames_{committed.provenance.value}"] += 1
@@ -364,9 +375,13 @@ class Runtime:
 
     async def sync(self, uid, provider, since=None):
         count = 0
+        scanned = 0
         async for frame in self.adapters[provider].backfill(uid, since or utcnow() - timedelta(days=7)):
+            scanned += 1
             if await self.ingest(frame, broadcast=False):
                 count += 1
+            if scanned % 25 == 0:
+                await asyncio.sleep(0)
         self.publish(uid, self.compute(uid, refit=True))
         self.store.put(uid, "sync", {"at": utcnow().isoformat(), "count": count, "status": "ok"}, provider)
 
@@ -448,7 +463,14 @@ class Runtime:
             # the BLE bridge already retries its connection.
             while True:
                 try:
-                    await self.sync(uid, "garmin_influx")
+                    self.influx_sync_status[uid] = {"status": "backfilling"}
+                    recent = self.store.history(uid, limit=1)
+                    since = (
+                        recent[-1].event_time - timedelta(minutes=10)
+                        if recent
+                        else utcnow() - timedelta(days=7)
+                    )
+                    await self.sync(uid, "garmin_influx", since)
                     self.influx_sync_status[uid] = {"status": "live"}
                     async for frame in self.adapters["garmin_influx"].stream(uid):
                         await self.ingest(frame)
