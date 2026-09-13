@@ -529,7 +529,7 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
           <span className="current-battery-title">
             <span>Current Body Battery</span>
             <span
-              className="current-battery-meter"
+              className={`current-battery-meter ${battery != null && battery < 30 ? "low" : ""}`}
               role="img"
               aria-label={
                 battery == null

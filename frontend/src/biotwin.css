@@ -1128,6 +1128,18 @@ button.primary:hover:not(:disabled) {
   stroke-width: 2.3;
   width: 82px;
 }
+/* Same low-battery treatment as the navbar's .battery-cell.low, so a drained
+   reading reads the same (red) wherever Body Battery is shown. */
+.current-battery-meter.low {
+  color: var(--red);
+}
+.current-battery-meter.low .current-battery-meter-fill i {
+  background: var(--red);
+  box-shadow: 0 0 12px #f58b9155;
+}
+.current-battery-meter.low > svg {
+  filter: drop-shadow(0 0 5px #f58b913d);
+}
 .current-battery-meter > b {
   align-items: center;
   color: #f5fff8;
