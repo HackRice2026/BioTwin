@@ -1065,6 +1065,10 @@ button.primary:hover:not(:disabled) {
 .forecast-panel {
   min-width: 0;
 }
+.current-battery-panel,
+.body-battery-forecast-panel {
+  min-width: 0;
+}
 .forecast-summary {
   display: flex;
   align-items: flex-end;
@@ -1083,6 +1087,38 @@ button.primary:hover:not(:disabled) {
   line-height: 1.6;
   margin: 0;
   max-width: 310px;
+}
+.current-battery-summary {
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 14px;
+}
+.readiness-battery {
+  color: #8cdfb0;
+  display: grid;
+  flex: 0 0 88px;
+  height: 48px;
+  place-items: center;
+  position: relative;
+  width: 88px;
+}
+.readiness-battery > svg {
+  height: 48px;
+  stroke-width: 1.5;
+  width: 88px;
+}
+.readiness-battery > b {
+  color: #ecfff1;
+  font-size: 13px;
+  left: 0;
+  letter-spacing: -0.4px;
+  position: absolute;
+  text-align: center;
+  width: 74px;
+}
+.current-battery-summary h3 {
+  font-size: 16px;
+  margin: 7px 0 4px;
 }
 .forecast-progress {
   color: #8cdfb0;
@@ -1113,6 +1149,18 @@ button.primary:hover:not(:disabled) {
   font-size: 9px;
   white-space: nowrap;
 }
+.recommendation-heading {
+  padding: 12px 0 9px;
+}
+.forecast-recommendations {
+  border: 1px solid #ffffff10;
+  border-radius: 14px;
+  max-height: 174px;
+  overflow: auto;
+  padding: 7px;
+  scrollbar-color: #78bd91 #ffffff08;
+  scrollbar-width: thin;
+}
 .forecast-actions {
   display: grid;
   gap: 7px;
@@ -1123,22 +1171,14 @@ button.primary:hover:not(:disabled) {
   border: 1px solid #ffffff0c;
   border-radius: 12px;
   color: inherit;
-  cursor: pointer;
+  cursor: default;
   display: flex;
   gap: 10px;
   min-width: 0;
-  padding: 10px;
+  padding: 9px;
   text-align: left;
   transition: background 160ms ease, border-color 160ms ease;
   width: 100%;
-}
-.forecast-action:hover {
-  background: #8cdfb00d;
-  border-color: #8cdfb035;
-}
-.forecast-action.complete {
-  background: #8cdfb00d;
-  border-color: #8cdfb045;
 }
 .forecast-action-icon {
   align-items: center;
@@ -1167,16 +1207,17 @@ button.primary:hover:not(:disabled) {
   font-size: 9px;
   line-height: 1.35;
 }
-.forecast-action.complete .forecast-action-copy b,
-.forecast-action.complete .forecast-action-copy small {
-  opacity: 0.55;
-  text-decoration: line-through;
+.body-battery-forecast-panel .forecast-chart {
+  flex: 1 1 260px;
+  height: 320px;
+  margin: 0;
+  min-height: 230px;
 }
-.forecast-action-state {
-  color: #8cdfb0;
-  font-size: 9px;
-  margin-left: auto;
-  white-space: nowrap;
+.forecast-credibility {
+  color: #8da398;
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 10px 0 0;
 }
 .confidence-row {
   display: flex;
@@ -3118,6 +3159,13 @@ button.primary:hover:not(:disabled) {
 .battery-forecast {
   padding-left: 15px;
   white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .body-battery-forecast-panel .forecast-chart {
+    flex: none;
+    height: 230px;
+    min-height: 230px;
+  }
 }
 
 /* Connected calendar: complete agenda, readable details, and reviewed event writes. */

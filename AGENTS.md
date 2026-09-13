@@ -143,12 +143,15 @@ This file is a living document. The agent MUST:
   repository root whenever `shared/schemas` or a branch containing schema work
   is merged.
 
-- 2026-09-13 — Forecast replaces the passive “Ready for today” overview card.
-  It converts existing readiness, signal contributions, profile sleep target and
-  calendar-aware plan proposals into checkable daily assignments. Training is
-  light below readiness 65 and “heavy cardio” appears only at 65 or above;
-  hydration is phrased as a consistent habit rather than prescribing a universal
-  volume. Completion is intentionally session-local and resets for a new day.
+- 2026-09-13 — The overview's left insight panel is **Current Body Battery**:
+  it presents the existing readiness score inside a battery icon and shows
+  contained, scrollable recommendations derived from readiness, signal
+  contributions, profile sleep target and calendar-aware plan proposals.
+  These are deliberately non-interactive recommendations, never assignments or
+  completion tracking. Training is light below readiness 65 and “heavy cardio”
+  appears only at 65 or above; hydration avoids prescribing a universal volume.
+  The paired panel is **Body Battery forecast**; its chart domain ends at the
+  latest prediction instead of leaving empty future-axis space.
 - 2026-09-12 — Connected the local FastAPI server to Supabase project
   `xdosufbwuvstfkhllenh`. The direct database hostname is IPv6-only and did
   not resolve on this machine; the verified working connection is the free

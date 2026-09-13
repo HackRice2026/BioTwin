@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -8,7 +8,6 @@ import {
   Flame,
   Footprints,
   Heart,
-  Leaf,
   LoaderCircle,
   Moon,
   RefreshCw,
@@ -353,10 +352,7 @@ export function SignalDetail({
 }
 export function ReadinessPanel({ data }: { data: Dashboard }) {
   const r = data.state!.readiness,
-    score = r.score,
-    day = data.plan?.date ?? r.computed_at.slice(0, 10),
-    [completed, setCompleted] = useState<string[]>([]);
-  useEffect(() => setCompleted([]), [day]);
+    score = r.score;
   const workout = data.plan?.proposals.find((proposal) => proposal.kind === "workout");
   const nap = data.plan?.proposals.find((proposal) => proposal.kind === "nap");
   const sleepHours = Math.round((data.session?.user.profile.target_sleep ?? 480) / 60);
@@ -492,59 +488,59 @@ export function ReadinessPanel({ data }: { data: Dashboard }) {
       `${humanize(name)} ${contribution >= 0 ? "supports" : "limits"} today's load`,
     );
   return (
-    <Panel className="readiness-panel forecast-panel">
-      <PanelTitle title="Forecast" note="Data into actionable steps">
-        <Leaf size={19} className="green" />
+    <Panel className="readiness-panel forecast-panel current-battery-panel">
+      <PanelTitle title="Current Body Battery" note="Your energy reserve">
+        <Battery size={19} className="green" />
       </PanelTitle>
-      <div className="forecast-summary">
+      <div className="forecast-summary current-battery-summary">
+        <span
+          className="readiness-battery"
+          role="img"
+          aria-label={
+            score == null
+              ? "Body Battery is awaiting a reading"
+              : `Body Battery ${value(score)} percent`
+          }
+        >
+          <Battery aria-hidden="true" />
+          <b>{score == null ? "—" : `${value(score)}%`}</b>
+        </span>
         <div>
           <span className="pill green">
             {score == null ? "Getting to know you" : humanize(r.state)}
           </span>
-          <h3>{score == null ? "Your first plan starts here." : `${value(score)} readiness`}</h3>
+          <h3>{score == null ? "Your first plan starts here." : "Readiness for today"}</h3>
           <p>{drivers.length ? drivers.join(" · ") : "Forecast will adapt as more wearable data arrives."}</p>
         </div>
-        <span className="forecast-progress">
-          {completed.length}/{actions.length} done
-        </span>
       </div>
-      <div className="forecast-heading">
+      <div className="forecast-heading recommendation-heading">
         <div>
-          <span>According to today’s data</span>
-          <h3>Your assignments</h3>
+          <span>Support your energy</span>
+          <h3>Today’s recommendations</h3>
         </div>
         <small>{value(r.confidence * 100)}% confidence</small>
       </div>
-      <div className="forecast-actions" role="list" aria-label="Today's Forecast assignments">
+      <div className="forecast-recommendations" role="region" aria-label="Body Battery recommendations">
+        <div className="forecast-actions" role="list" aria-label="Today's Body Battery recommendations">
         {actions.map((action) => {
-          const done = completed.includes(action.id);
           const Icon = action.icon;
           return (
-            <button
+            <article
               key={action.id}
-              className={`forecast-action ${done ? "complete" : ""}`}
-              type="button"
+              className="forecast-action"
               role="listitem"
-              aria-pressed={done}
-              onClick={() =>
-                setCompleted((items) =>
-                  items.includes(action.id)
-                    ? items.filter((item) => item !== action.id)
-                    : [...items, action.id],
-                )
-              }
             >
               <span className={`forecast-action-icon ${action.tone}`}>
-                {done ? <Check size={16} /> : <Icon size={16} />}
+                <Icon size={16} />
               </span>
               <span className="forecast-action-copy">
                 <b>{action.title}</b>
                 <small>{action.detail}</small>
               </span>
-              <span className="forecast-action-state">{done ? "Done" : "Start"}</span>
-            </button>
+            </article>
           );
         })}
+        </div>
       </div>
     </Panel>
   );
@@ -570,8 +566,8 @@ export function RecoveryPanel({ data }: { data: Dashboard }) {
 export function TomorrowPanel({ data }: { data: Dashboard }) {
   const trajectory = data.trajectory;
   return (
-    <Panel>
-      <PanelTitle title="Ready for tomorrow" note="Forecasted body battery">
+    <Panel className="body-battery-forecast-panel">
+      <PanelTitle title="Body Battery forecast" note="Your projected energy reserve">
         <Battery size={18} className="green" />
       </PanelTitle>
       {trajectory?.available ? (
@@ -582,15 +578,9 @@ export function TomorrowPanel({ data }: { data: Dashboard }) {
               points={trajectory.points}
             />
           </div>
-          <div className="chart-key">
-            <span className="green">━ Observed</span>
-            <span>┄ Predicted</span>
-            <small>
-              {trajectory.basis === "model"
-                ? "Ridge model · your daily rhythm"
-                : "Your daily rhythm"}
-            </small>
-          </div>
+          <p className="forecast-credibility">
+            Prediction based on our mathematical numerical calculations and your recent numbers.
+          </p>
         </>
       ) : (
         <div className="empty-state">

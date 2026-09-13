@@ -454,7 +454,20 @@ export function TrajectoryChart({
       high: Math.min(100, p.value + p.validation_mae),
     })),
   ];
-  const first = rows.length ? rows[0].hours : -1;
+  const first = Math.floor(Math.min(-1, ...measured.map((m) => -m.minutes_ago / 60)));
+  const last = Math.ceil(
+    Math.max(1, ...points.map((p) => p.horizon_minutes / 60)),
+  );
+  const ticks = Array.from(
+    new Set([
+      first,
+      -6,
+      -3,
+      0,
+      ...points.map((p) => p.horizon_minutes / 60),
+      last,
+    ]),
+  ).filter((hour) => hour >= first && hour <= last);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={rows} margin={{ top: 12, right: 8, left: -22, bottom: 0 }}>
@@ -462,10 +475,8 @@ export function TrajectoryChart({
         <XAxis
           dataKey="hours"
           type="number"
-          domain={[Math.floor(first), 10]}
-          ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6, 10].filter(
-            (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
-          )}
+          domain={[first, last]}
+          ticks={ticks}
           tickFormatter={(h: number) => (h === 0 ? "now" : h < 0 ? `${h}h` : `+${h}h`)}
           tick={tick}
           axisLine={false}
