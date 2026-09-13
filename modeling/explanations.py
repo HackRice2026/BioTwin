@@ -1,8 +1,9 @@
 from shared.schemas import NarrationContext
+from modeling.harness import build_harness
 from zoneinfo import ZoneInfo
 
 
-def narration_context(state, plan=None, readiness_history=()):
+def narration_context(state, plan=None, readiness_history=(), outlook=None):
     r, b = state.readiness, state.baseline_summary
     facts = []
     if state.energy_reserve_pct is not None:
@@ -56,6 +57,14 @@ def narration_context(state, plan=None, readiness_history=()):
             facts.append(
                 f"Your plan suggests {p.title.lower()} at {local_start.strftime('%H:%M %Z')}. {p.reason}"
             )
+    harness = build_harness(state, plan, outlook)
+    facts.append(
+        f"The fitness harness confidence is {harness.confidence:g}; it combines signal confidence, forecast confidence, and calendar availability."
+    )
+    for decision in harness.policy:
+        facts.append(f"Harness policy: {decision.label} is {decision.value}. {decision.reason}")
+    for action in harness.next_actions[:2]:
+        facts.append(f"Harness next action: {action}")
     trend = []
     scores = [
         x for x in sorted(readiness_history, key=lambda x: x["computed_at"]) if x.get("score") is not None
@@ -71,6 +80,7 @@ def narration_context(state, plan=None, readiness_history=()):
         baseline_summary=b,
         plan=plan,
         prediction=state.prediction,
+        harness=harness,
         facts=tuple(facts),
         recent_trend=tuple(trend),
         provenance=state.provenance_banner,

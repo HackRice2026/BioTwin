@@ -40,6 +40,7 @@ from ingestion.adapters.replay import ReplayAdapter
 from ingestion.normalizer import METRICS
 from modeling.engine import simulate
 from modeling.explanations import narration_context
+from modeling.harness import build_harness
 from modeling.recovery import score_prediction
 from modeling.outlook import daily_outlook
 from narration.service import narrate
@@ -382,6 +383,15 @@ def create_app(config=None):
     async def outlook(request: Request):
         return daily_outlook(await state(request), user(request)["profile"], utcnow())
 
+    @app.get("/api/harness")
+    async def harness(request: Request):
+        u = user(request)
+        current = await state(request)
+        stored = rt().store.get(u["id"], "plan")
+        plan = DailyPlan.model_validate(stored) if stored else await rt().get_plan(u)
+        outlook = daily_outlook(current, u["profile"], utcnow())
+        return build_harness(current, plan, outlook)
+
     @app.post("/api/plan/refresh")
     async def refresh_plan(request: Request):
         return await rt().get_plan(user(request), True)
@@ -519,10 +529,13 @@ def create_app(config=None):
                     }
                 )
         stored = rt().store.get(u["id"], "plan")
+        plan = DailyPlan.model_validate(stored) if stored else None
+        outlook = daily_outlook(current, u["profile"], utcnow())
         ctx = narration_context(
             current,
-            DailyPlan.model_validate(stored) if stored else None,
+            plan,
             [p for _, p in rt().store.docs(u["id"], "readiness")],
+            outlook,
         )
         agenda = None
         if data.calendar_mode or calendar_question(question):
