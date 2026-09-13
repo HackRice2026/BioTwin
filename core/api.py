@@ -22,6 +22,7 @@ from fastapi import (
     Query,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from urllib.parse import urlsplit
 from fastapi.responses import RedirectResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
@@ -602,16 +603,31 @@ def create_app(config=None):
             "demo": u["id"] == "demo",
         }
 
+    def origin_of(request):
+        """Which allowed origin this request came from, or "" if it is not one
+        of them. Consent has to return the browser somewhere it can actually
+        reach: served from public_url, the Vite dev server, or the LAN address
+        are all normal, and frontend_origin alone is only right for the second."""
+        allowed = [o for o in (config.frontend_origin, config.public_url, config.lan_origin) if o]
+        candidate = request.headers.get("origin") or ""
+        if not candidate:
+            referer = request.headers.get("referer") or ""
+            if referer:
+                parts = urlsplit(referer)
+                candidate = f"{parts.scheme}://{parts.netloc}" if parts.scheme else ""
+        return candidate if candidate in allowed else ""
+
     @app.get("/auth/{provider}/start")
     async def start_oauth(provider: str, request: Request):
-        return {"url": rt().oauth.start(provider, user(request, True)["id"])}
+        uid = user(request, True)["id"]
+        return {"url": rt().oauth.start(provider, uid, origin_of(request))}
 
     @app.get("/auth/{provider}/callback")
     async def oauth_callback(provider: str, request: Request, state: str, code: str = "", error: str = ""):
         uid = user(request, True)["id"]
         if error or not code:
             raise ValueError("Connection was not approved; return to BioTwin and reconnect")
-        await rt().oauth.callback(provider, uid, state, code)
+        return_to = await rt().oauth.callback(provider, uid, state, code)
         if provider in rt().adapters:
             rt().store.enqueue("sync", {"user_id": uid, "provider": provider})
             rt().wakeup.set()
@@ -632,7 +648,7 @@ def create_app(config=None):
         # ("Pacific Standard Time"), not IANA -- saving that into
         # profile.timezone would break every ZoneInfo(...) call downstream
         # instead of just leaving the existing/default zone in place.
-        return RedirectResponse(config.frontend_origin + "/?connected=" + provider)
+        return RedirectResponse((return_to or config.frontend_origin) + "/?connected=" + provider)
 
     @app.delete("/auth/{provider}")
     async def disconnect(provider: str, request: Request):
