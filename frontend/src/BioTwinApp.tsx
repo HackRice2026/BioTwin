@@ -470,10 +470,6 @@ export default function BioTwinApp() {
                 <br />
                 Ask your twin what's on your mind.
               </p>
-              <span className="hero-state">
-                <span className="status-dot" />
-                {phase}
-              </span>
               <div className="hero-prompts">
                 {["How did I sleep?", "When should I work out?"].map((q) => (
                   <button
@@ -561,17 +557,6 @@ export default function BioTwinApp() {
                   )}
                 </button>
               </form>
-              <span className="composer-hint">
-                {listening
-                  ? "Listening · tap to finish"
-                  : transcribing
-                    ? "Turning your voice into words…"
-                    : "Made personal by your data"}
-                <button onClick={() => setHistoryOpen(true)}>
-                  <History size={13} />
-                  History
-                </button>
-              </span>
             </div>
           </section>
         )}

@@ -153,8 +153,7 @@ button.primary:hover:not(:disabled) {
   gap: 8px;
   align-items: center;
 }
-.eyebrow i,
-.status-dot {
+.eyebrow i {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -554,14 +553,6 @@ button.primary:hover:not(:disabled) {
   font-size: 12px;
   line-height: 1.8;
 }
-.hero-state {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 16px;
-  font-size: 10px;
-  color: #9cc4ab;
-}
 .hero-prompts {
   display: flex;
   gap: 7px;
@@ -783,22 +774,6 @@ button.primary:hover:not(:disabled) {
   color: #1c3826;
   display: grid;
   place-items: center;
-}
-.composer-hint {
-  font-size: 9px;
-  color: #738e7d;
-  margin-top: 9px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 3px;
-}
-.composer-hint button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #90ac9b;
-  font-size: 9px;
 }
 .avatar-card {
   position: relative;
@@ -1564,8 +1539,7 @@ button.primary:hover:not(:disabled) {
   content: " ";
 }
 .focused .hero-copy p,
-.focused .hero-prompts,
-.focused .hero-state {
+.focused .hero-prompts {
   display: none;
 }
 .focused .hero-avatar {
@@ -1606,9 +1580,6 @@ button.primary:hover:not(:disabled) {
 .focused .hero-composer {
   align-self: end;
   padding: 0 20px 12px;
-}
-.focused .composer-hint {
-  display: none;
 }
 .focused .avatar-top {
   top: 15px;
@@ -2244,8 +2215,7 @@ button.primary:hover:not(:disabled) {
     margin-top: 14px;
   }
   .hero-copy p,
-  .hero-prompts,
-  .hero-state {
+  .hero-prompts {
     display: none;
   }
   .hero-avatar {
@@ -2302,13 +2272,6 @@ button.primary:hover:not(:disabled) {
     height: 31px;
     width: 31px;
     border-radius: 9px;
-  }
-  .composer-hint {
-    font-size: 8px;
-    margin-top: 8px;
-  }
-  .composer-hint button {
-    font-size: 8px;
   }
   .avatar-top {
     right: 14px;
