@@ -892,12 +892,19 @@ export default function BioTwinApp() {
                   <TrajectoryChart
                     measured={data.trajectory.measured}
                     points={data.trajectory.points}
+                    referenceLabel={
+                      data.trajectory.basis === "replay" ? "last sync" : "now"
+                    }
                   />
                 </div>
                 <div className="signal-stats">
                   {data.trajectory.points.map((p) => (
                     <div key={p.horizon_minutes}>
-                      <small>In {p.horizon_minutes / 60}h</small>
+                      <small>
+                        {data.trajectory?.available && data.trajectory.basis === "replay"
+                          ? `${p.horizon_minutes / 60}h after sync`
+                          : `In ${p.horizon_minutes / 60}h`}
+                      </small>
                       <b>{value(p.value)}</b>
                       <small>
                         &plusmn; {value(p.validation_mae, 1)} ·{" "}
@@ -917,6 +924,10 @@ export default function BioTwinApp() {
                     ? "Solid is measured, dashed is predicted. The ridge model fitted in MATLAB wins at one hour: 1.9 against 2.4 for the best simple rule. Past that your own hour-of-day rhythm predicts better than anything fitted here, so the later points come from it and the band widens to match."
                     : data.trajectory.reason}{" "}
                   Predicts Garmin&rsquo;s Body Battery, not clinically validated.
+                </small>
+                <small className="setup-note">
+                  Model: {data.trajectory.model}. Anchor:{" "}
+                  {new Date(data.trajectory.anchor_time).toLocaleString()}.
                 </small>
                 {data.trajectory.imputed_inputs.length > 0 && (
                   <small className="setup-note">

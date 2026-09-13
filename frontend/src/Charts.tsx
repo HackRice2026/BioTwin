@@ -19,7 +19,7 @@ import type {
   SimulationOverlay,
   DayOutlook,
 } from "./contracts";
-import type { MetricPoint, SleepPoint } from "./api";
+import { humanize, type MetricPoint, type SleepPoint } from "./api";
 
 const grid = "#ffffff0b";
 const tooltip = {
@@ -162,6 +162,8 @@ export function SignalChart({
 }) {
   if (!data.length) return <EmptyChart />;
   const rows = data.map((p) => ({ ...p, time: new Date(p.time).getTime() }));
+  const rangeEnd = Date.now();
+  const rangeStart = rangeEnd - days * 24 * 60 * 60 * 1000;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <AreaChart
@@ -172,7 +174,7 @@ export function SignalChart({
         <XAxis
           dataKey="time"
           type="number"
-          domain={["dataMin", "dataMax"]}
+          domain={[rangeStart, rangeEnd]}
           tick={tick}
           tickFormatter={days === 1 ? clock : date}
           tickLine={false}
@@ -386,6 +388,7 @@ export function ReadinessChart({
 export function TrajectoryChart({
   measured,
   points,
+  referenceLabel = "now",
 }: {
   measured: { minutes_ago: number; value: number }[];
   points: {
@@ -395,6 +398,7 @@ export function TrajectoryChart({
     method: string;
     beats_baseline: boolean;
   }[];
+  referenceLabel?: string;
 }) {
   if (!measured.length && !points.length)
     return <EmptyChart message="Body Battery readings appear once your watch syncs." />;
@@ -428,7 +432,7 @@ export function TrajectoryChart({
           ticks={[Math.floor(first), -6, -3, 0, 1, 3, 6].filter(
             (h, i, a) => h >= Math.floor(first) && a.indexOf(h) === i,
           )}
-          tickFormatter={(h: number) => (h === 0 ? "now" : h < 0 ? `${h}h` : `+${h}h`)}
+          tickFormatter={(h: number) => (h === 0 ? referenceLabel : h < 0 ? `${h}h` : `+${h}h`)}
           tick={tick}
           axisLine={false}
           tickLine={false}
@@ -438,7 +442,7 @@ export function TrajectoryChart({
           contentStyle={tooltip}
           labelFormatter={(h) =>
             Number(h) === 0
-              ? "Now"
+              ? humanize(referenceLabel)
               : Number(h) < 0
                 ? `${Math.abs(Number(h)).toFixed(1)}h ago`
                 : `In ${h}h`

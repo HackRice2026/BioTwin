@@ -17,6 +17,7 @@ from shared.schemas import Proposal, BusyInterval
 from core.calendar import CalendarService
 from pathlib import Path
 from ingestion.adapters.garmin import parse_fit
+from scripts.import_real import wellness_detail_frames
 
 
 def test_real_fit_decoder_and_crc_validation():
@@ -30,6 +31,38 @@ def test_real_fit_decoder_and_crc_validation():
     corrupted[-5] ^= 1
     with pytest.raises(Exception):
         parse_fit(bytes(corrupted), "u")
+
+
+def test_real_garmin_daily_details_are_preserved_without_inventing_hrv(tmp_path):
+    payload = [{
+        "date": "2026-09-12",
+        "data": {
+            "totalKilocalories": 2345,
+            "totalDistanceMeters": 8123,
+            "maxHeartRate": 174,
+            "minHeartRate": 48,
+            "bodyBatteryAtWakeTime": 87,
+            "highStressDuration": 1800,
+            "mediumStressDuration": 3600,
+            "lowStressDuration": 7200,
+            "moderateIntensityMinutes": 0,
+            "vigorousIntensityMinutes": 22,
+        },
+    }]
+    (tmp_path / "stats_and_body.json").write_text(json.dumps(payload))
+
+    frames = wellness_detail_frames(str(tmp_path), "aaditya")
+
+    assert len(frames) == 1
+    frame = frames[0]
+    assert frame.total_calories == 2345
+    assert frame.distance_meters == 8123
+    assert (frame.min_hr_bpm, frame.max_hr_bpm) == (48, 174)
+    assert frame.body_battery_at_wake == 87
+    assert (frame.stress_high_min, frame.stress_medium_min, frame.stress_low_min) == (30, 60, 120)
+    assert frame.moderate_intensity_min == 0
+    assert frame.vigorous_intensity_min == 22
+    assert frame.hrv_rmssd_ms is None
 
 
 def test_google_parses_documented_rmssd_not_sdnn():

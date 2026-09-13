@@ -128,6 +128,55 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Demo data and Battery Broadcast completed for the signed-in
+  account. The complete deduplicated Garmin export was reconciled into
+  `garmin_fit_replay` measurements without committing personal health data.
+  Daily details now preserve total calories, distance, min/max HR, Body Battery
+  at wake, stress-zone minutes and intensity minutes; legitimate zero-minute
+  days remain zero. The Signals UI shows Garmin provenance and breakdowns for
+  calories, sleep, steps, stress and Body Battery. RMSSD HRV is absent from the
+  source export and remains explicitly absent. A signed-in Chrome check passed
+  all 13 available signal series with zero page errors.
+  Battery Broadcast now uses the exported MATLAB ridge coefficients whenever a
+  current reading is fresh; when stale, it runs the same model as a historical
+  replay anchored to the last real watch sample and labels the anchor instead
+  of claiming a forecast from now. Verified replay: ridge/8 inputs/23 training
+  days, anchored to the last real watch sample.
+  Day/Week/28-day charts now update each signal as its request completes and
+  use the selected duration as the x-axis domain instead of auto-zooming every
+  range to look alike. Signed-in browser verification observed distinct real
+  row counts for 1/7/28 days, correct selected states and zero page errors.
+  Full isolated backend suite: 103 passed, 3 skipped;
+  frontend: 19 passed and production build passed (with existing Node/chunk
+  warnings). The localhost:8000 demo server was restarted with this build.
+  True physical-watch live data remains unverified/absent: the account still
+  has zero CIQ/BLE/Influx live rows, and port 8765 is occupied by unrelated
+  local processes, so do not describe the demo as live-watch streaming.
+
+- 2026-09-13 — Read-only watch/data audit of the running localhost instance:
+  the personal account's stored measurements were entirely
+  `garmin_fit_replay`; it had a valid watch pairing document but no
+  `watch_sync` document and zero CIQ/BLE/Influx/Garmin-OAuth live frames. The
+  compiled Connect IQ app pointed at an expired temporary Cloudflare URL, the
+  local Influx/Docker stack was down, and port 8765 was occupied by unrelated
+  HTTP/API processes rather than `ble_hr_live.py`, so no physical-watch live
+  path reached BioTwin. The anonymous demo contained tens of thousands of
+  timestamp/value matches with the personal Garmin replay history, so the
+  data was account-scoped in storage but also copied into the login-free demo.
+  A separate `scripts.import_real` process was still importing the personal
+  history during the audit. The main Signals UI charts 14 selected fields;
+  Connect IQ total calories, acceleration and live `floors_climbed` appear
+  only in its Connections status card, while several stored/raw export fields
+  are not presented. The current `.env` also had three malformed non-comment
+  lines and was edited after the running API started, so repair and restart
+  before trusting its next-start configuration. Isolated verification passed:
+  102 backend tests, 3 skipped, frontend tests and production build. The
+  browser/layout/signal-detail pass reached the updated Daily plan, where its
+  older mock expected a removed proposal button and timed out. Override
+  `DATABASE_URL` with a temporary local database for tests: one API test
+  instantiates plain `Settings()` and otherwise reaches the live database; a
+  connection failure can also expand the credential-bearing URL in a traceback.
+
 - 2026-09-12 — Per Shivendra's follow-up, Daily plan now displays exactly one
   selected calendar day. The frontend requests an end-exclusive one-day window,
   previous/next move one day, and only tasks due on that date appear. The

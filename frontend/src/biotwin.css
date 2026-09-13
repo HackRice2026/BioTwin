@@ -1117,6 +1117,11 @@ button.primary:hover:not(:disabled) {
 .disclosure p {
   font-size: 11px;
 }
+.disclosure .signal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+  gap: 18px;
+}
 .definition-list > div {
   display: flex;
   justify-content: space-between;

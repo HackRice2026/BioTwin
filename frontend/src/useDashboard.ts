@@ -99,40 +99,59 @@ export function useDashboard() {
     let stopped = false;
     const controller = new AbortController();
     const load = async () => {
-      const requests = [
-        ...metricNames.map((m) => `/api/metrics?metric=${m}&days=${days}`),
+      void api<Forecast>("/api/forecast", { signal: controller.signal })
+        .then((result) => {
+          if (!stopped) setForecast(result);
+        })
+        .catch(() => {
+          if (!stopped) notify("Battery forecast could not refresh.");
+        });
+      void api<Trajectory>("/api/forecast/trajectory", { signal: controller.signal })
+        .then((result) => {
+          if (!stopped) setTrajectory(result);
+        })
+        .catch(() => {
+          if (!stopped) notify("Battery Broadcast could not refresh.");
+        });
+      const metricRequests = metricNames.map(async (metric) => {
+        const result = await api<{ series: MetricPoint[] }>(
+          `/api/metrics?metric=${metric}&days=${days}`,
+          { signal: controller.signal },
+        );
+        if (!stopped)
+          setMetrics((current) => ({ ...current, [metric]: result.series }));
+      });
+      const sleepRequest = api<{ series: SleepPoint[] }>(
         `/api/metrics?metric=sleep&days=${days}`,
+        { signal: controller.signal },
+      ).then((result) => {
+        if (!stopped) setSleep(result.series);
+      });
+      const requests = [
         "/api/readiness/history",
         "/api/predictions",
         "/api/plan/today",
         "/api/outlook",
-        "/api/forecast",
-        "/api/forecast/trajectory",
       ];
-      const results = await Promise.allSettled(
-        requests.map((path) =>
+      const [metricResults, sleepResult, results] = await Promise.all([
+        Promise.allSettled(metricRequests),
+        Promise.allSettled([sleepRequest]).then(([result]) => result),
+        Promise.allSettled(requests.map((path) =>
           api<unknown>(path, { signal: controller.signal }),
-        ),
-      );
+        )),
+      ]);
       if (stopped) return;
-      const next = emptyMetrics();
-      metricNames.forEach((m, i) => {
-        const r = results[i];
-        if (r.status === "fulfilled")
-          next[m] = (r.value as { series: MetricPoint[] }).series;
-      });
-      setMetrics(next);
-      const [s, h, p, pl, out, fc, tj] = results.slice(metricNames.length);
-      if (s.status === "fulfilled")
-        setSleep((s.value as { series: SleepPoint[] }).series);
+      const [h, p, pl, out] = results;
       if (h.status === "fulfilled") setHistory(h.value as Readiness[]);
       if (p.status === "fulfilled")
         setPredictions(p.value as RecoveryPrediction[]);
       if (pl.status === "fulfilled") setPlan(pl.value as DailyPlan);
       if (out.status === "fulfilled") setOutlook(out.value as DayOutlook);
-      if (fc.status === "fulfilled") setForecast(fc.value as Forecast);
-      if (tj.status === "fulfilled") setTrajectory(tj.value as Trajectory);
-      if (results.some((r) => r.status === "rejected"))
+      if (
+        metricResults.some((result) => result.status === "rejected") ||
+        sleepResult.status === "rejected" ||
+        results.some((result) => result.status === "rejected")
+      )
         notify(
           "Some measurements could not refresh. Please try again shortly.",
         );
