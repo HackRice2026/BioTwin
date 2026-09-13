@@ -43,7 +43,9 @@ await page
   .getByRole("textbox", { name: "Ask your twin" })
   .fill("Why am I tired today?");
 await page.getByRole("button", { name: "Send question", exact: true }).click();
-await page.getByRole("button", { name: "Listen with ElevenLabs" }).waitFor();
+// dev's voice refactor speaks the answer on arrival instead of offering a
+// "Listen with ElevenLabs" button, so wait for the answer itself.
+await page.locator(".chat-answer, .chat-log .answer, .chat-twin").first().waitFor();
 await page.screenshot({ path: "test-results/chat.png" });
 await page.getByRole("button", { name: "Close conversation" }).click();
 await page.getByRole("button", { name: "Overview", exact: true }).click();
