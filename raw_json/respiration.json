@@ -136178,9 +136178,9 @@
    "userProfilePK": 139042506,
    "calendarDate": "2026-09-12",
    "startTimestampGMT": "2026-09-12T05:00:00.0",
-   "endTimestampGMT": "2026-09-13T03:47:00.0",
+   "endTimestampGMT": "2026-09-13T04:16:00.0",
    "startTimestampLocal": "2026-09-12T00:00:00.0",
-   "endTimestampLocal": "2026-09-12T22:47:00.0",
+   "endTimestampLocal": "2026-09-12T23:16:00.0",
    "sleepStartTimestampGMT": "2026-09-12T07:52:00.0",
    "sleepEndTimestampGMT": "2026-09-12T12:27:00.0",
    "sleepStartTimestampLocal": "2026-09-12T02:52:00.0",
@@ -138939,7 +138939,63 @@
     ],
     [
      1789271280000,
+     13.0
+    ],
+    [
+     1789271400000,
+     13.0
+    ],
+    [
+     1789271520000,
      14.0
+    ],
+    [
+     1789271640000,
+     13.0
+    ],
+    [
+     1789271760000,
+     13.0
+    ],
+    [
+     1789271880000,
+     13.0
+    ],
+    [
+     1789272000000,
+     12.0
+    ],
+    [
+     1789272120000,
+     -2.0
+    ],
+    [
+     1789272240000,
+     -2.0
+    ],
+    [
+     1789272360000,
+     -2.0
+    ],
+    [
+     1789272480000,
+     -2.0
+    ],
+    [
+     1789272600000,
+     -2.0
+    ],
+    [
+     1789272720000,
+     -2.0
+    ],
+    [
+     1789272840000,
+     -2.0
+    ],
+    [
+     1789272960000,
+     -2.0
     ]
    ],
    "respirationAveragesValueDescriptorDTOList": [
@@ -139094,10 +139150,367 @@
      11.0
     ],
     [
-     1789271220000,
-     12.52,
+     1789272000000,
+     12.62,
      14.0,
      10.0
+    ],
+    [
+     1789272960000,
+     -2.0,
+     null,
+     null
+    ]
+   ],
+   "respirationVersion": 100
+  }
+ },
+ {
+  "date": "2026-09-13",
+  "data": {
+   "userProfilePK": 139042506,
+   "calendarDate": "2026-09-13",
+   "startTimestampGMT": "2026-09-13T05:00:00.0",
+   "endTimestampGMT": "2026-09-13T09:17:00.0",
+   "startTimestampLocal": "2026-09-13T00:00:00.0",
+   "endTimestampLocal": "2026-09-13T04:17:00.0",
+   "sleepStartTimestampGMT": null,
+   "sleepEndTimestampGMT": null,
+   "sleepStartTimestampLocal": null,
+   "sleepEndTimestampLocal": null,
+   "tomorrowSleepStartTimestampGMT": null,
+   "tomorrowSleepEndTimestampGMT": null,
+   "tomorrowSleepStartTimestampLocal": null,
+   "tomorrowSleepEndTimestampLocal": null,
+   "lowestRespirationValue": 10.0,
+   "highestRespirationValue": 15.0,
+   "avgWakingRespirationValue": 12.0,
+   "avgSleepRespirationValue": null,
+   "avgTomorrowSleepRespirationValue": null,
+   "respirationValueDescriptorsDTOList": [
+    {
+     "index": 0,
+     "key": "timestamp"
+    },
+    {
+     "index": 1,
+     "key": "respiration"
+    }
+   ],
+   "respirationValuesArray": [
+    [
+     1789278480000,
+     14.0
+    ],
+    [
+     1789278600000,
+     12.0
+    ],
+    [
+     1789278720000,
+     12.0
+    ],
+    [
+     1789278840000,
+     13.0
+    ],
+    [
+     1789278960000,
+     14.0
+    ],
+    [
+     1789279080000,
+     14.0
+    ],
+    [
+     1789279200000,
+     14.0
+    ],
+    [
+     1789279320000,
+     14.0
+    ],
+    [
+     1789279440000,
+     14.0
+    ],
+    [
+     1789284360000,
+     -2.0
+    ],
+    [
+     1789284480000,
+     15.0
+    ],
+    [
+     1789284600000,
+     13.0
+    ],
+    [
+     1789284720000,
+     12.0
+    ],
+    [
+     1789284840000,
+     11.0
+    ],
+    [
+     1789284960000,
+     11.0
+    ],
+    [
+     1789285080000,
+     11.0
+    ],
+    [
+     1789285200000,
+     10.0
+    ],
+    [
+     1789285320000,
+     11.0
+    ],
+    [
+     1789285440000,
+     11.0
+    ],
+    [
+     1789285560000,
+     10.0
+    ],
+    [
+     1789285680000,
+     12.0
+    ],
+    [
+     1789285800000,
+     11.0
+    ],
+    [
+     1789285920000,
+     11.0
+    ],
+    [
+     1789286040000,
+     12.0
+    ],
+    [
+     1789286160000,
+     13.0
+    ],
+    [
+     1789286280000,
+     14.0
+    ],
+    [
+     1789286400000,
+     14.0
+    ],
+    [
+     1789286520000,
+     13.0
+    ],
+    [
+     1789286640000,
+     10.0
+    ],
+    [
+     1789286760000,
+     10.0
+    ],
+    [
+     1789286880000,
+     11.0
+    ],
+    [
+     1789287000000,
+     13.0
+    ],
+    [
+     1789287120000,
+     14.0
+    ],
+    [
+     1789287240000,
+     15.0
+    ],
+    [
+     1789287360000,
+     14.0
+    ],
+    [
+     1789287480000,
+     13.0
+    ],
+    [
+     1789287600000,
+     13.0
+    ],
+    [
+     1789287720000,
+     13.0
+    ],
+    [
+     1789287840000,
+     13.0
+    ],
+    [
+     1789287960000,
+     13.0
+    ],
+    [
+     1789288080000,
+     14.0
+    ],
+    [
+     1789288200000,
+     14.0
+    ],
+    [
+     1789288320000,
+     14.0
+    ],
+    [
+     1789288440000,
+     14.0
+    ],
+    [
+     1789288560000,
+     14.0
+    ],
+    [
+     1789288680000,
+     13.0
+    ],
+    [
+     1789288800000,
+     14.0
+    ],
+    [
+     1789288920000,
+     14.0
+    ],
+    [
+     1789289040000,
+     13.0
+    ],
+    [
+     1789289160000,
+     13.0
+    ],
+    [
+     1789289280000,
+     13.0
+    ],
+    [
+     1789289400000,
+     13.0
+    ],
+    [
+     1789289520000,
+     13.0
+    ],
+    [
+     1789289640000,
+     12.0
+    ],
+    [
+     1789289760000,
+     10.0
+    ],
+    [
+     1789289880000,
+     10.0
+    ],
+    [
+     1789290000000,
+     10.0
+    ],
+    [
+     1789290120000,
+     11.0
+    ],
+    [
+     1789290240000,
+     11.0
+    ],
+    [
+     1789290360000,
+     11.0
+    ],
+    [
+     1789290480000,
+     10.0
+    ],
+    [
+     1789290600000,
+     10.0
+    ],
+    [
+     1789290720000,
+     10.0
+    ],
+    [
+     1789290840000,
+     10.0
+    ],
+    [
+     1789290960000,
+     11.0
+    ],
+    [
+     1789291080000,
+     13.0
+    ]
+   ],
+   "respirationAveragesValueDescriptorDTOList": [
+    {
+     "respirationAveragesValueDescriptorIndex": 0,
+     "respirationAveragesValueDescriptionKey": "timestamp"
+    },
+    {
+     "respirationAveragesValueDescriptorIndex": 1,
+     "respirationAveragesValueDescriptionKey": "averageRespirationValue"
+    },
+    {
+     "respirationAveragesValueDescriptorIndex": 2,
+     "respirationAveragesValueDescriptionKey": "highRespirationValue"
+    },
+    {
+     "respirationAveragesValueDescriptorIndex": 3,
+     "respirationAveragesValueDescriptionKey": "lowRespirationValue"
+    }
+   ],
+   "respirationAveragesValuesArray": [
+    [
+     1789279200000,
+     -2.0,
+     null,
+     null
+    ],
+    [
+     1789279380000,
+     -2.0,
+     null,
+     null
+    ],
+    [
+     1789286400000,
+     -1.0,
+     null,
+     null
+    ],
+    [
+     1789290000000,
+     12.71,
+     15.0,
+     10.0
+    ],
+    [
+     1789291020000,
+     -2.0,
+     null,
+     null
     ]
    ],
    "respirationVersion": 100

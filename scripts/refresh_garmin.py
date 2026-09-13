@@ -26,7 +26,7 @@ from garminconnect import Garmin, GarminConnectTooManyRequestsError
 from core.config import Settings
 from core.runtime import Runtime
 from ingestion.normalizer import normalize
-from scripts.import_real import wellness_frames
+from scripts.import_real import wellness_detail_frames, wellness_frames
 
 RAW = "raw_json"
 
@@ -128,17 +128,36 @@ async def main():
         if not user:
             raise SystemExit(f"no account for {a.email}")
         uid = user["id"]
-        frames = wellness_frames(RAW, uid)
+        # The raw directory contains the complete export. A refresh must only
+        # replay the dates requested above; walking the full archive makes a
+        # three-day refresh progressively slower as the account history grows.
+        start = dt.datetime.combine(today - dt.timedelta(days=a.days - 1), dt.time.min,
+                                    tzinfo=dt.timezone.utc)
+        end = dt.datetime.combine(today + dt.timedelta(days=1), dt.time.min,
+                                  tzinfo=dt.timezone.utc)
+        frames = [
+            frame
+            for frame in wellness_frames(RAW, uid) + wellness_detail_frames(RAW, uid)
+            if start <= frame.event_time < end
+        ]
         if new_fit:
             from ingestion.adapters.garmin import parse_fit
             for f in new_fit:
                 frames += parse_fit(open(f, "rb").read(), uid)
         valid = []
+        future_skipped = 0
+        cutoff = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
         for f in frames:
             try:
-                valid.append(normalize(f))
+                normalized = normalize(f)
             except ValueError:
-                pass
+                continue
+            if normalized.event_time > cutoff:
+                future_skipped += 1
+                continue
+            valid.append(normalized)
+        if future_skipped:
+            print(f"  skipped {future_skipped} not-yet-valid daily summaries")
         added = 0
         for f in sorted(valid, key=lambda f: f.event_time):
             added += bool(await rt.ingest(f, broadcast=False))
