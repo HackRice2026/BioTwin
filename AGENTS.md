@@ -128,6 +128,14 @@ This file is a living document. The agent MUST:
 
 > Newest entries first. Prune entries older than ~30 days or once superseded.
 
+- 2026-09-13 — Merged `simulate-my-day` into `dev`. Its `/api/simulate/day`
+  endpoint applies deterministic planning overlays to the existing MATLAB
+  Body Battery trajectory for current-plan, train-now, best-window, extra-step
+  and recovery-break scenarios. The frontend loads it alongside the existing
+  training-window decision, so both cards and the coach retain their separate
+  sources of truth. Scenario effects are planning estimates, not measured or
+  causal physiology; the UI and `docs/SIMULATE_MY_DAY.md` say so.
+
 - 2026-09-13 — Best Training Window leads the Overview: `modeling/training_window.py`
   decides one window from readiness + `forecast.trajectory` + calendar busy time +
   profile duration, served at `/api/training-window` and folded into the coach's

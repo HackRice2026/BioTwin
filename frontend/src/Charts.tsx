@@ -19,7 +19,7 @@ import type {
   SimulationOverlay,
   DayOutlook,
 } from "./contracts";
-import type { MetricPoint, SleepPoint } from "./api";
+import type { DayScenario, MetricPoint, SleepPoint } from "./api";
 
 const grid = "#ffffff0b";
 const tooltip = {
@@ -521,6 +521,104 @@ export function TrajectoryChart({
           dot={ForecastDot}
           connectNulls
           isAnimationActive={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function SimulateDayChart({
+  baseline,
+  scenario,
+}: {
+  baseline: DayScenario;
+  scenario: DayScenario;
+}) {
+  const rows = baseline.points.map((base) => {
+    const alternate = scenario.points.find(
+      (p) => p.horizon_minutes === base.horizon_minutes,
+    );
+    return {
+      hours: base.horizon_minutes / 60,
+      baseline: base.value,
+      scenario: alternate?.value,
+      low:
+        alternate == null
+          ? undefined
+          : Math.max(0, alternate.value - alternate.validation_mae),
+      high:
+        alternate == null
+          ? undefined
+          : Math.min(100, alternate.value + alternate.validation_mae),
+    };
+  });
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart
+        data={rows}
+        margin={{ top: 14, right: 8, left: -22, bottom: 0 }}
+      >
+        <CartesianGrid vertical={false} stroke={grid} />
+        <XAxis
+          dataKey="hours"
+          type="number"
+          domain={[0, 6]}
+          ticks={[0, 1, 3, 6]}
+          tickFormatter={(h: number) => (h === 0 ? "now" : `+${h}h`)}
+          tick={tick}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={tick}
+          domain={[0, 100]}
+          axisLine={false}
+          tickLine={false}
+        />
+        <Tooltip
+          contentStyle={tooltip}
+          labelFormatter={(h) => (Number(h) === 0 ? "Now" : `In ${h}h`)}
+          formatter={(v, name) => [
+            `${v}%`,
+            name === "baseline"
+              ? "Current plan"
+              : name === "scenario"
+                ? scenario.label
+                : name === "high"
+                  ? "Upper"
+                  : "Lower",
+          ]}
+        />
+        <Area
+          dataKey="high"
+          stroke="none"
+          fill="#8fc4ff"
+          fillOpacity={0.11}
+          isAnimationActive={false}
+        />
+        <Area
+          dataKey="low"
+          stroke="none"
+          fill="#17221e"
+          fillOpacity={1}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="baseline"
+          name="Current plan"
+          stroke="#8aa095"
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          dot={{ r: 3, fill: "#8aa095" }}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="scenario"
+          name={scenario.label}
+          stroke="#8fc4ff"
+          strokeWidth={2.8}
+          dot={{ r: 4, fill: "#8fc4ff", stroke: "#0c1512", strokeWidth: 2 }}
+          isAnimationActive
         />
       </ComposedChart>
     </ResponsiveContainer>

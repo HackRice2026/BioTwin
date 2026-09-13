@@ -20,8 +20,8 @@ import {
   X,
 } from "lucide-react";
 import Connections, { AuthModal } from "./Connections";
-import { api, post, value } from "./api";
-import { TrajectoryChart } from "./Charts";
+import { api, post, value, type DayScenario } from "./api";
+import { SimulateDayChart, TrajectoryChart } from "./Charts";
 import { useDashboard } from "./useDashboard";
 import { CalendarAgenda, CalendarEditor } from "./CalendarAgenda";
 import type { CalendarDraft } from "./useCalendar";
@@ -123,6 +123,9 @@ export default function BioTwinApp() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [compare, setCompare] = useState(false);
+  const [scenarioId, setScenarioId] =
+    useState<DayScenario["id"]>("extra_steps");
+  const [daySteps, setDaySteps] = useState(5000);
   const [takeover, setTakeover] = useState<{
     topic: Topic;
     question: string;
@@ -205,6 +208,10 @@ export default function BioTwinApp() {
     setCompare(false);
     autoTopic.current = false;
   }, [data.accountKey]);
+  useEffect(() => {
+    if (data.daySimulation?.available)
+      setDaySteps(data.daySimulation.controls.steps);
+  }, [data.daySimulation]);
   useEffect(() => {
     const editable = (target: EventTarget | null) => {
       const element = target as HTMLElement | null;
@@ -355,6 +362,13 @@ export default function BioTwinApp() {
     navigate("Overview");
     requestAnimationFrame(() => input.current?.focus());
   };
+  const daySimulation = data.daySimulation?.available
+    ? data.daySimulation
+    : null;
+  const activeScenario =
+    daySimulation?.scenarios.find((s) => s.id === scenarioId) ??
+    daySimulation?.scenarios.find((s) => s.id === "extra_steps") ??
+    daySimulation?.baseline;
   const navButtons = navigation.map((item) => (
     <button
       key={item.name}
@@ -978,6 +992,82 @@ export default function BioTwinApp() {
                     unavailable, filled with its training average:{" "}
                     {data.trajectory.imputed_inputs.join(", ")}
                   </small>
+                )}
+                {daySimulation && activeScenario && (
+                  <div className="simulate-day">
+                    <div className="simulate-heading">
+                      <div>
+                        <span className="eyebrow">SIMULATE MY DAY</span>
+                        <h3>Move the day. Watch the future change.</h3>
+                      </div>
+                      <span className="pill blue">
+                        {daySimulation.basis === "model"
+                          ? "Model + rhythm"
+                          : "Rhythm estimate"}
+                      </span>
+                    </div>
+                    <div className="scenario-rail" aria-label="Choose a scenario">
+                      {daySimulation.scenarios
+                        .filter((s) => s.id !== "current_plan")
+                        .map((scenario) => (
+                          <button
+                            key={scenario.id}
+                            className={
+                              activeScenario.id === scenario.id ? "selected" : ""
+                            }
+                            onClick={() => setScenarioId(scenario.id)}
+                          >
+                            <b>{scenario.label}</b>
+                            <small>{scenario.summary}</small>
+                          </button>
+                        ))}
+                    </div>
+                    {activeScenario.id === "extra_steps" && (
+                      <label className="steps-control">
+                        <span>
+                          Additional activity <b>+{daySteps.toLocaleString()} steps</b>
+                        </span>
+                        <input
+                          type="range"
+                          min={daySimulation.controls.step_min}
+                          max={daySimulation.controls.step_max}
+                          step={500}
+                          value={daySteps}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setDaySteps(next);
+                            void data.simulateDay(next);
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div className="simulate-visual">
+                      <SimulateDayChart
+                        baseline={daySimulation.baseline}
+                        scenario={activeScenario}
+                      />
+                    </div>
+                    <div className="simulate-decisions">
+                      {[
+                        ["Best window", activeScenario.decision.best_window],
+                        ["Workout", activeScenario.decision.workout],
+                        [
+                          "Evening state",
+                          `${value(activeScenario.decision.evening_state, 1)}%`,
+                        ],
+                        ["Activity load", activeScenario.decision.activity_load],
+                      ].map(([label, metric]) => (
+                        <div key={label}>
+                          <small>{label}</small>
+                          <b>{metric}</b>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="coach-readout">{daySimulation.coach_summary}</p>
+                    <small className="setup-note">
+                      {daySimulation.assumptions.join(" ")}
+                    </small>
+                  </div>
                 )}
               </>
             ) : (

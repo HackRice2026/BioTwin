@@ -199,3 +199,45 @@ export type TrainingDecision =
         evening_at: string;
         scenarios: TrainingScenario[];
       });
+export type SimulatePoint = {
+  horizon_minutes: number;
+  value: number;
+  validation_mae: number;
+};
+export type DayScenario = {
+  id:
+    | "current_plan"
+    | "train_now"
+    | "train_best_window"
+    | "extra_steps"
+    | "recovery_break";
+  label: string;
+  summary: string;
+  points: SimulatePoint[];
+  decision: {
+    best_window: string;
+    workout: string;
+    evening_state: number;
+    activity_load: string;
+  };
+  confidence: "low" | "medium" | "high";
+};
+export type DaySimulation =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      generated_at: string;
+      basis: "model" | "rhythm";
+      current: number;
+      baseline: DayScenario;
+      scenarios: DayScenario[];
+      selected_scenario_id: DayScenario["id"];
+      controls: {
+        steps: number;
+        step_min: number;
+        step_max: number;
+        recovery_minutes: number;
+      };
+      coach_summary: string;
+      assumptions: string[];
+    };

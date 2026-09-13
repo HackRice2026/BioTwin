@@ -445,6 +445,30 @@ def create_app(config=None):
             u["profile"].get("timezone", "UTC"),
         )
 
+    @app.get("/api/simulate/day")
+    async def simulate_my_day(
+        request: Request,
+        steps: int = Query(default=5000, ge=0, le=10000),
+        recovery_minutes: int = Query(default=30, ge=10, le=60),
+    ):
+        """Deterministic what-if scenarios layered on the fitted trajectory.
+
+        The MATLAB forecast remains the baseline. These branches change only
+        the planning assumptions, so the UI can compare futures without asking a
+        language model to invent physiology.
+        """
+        u = user(request)
+        from modeling.day_simulation import simulate_day
+
+        return simulate_day(
+            rt().history(u["id"]),
+            utcnow(),
+            u["profile"].get("timezone", "UTC"),
+            await rt().get_plan(u),
+            steps,
+            recovery_minutes,
+        )
+
     @app.get("/api/baseline")
     async def get_baseline(request: Request):
         return (await state(request)).baseline_summary

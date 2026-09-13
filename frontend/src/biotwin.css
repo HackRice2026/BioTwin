@@ -3153,6 +3153,123 @@ button.primary:hover:not(:disabled) {
   height: 220px;
   margin: 4px 0 14px;
 }
+.simulate-day {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #ffffff12;
+}
+.simulate-heading,
+.steps-control > span,
+.simulate-decisions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.simulate-heading h3 {
+  font-size: 18px;
+  line-height: 1.2;
+  margin: 5px 0 0;
+}
+.pill.blue {
+  color: #a9cdf9;
+  border-color: #8fc4ff33;
+  background: #8fc4ff12;
+}
+.scenario-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin: 16px 0 14px;
+}
+.scenario-rail > button {
+  min-height: 82px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ffffff12;
+  background: #ffffff04;
+  text-align: left;
+  color: #9bad9f;
+}
+.scenario-rail > button.selected {
+  color: #d9e8ff;
+  border-color: #8fc4ff55;
+  background: linear-gradient(180deg, #8fc4ff18, #8fc4ff08);
+}
+.scenario-rail b,
+.simulate-decisions b,
+.steps-control b {
+  display: block;
+  color: #edf7f1;
+  font-size: 12px;
+  font-weight: 550;
+}
+.scenario-rail small {
+  display: block;
+  margin-top: 6px;
+  color: #789084;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.steps-control {
+  display: block;
+  margin: 2px 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.steps-control input {
+  width: 100%;
+  accent-color: #8fc4ff;
+  margin-top: 8px;
+}
+.simulate-visual {
+  height: 210px;
+  border-radius: 14px;
+  border: 1px solid #ffffff0f;
+  background:
+    radial-gradient(circle at 20% 0%, #8fc4ff12, transparent 34%),
+    #ffffff03;
+  padding: 8px 8px 4px;
+}
+.simulate-decisions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 13px 0;
+}
+.simulate-decisions > div {
+  padding: 12px;
+  border: 1px solid #ffffff0e;
+  border-radius: 10px;
+  background: #ffffff04;
+}
+.simulate-decisions small {
+  display: block;
+  margin-bottom: 5px;
+  color: #7f968a;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.coach-readout {
+  margin: 0 0 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #9adeaf0b;
+  border: 1px solid #9adeaf1f;
+  color: #cdded4;
+  font-size: 12px;
+  line-height: 1.55;
+}
+@media (max-width: 760px) {
+  .scenario-rail,
+  .simulate-decisions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .simulate-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 /* The forecast button sits inside .body-battery, whose 15px gap is tuned for
    the label-and-meter pair; bar-twin's 22px left padding would push the meter
    off-centre there, so only the divider and spacing are adjusted. */
